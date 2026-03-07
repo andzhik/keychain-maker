@@ -1,10 +1,26 @@
+import { ref } from 'vue'
+import { svgToShapes } from '../utils/svgToShapes'
 import type { ColorGroup } from '../types/keychain'
 
-// TODO: Step 2 — parse SVG string with SVGLoader, group paths by fill color
 export function useSvgParser() {
-  function parse(_svgString: string): ColorGroup[] {
-    return []
+  const colorGroups = ref<ColorGroup[]>([])
+  const error = ref<string | null>(null)
+
+  function parse(svgString: string) {
+    error.value = null
+    try {
+      const groups = svgToShapes(svgString)
+      if (groups.length === 0) {
+        error.value = 'No filled paths found'
+        colorGroups.value = []
+      } else {
+        colorGroups.value = groups
+      }
+    } catch {
+      error.value = 'Failed to parse SVG'
+      colorGroups.value = []
+    }
   }
 
-  return { parse }
+  return { colorGroups, error, parse }
 }
