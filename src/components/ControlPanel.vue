@@ -12,14 +12,6 @@ import ExportButton from './ExportButton.vue'
       <SvgUploader />
     </section>
 
-    <!-- 2D preview placeholder -->
-    <section>
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Preview</h2>
-      <div class="w-full aspect-square bg-white border border-gray-200 rounded flex items-center justify-center text-gray-400 text-sm">
-        No file loaded
-      </div>
-    </section>
-
     <!-- Color list placeholder -->
     <section>
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Colors</h2>

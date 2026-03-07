@@ -1,10 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import SvgUploader from './components/SvgUploader.vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
-
-const svgString = ref<string | null>(null)
 </script>
 
 <template>
@@ -18,9 +14,8 @@ const svgString = ref<string | null>(null)
     <div class="flex flex-1 overflow-hidden">
       <!-- Left sidebar: fixed 300px -->
       <aside class="w-[300px] shrink-0 flex flex-col bg-gray-50 border-r border-gray-200 overflow-y-auto">
-        <SvgUploader @svg-loaded="svgString = $event" />
-        <div class="border-t border-gray-200" />
         <ControlPanel />
+      </aside>
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
