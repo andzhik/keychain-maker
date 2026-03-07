@@ -1,6 +1,15 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
+
+const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
+
+const dimText = computed(() => {
+  const d = viewerRef.value?.dimensions
+  if (!d || (d.width === 0 && d.height === 0)) return '— × — × — mm'
+  return `${d.width.toFixed(1)} × ${d.height.toFixed(1)} × ${d.depth.toFixed(1)} mm`
+})
 </script>
 
 <template>
@@ -19,13 +28,13 @@ import ThreeViewer from './components/ThreeViewer.vue'
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
-        <ThreeViewer />
+        <ThreeViewer ref="viewerRef" />
       </main>
     </div>
 
     <!-- Footer: dimensions bar -->
     <footer class="px-4 py-2 bg-white border-t border-gray-200 text-xs text-gray-500 shrink-0">
-      Dimensions: — × — × — mm
+      Dimensions: {{ dimText }}
     </footer>
   </div>
 </template>

@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 export function useThreeScene() {
   let renderer: THREE.WebGLRenderer | null = null
   let scene: THREE.Scene | null = null
-  let camera: THREE.PerspectiveCamera | null = null
+  let camera: THREE.OrthographicCamera | null = null
   let controls: OrbitControls | null = null
   let animFrameId: number | null = null
   let resizeObserver: ResizeObserver | null = null
@@ -21,8 +21,15 @@ export function useThreeScene() {
 
     // Camera
     const { clientWidth: w, clientHeight: h } = container
-    camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000)
-    camera.position.set(0, 0, 100)
+    const frustumSize = 80
+    const aspect = w / h
+    camera = new THREE.OrthographicCamera(
+      -frustumSize * aspect / 2, frustumSize * aspect / 2,
+      frustumSize / 2, -frustumSize / 2,
+      0.1, 1000
+    )
+    camera.position.set(60, 60, 60)
+    camera.lookAt(0, 0, 0)
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -40,6 +47,7 @@ export function useThreeScene() {
 
     // OrbitControls
     controls = new OrbitControls(camera, renderer.domElement)
+    controls.target.set(0, 0, 0)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
 
@@ -52,7 +60,12 @@ export function useThreeScene() {
       if (!renderer || !camera) return
       const w = container.clientWidth
       const h = container.clientHeight
-      camera.aspect = w / h
+      const frustumSize = 80
+      const aspect = w / h
+      camera.left = -frustumSize * aspect / 2
+      camera.right = frustumSize * aspect / 2
+      camera.top = frustumSize / 2
+      camera.bottom = -frustumSize / 2
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
     })
@@ -83,11 +96,29 @@ export function useThreeScene() {
     resizeObserver = null
   }
 
+  function fitCamera(target: THREE.Object3D) {
+    if (!camera || !controls) return
+    const box = new THREE.Box3().setFromObject(target)
+    const sphere = new THREE.Sphere()
+    box.getBoundingSphere(sphere)
+    const radius = sphere.radius * 1.3
+    const aspect = (camera.right - camera.left) / (camera.top - camera.bottom)
+    camera.zoom = Math.min(
+      (camera.right - camera.left) / (2 * radius),
+      (camera.top - camera.bottom) / (2 * radius)
+    )
+    camera.updateProjectionMatrix()
+    const offset = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(radius * 2)
+    camera.position.copy(sphere.center).add(offset)
+    controls.target.copy(sphere.center)
+    controls.update()
+  }
+
   function getScene() { return scene }
   function getCamera() { return camera }
   function getRenderer() { return renderer }
 
-  return { init, dispose, getScene, getCamera, getRenderer }
+  return { init, dispose, getScene, getCamera, getRenderer, fitCamera }
 }
 
 function isWebGLAvailable(): boolean {
@@ -100,4 +131,8 @@ function isWebGLAvailable(): boolean {
   } catch {
     return false
   }
+}
+
+if (import.meta.hot) {
+  import.meta.hot.decline()
 }
