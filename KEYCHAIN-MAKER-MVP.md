@@ -56,8 +56,8 @@ keychain-maker/
 SVG file
   → SVGLoader.parse()
   → Group paths by fill color (normalize to #RRGGBB, skip fill="none")
-  → For each color group: ExtrudeGeometry
-  → Build rounded-rect base plate + keyring hole (Shape.holes)
+  → For each color group: subtract outer contours from base plate as holes, extrude flush inlays
+  → Build rounded-rect base plate with SVG cutouts + keyring hole (Shape.holes)
   → Render in Three.js scene
   → On export: merge geometry per color, write 3MF XML, ZIP with fflate, trigger download
 ```
@@ -78,7 +78,6 @@ export interface KeychainConfig {
   baseThickness: number;
   cornerRadius: number;
   padding: number;
-  extrusionHeight: number;
   keyringEnabled: boolean;
   keyringHoleDiameter: number;
   keyringRingDiameter: number;
@@ -95,7 +94,6 @@ export interface KeychainConfig {
 | Base thickness | Slider | 2 | 0.4–10 | mm |
 | Corner radius | Slider | 3 | 0–20 | mm |
 | Padding | Slider | 3 | 0–20 | mm |
-| Logo extrusion height | Slider | 1.5 | 0.2–5 | mm |
 | Keyring hole on/off | Toggle | On | — | — |
 | Keyring hole diameter | Slider | 4 | 2–10 | mm |
 | Keyring ring diameter | Slider | 8 | 4–15 | mm |
@@ -151,8 +149,9 @@ Left panel ~300px fixed. 3D viewport fills remaining space. Dark theme.
 - `PerspectiveCamera`, positioned to frame the model on load
 - `OrbitControls` (rotate, pan, zoom)
 - `DirectionalLight` + `AmbientLight`
-- Each color group → `MeshStandardMaterial` with the SVG fill color
-- Base plate → its own mesh with the user-chosen base color
+- Each color group → flush inlay mesh at z=0 with `MeshStandardMaterial` using the SVG fill color
+- SVG outer contours are added as holes to the base plate Shape before extrusion (cutouts)
+- Base plate → its own mesh with the user-chosen base color, with SVG cutouts + keyring hole
 - Keyring hole → `THREE.Path` hole added to base plate Shape before extrusion
 - Y-flip for SVG coordinates: `group.scale.y *= -1`
 - Center the keychain at the origin
@@ -260,6 +259,15 @@ shape.quadraticCurveTo(-w, h, -w, h - r);
 shape.lineTo(-w, -h + r);
 shape.quadraticCurveTo(-w, -h, -w + r, -h);
 
+// Add SVG outer contours as holes before extrusion
+// (so the base plate has cutouts where the flush inlays go)
+for (const group of colorGroups) {
+  for (const svgShape of group.shapes) {
+    const holePath = new THREE.Path(svgShape.getPoints());
+    shape.holes.push(holePath);
+  }
+}
+
 const geometry = new THREE.ExtrudeGeometry(shape, {
   depth: baseThickness,
   bevelEnabled: false,
@@ -278,20 +286,20 @@ baseShape.holes.push(holePath);
 
 The reinforcement ring extends the base plate around the hole position.
 
-### Logo extrusion
+### Logo flush inlays
 
 ```typescript
 const colorShapes = colorGroup.shapes;
 const meshes = colorShapes.map(shape => {
   const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: extrusionHeight,
+    depth: baseThickness,   // same depth as the base plate
     bevelEnabled: false,
   });
   return new THREE.Mesh(geo, material);
 });
 ```
 
-Position extruded logos on top of the base plate (translate Z by `baseThickness`).
+Position inlay meshes at z=0 (flush with the base plate — same height, filling the cutouts).
 
 ---
 
@@ -309,7 +317,7 @@ Position extruded logos on top of the base plate (translate Z by `baseThickness`
 1. **Project scaffold** — Vite + Vue + Tailwind + Three.js, empty shell with layout
 2. **SVG upload + parse** — drag-and-drop, SVGLoader, display 2D preview + color list
 3. **3D base plate** — rounded rectangle ExtrudeGeometry, render in ThreeViewer
-4. **Logo extrusion** — extrude each color group, position on top of base plate
+4. **Logo flush inlays** — cut SVG shapes from base plate, extrude flush inlay meshes per color group
 5. **Keyring hole** — add hole via Shape.holes, reinforcement ring geometry
 6. **Parameter controls** — wire up sliders to reactive state, debounced rebuild
 7. **3MF export** — threeMfWriter, download trigger

@@ -56,7 +56,6 @@ const emit = defineEmits<{
         <p>Base thickness · 2 mm</p>
         <p>Corner radius · 3 mm</p>
         <p>Padding · 3 mm</p>
-        <p>Logo extrusion · 1.5 mm</p>
         <p>Keyring hole · on · 4 mm / 8 mm</p>
         <p>Base color · #FFFFFF</p>
       </div>

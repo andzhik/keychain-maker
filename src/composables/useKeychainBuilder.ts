@@ -56,18 +56,36 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2
 
-    // Base plate (built centered at origin in XY, extruded along +Z)
-    const basePlate = buildBasePlate(config, width, height)
+    // Build hole paths from SVG shapes for base plate cutouts
+    const holePaths: THREE.Path[] = []
+    if (hasSvg) {
+      for (const group of colorGroups) {
+        for (const shape of group.shapes) {
+          const pts = shape.getPoints(64)
+          const hole = new THREE.Path()
+          for (let i = 0; i < pts.length; i++) {
+            const x = pts[i].x - svgCenter.x
+            const y = -(pts[i].y - svgCenter.y)
+            if (i === 0) hole.moveTo(x, y)
+            else hole.lineTo(x, y)
+          }
+          holePaths.push(hole)
+        }
+      }
+    }
+
+    // Base plate with SVG cutouts
+    const basePlate = buildBasePlate(config, width, height, holePaths)
     root.add(basePlate)
 
-    // Logo meshes
+    // Logo meshes (flush inlay — same z as base plate)
     if (hasSvg) {
       const logoMeshes = buildLogoMeshes(colorGroups, config)
       const logoGroup = new THREE.Group()
 
       // Center SVG on origin and flip Y (SVG Y is inverted vs Three.js)
       logoGroup.scale.y = -1
-      logoGroup.position.set(-svgCenter.x, svgCenter.y, config.baseThickness)
+      logoGroup.position.set(-svgCenter.x, svgCenter.y, 0)
 
       for (const mesh of logoMeshes) {
         logoGroup.add(mesh)
@@ -81,7 +99,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     dimensions.value = {
       width,
       height,
-      depth: config.baseThickness + (hasSvg ? config.extrusionHeight : 0),
+      depth: config.baseThickness,
     }
 
     return root

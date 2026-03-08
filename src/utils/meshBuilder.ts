@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
-export function buildBasePlate(config: KeychainConfig, width: number, height: number): THREE.Mesh {
+export function buildBasePlate(config: KeychainConfig, width: number, height: number, holes: THREE.Path[] = []): THREE.Mesh {
   const r = Math.min(config.cornerRadius, width / 2, height / 2)
   const w = width / 2
   const h = height / 2
@@ -17,6 +17,10 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   shape.lineTo(-w, -h + r)
   shape.quadraticCurveTo(-w, -h, -w + r, -h)
 
+  for (const hole of holes) {
+    shape.holes.push(hole)
+  }
+
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: config.baseThickness,
     bevelEnabled: false,
@@ -31,7 +35,7 @@ export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): T
   for (const group of groups) {
     if (group.shapes.length === 0) continue
     const geometry = new THREE.ExtrudeGeometry(group.shapes, {
-      depth: config.extrusionHeight,
+      depth: config.baseThickness,
       bevelEnabled: false,
     })
     const material = new THREE.MeshStandardMaterial({ color: group.color })

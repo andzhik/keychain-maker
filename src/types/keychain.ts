@@ -11,7 +11,6 @@ export interface KeychainConfig {
   baseThickness: number
   cornerRadius: number
   padding: number
-  extrusionHeight: number
   keyringEnabled: boolean
   keyringHoleDiameter: number
   keyringRingDiameter: number
@@ -22,7 +21,6 @@ export const DEFAULT_CONFIG: KeychainConfig = {
   baseThickness: 2,
   cornerRadius: 3,
   padding: 3,
-  extrusionHeight: 1.5,
   keyringEnabled: true,
   keyringHoleDiameter: 4,
   keyringRingDiameter: 8,
