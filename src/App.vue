@@ -5,6 +5,7 @@ import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
+const showLogo = ref(true)
 const { colorGroups, error, parse } = useSvgParser()
 
 const dimText = computed(() => {
@@ -28,13 +29,14 @@ const dimText = computed(() => {
         <ControlPanel
           :colorGroups="colorGroups"
           :error="error"
+          v-model:showLogo="showLogo"
           @svgLoaded="parse"
         />
       </aside>
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
-        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" />
+        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" />
       </main>
     </div>
 

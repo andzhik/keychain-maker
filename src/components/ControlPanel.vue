@@ -6,10 +6,12 @@ import type { ColorGroup } from '../types/keychain'
 defineProps<{
   colorGroups: ColorGroup[]
   error: string | null
+  showLogo: boolean
 }>()
 
 const emit = defineEmits<{
   svgLoaded: [svgText: string]
+  'update:showLogo': [value: boolean]
 }>()
 </script>
 
@@ -52,6 +54,15 @@ const emit = defineEmits<{
     <section class="flex-1">
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Parameters</h2>
       <div class="space-y-3 text-sm text-gray-400">
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            :checked="showLogo"
+            @change="emit('update:showLogo', ($event.target as HTMLInputElement).checked)"
+            class="accent-gray-700"
+          />
+          Show logo
+        </label>
         <!-- TODO: sliders -->
         <p>Base thickness · 2 mm</p>
         <p>Corner radius · 3 mm</p>

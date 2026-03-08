@@ -5,6 +5,7 @@ import { buildBasePlate, buildLogoMeshes } from '../utils/meshBuilder'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
+  let logoGroupRef: THREE.Group | null = null
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
 
   function disposeCurrent() {
@@ -91,6 +92,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
         logoGroup.add(mesh)
       }
       root.add(logoGroup)
+      logoGroupRef = logoGroup
     }
 
     scene.add(root)
@@ -109,5 +111,9 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     disposeCurrent()
   }
 
-  return { build, dispose, dimensions }
+  function setLogoVisible(visible: boolean) {
+    if (logoGroupRef) logoGroupRef.visible = visible
+  }
+
+  return { build, dispose, dimensions, setLogoVisible }
 }

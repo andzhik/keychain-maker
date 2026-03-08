@@ -7,13 +7,14 @@ import type { ColorGroup } from '../types/keychain'
 
 const props = defineProps<{
   colorGroups: ColorGroup[]
+  showLogo: boolean
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
 
 const { init, dispose: disposeScene, getScene, fitCamera } = useThreeScene()
-const { build, dispose: disposeBuilder, dimensions } = useKeychainBuilder(getScene)
+const { build, dispose: disposeBuilder, dimensions, setLogoVisible } = useKeychainBuilder(getScene)
 
 defineExpose({ dimensions })
 
@@ -37,6 +38,10 @@ watch(() => props.colorGroups, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(rebuild, 150)
 }, { deep: true })
+
+watch(() => props.showLogo, (visible) => {
+  setLogoVisible(visible)
+})
 
 onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer)

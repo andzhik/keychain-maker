@@ -98,6 +98,7 @@ export interface KeychainConfig {
 | Keyring hole diameter | Slider | 4 | 2–10 | mm |
 | Keyring ring diameter | Slider | 8 | 4–15 | mm |
 | Base plate color | Color picker | #FFFFFF | — | — |
+| Show logo | Checkbox | On | — | — |
 
 Base shape is always a rounded rectangle, auto-sized from the SVG bounding box plus padding. Keyring hole is always top-center.
 
@@ -119,7 +120,8 @@ Base shape is always a rounded rectangle, auto-sized from the SVG bounding box p
 │   swatches) │                            │
 │             │                            │
 │  Controls   │                            │
-│  (sliders)  │                            │
+│  (sliders + │                            │
+│   Show logo)│                            │
 │             │                            │
 │  [Download  │                            │
 │   .3mf]     │                            │
