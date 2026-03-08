@@ -4,7 +4,7 @@ import ControlPanel from './components/ControlPanel.vue'
 import ExportButton from './components/ExportButton.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
-import { exportThreeMf } from './utils/threeMfWriter'
+import { exportTo3MF } from 'three-3mf-exporter'
 import { DEFAULT_CONFIG } from './types/keychain'
 import type { KeychainConfig } from './types/keychain'
 
@@ -19,7 +19,13 @@ async function handleExport() {
   if (!group) return
   exporting.value = true
   try {
-    exportThreeMf(group, colorGroups.value, config.value)
+    const blob = await exportTo3MF(group)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'keychain.3mf'
+    a.click()
+    URL.revokeObjectURL(url)
   } catch (e) {
     console.error('Export failed:', e)
   } finally {

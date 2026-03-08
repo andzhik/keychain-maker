@@ -15,7 +15,7 @@ Upload an SVG, preview it in 3D, download a multi-color `.3mf` file ready for sl
 | UI | Vue 3 (`<script setup>`, TypeScript) |
 | 3D | Three.js (raw) |
 | SVG parsing | `three/addons/loaders/SVGLoader.js` |
-| 3MF ZIP | fflate |
+| 3MF export | `three-3mf-exporter` |
 | Styling | Tailwind CSS |
 
 ---
@@ -44,8 +44,7 @@ keychain-maker/
 │   │   └── useThreeScene.ts
 │   └── utils/
 │       ├── svgToShapes.ts
-│       ├── meshBuilder.ts
-│       └── threeMfWriter.ts
+│       └── meshBuilder.ts
 ```
 
 ---
@@ -59,7 +58,7 @@ SVG file
   → For each color group: subtract outer contours from base plate as holes, extrude flush inlays
   → Build rounded-rect base plate with SVG cutouts + keyring hole (Shape.holes)
   → Render in Three.js scene
-  → On export: merge geometry per color, write 3MF XML, ZIP with fflate, trigger download
+  → On export: pass the scene group to three-3mf-exporter, trigger download of the returned Blob
 ```
 
 ---
@@ -172,83 +171,21 @@ Left panel ~300px fixed. 3D viewport fills remaining space. Light theme.
 
 ## 3MF Export
 
-1. Merge all color-group meshes into one vertex/triangle buffer
-2. Tag each triangle with `pid`/`p1` referencing its color's material index
-3. Apply mesh world transforms to vertices (Y-up → Z-up coordinate swap)
-4. Generate `3dmodel.model` XML with `<m:basematerials>` block
-5. Package with `[Content_Types].xml` and `_rels/.rels` into a ZIP via `fflate`
-6. Trigger browser download of the `.3mf` blob
-
-### 3MF XML structure (`3dmodel.model`)
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter"
-       xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
-       xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">
-  <resources>
-    <m:basematerials id="1">
-      <m:base name="Base - White" displaycolor="#FFFFFF" />
-      <m:base name="Color 1 - Red" displaycolor="#FF0000" />
-    </m:basematerials>
-    <object id="2" type="model" pid="1" pindex="0">
-      <mesh>
-        <vertices>
-          <vertex x="0" y="0" z="0" />
-        </vertices>
-        <triangles>
-          <triangle v1="0" v2="1" v3="2" pid="1" p1="0" />
-        </triangles>
-      </mesh>
-    </object>
-  </resources>
-  <build>
-    <item objectid="2" />
-  </build>
-</model>
-```
-
-### Supporting files
-
-`[Content_Types].xml`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
-  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />
-</Types>
-```
-
-`_rels/.rels`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Target="/3D/3dmodel.model" Id="rel0"
-    Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />
-</Relationships>
-```
-
-### ZIP packaging
+Uses the `three-3mf-exporter` package:
 
 ```typescript
-import { zipSync, strToU8 } from 'fflate';
+import { exportTo3MF } from 'three-3mf-exporter'
 
-const files = {
-  '[Content_Types].xml': strToU8(contentTypesXml),
-  '_rels/.rels': strToU8(relsXml),
-  '3D/3dmodel.model': strToU8(modelXml),
-};
-const zipped = zipSync(files);
-const blob = new Blob([zipped], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' });
+const blob = await exportTo3MF(group)  // group is the THREE.Group from the scene
+const url = URL.createObjectURL(blob)
+const a = document.createElement('a')
+a.href = url
+a.download = 'keychain.3mf'
+a.click()
+URL.revokeObjectURL(url)
 ```
 
-### Key implementation details
-
-- Extract triangle data from `BufferGeometry` via `geometry.getAttribute('position')` and `geometry.getIndex()`
-- Call `mesh.updateMatrixWorld()` and transform each vertex by `mesh.matrixWorld` before writing
-- 3MF is Z-up; Three.js is Y-up — swap Y and Z axes when exporting
-- `pindex` on `<object>` sets default material; `p1` on `<triangle>` overrides per-triangle
-- Merge geometries per color group with `BufferGeometryUtils.mergeGeometries()` before export
+The exporter handles geometry merging, coordinate conversion (Y-up → Z-up), XML generation, and ZIP packaging internally. No manual 3MF XML or fflate required.
 
 ---
 
@@ -355,5 +292,5 @@ Position inlay meshes at z=0 (flush with the base plate — same height, filling
 4. **Logo flush inlays** — cut SVG shapes from base plate, extrude flush inlay meshes per color group
 5. **Keyring hole** — add hole via Shape.holes, reinforcement ring geometry
 6. **Parameter controls** — wire up sliders to reactive state, debounced rebuild
-7. **3MF export** — threeMfWriter, download trigger
+7. **3MF export** — three-3mf-exporter, download trigger
 8. **Polish** — error states, camera fit-to-model

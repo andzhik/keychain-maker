@@ -236,55 +236,27 @@ Add a dimensions readout at the bottom of the page (or bottom of sidebar): "Dime
 
 ---
 
-## Step 7a — 3MF Writer (XML Generation)
+## Step 7 — 3MF Export
 
 ```
-Reference the spec's "3MF Export" section carefully — follow the XML structure exactly.
+Reference the spec's "3MF Export" section.
 
-Implement threeMfWriter.ts — the function that takes the scene meshes and produces a .3mf file:
-
-FIRST, implement just the XML generation (no ZIP yet, no download):
-- Accept an array of meshes with their associated color hex strings
-- For each mesh: call mesh.updateMatrixWorld(), get position and index attributes from the BufferGeometry, transform each vertex by mesh.matrixWorld
-- CRITICAL: 3MF is Z-up, Three.js is Y-up. Swap Y and Z axes when writing vertices.
-- Merge geometries per color group using BufferGeometryUtils.mergeGeometries()
-- Build the <m:basematerials> block with one <m:base> per color (base plate color first, then SVG colors)
-- Build the <vertices> and <triangles> blocks. Each triangle gets pid="1" and p1 referencing its color's material index.
-- Use pindex on <object> for the default material, p1 on <triangle> to override per-triangle
-- Generate the full 3dmodel.model XML string matching the spec's template exactly
-- Also generate [Content_Types].xml and _rels/.rels exactly as shown in the spec
-
-Write a quick test: log the generated XML to the console for inspection. Make sure vertex coordinates look reasonable (in millimeters, Z-up).
-```
-
-**Verify:** Console-log the generated XML after uploading an SVG. Check that vertices have swapped Y/Z, material colors are listed, and triangle indices reference the correct material.
-
----
-
-## Step 7b — 3MF ZIP Packaging + Download
-
-```
-Reference the spec's "ZIP packaging" section.
-
-Complete the 3MF export pipeline:
-- Use fflate's zipSync and strToU8 to package the three XML files into a ZIP:
-  - [Content_Types].xml
-  - _rels/.rels
-  - 3D/3dmodel.model
-- Create a Blob with type 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
-- Trigger a browser download with filename "keychain.3mf"
+Implement 3MF export using the three-3mf-exporter package:
+- Import exportTo3MF from 'three-3mf-exporter'
+- In App.vue, add an async handleExport() function:
+  - Get the current THREE.Group from viewerRef.value?.getCurrentGroup()
+  - Call await exportTo3MF(group) to get a Blob
+  - Trigger a browser download with filename "keychain.3mf" using URL.createObjectURL
 
 Implement ExportButton.vue:
 - A prominent "Download .3mf" button in the left panel
 - Disabled when no SVG is loaded
 - On click, run the export and trigger the download
-- Show a brief loading state during export
-- Catch and display any export errors
-
-Remove the console.log from src/utils/threeMfWriter.ts.
+- Show a brief loading state (exporting ref) during export
+- Catch and log any export errors
 ```
 
-**Verify:** Upload an SVG, click Download .3mf. Open the file in PrusaSlicer or BambuStudio. It should load with the correct shape and each color as a separate material/extruder. If you don't have a slicer, at minimum unzip the .3mf and inspect the XML files manually.
+**Verify:** Upload an SVG, click Download .3mf. Open the file in PrusaSlicer or BambuStudio. It should load with the correct shape and colors.
 
 ---
 
@@ -329,23 +301,10 @@ The SVG inlay meshes should be flush with the base plate — same z-position (z=
 
 ### 3MF file won't open in slicer
 ```
-The .3mf file fails to open in PrusaSlicer/BambuStudio. Common issues:
-1. Check the ZIP structure — it must have [Content_Types].xml at the root, _rels/.rels, and 3D/3dmodel.model
-2. Check XML encoding — must be UTF-8, no BOM
-3. Check that vertex coordinates are in millimeters and use Z-up (Y and Z swapped from Three.js)
-4. Check that triangle vertex indices (v1, v2, v3) are valid — they must reference existing vertices, 0-indexed
-5. Check that pid references on triangles match the basematerials id
-6. Make sure there are no NaN or Infinity values in vertex coordinates
-7. Unzip the .3mf and paste the 3dmodel.model XML here so I can inspect it.
-```
-
-### Colors are wrong in slicer
-```
-The 3MF opens in the slicer but colors are wrong or everything is one color. Check:
-1. Each triangle's p1 attribute must correctly index into the basematerials list (0-indexed)
-2. The basematerials displaycolor values should be #RRGGBB format
-3. Make sure we're tracking which triangles belong to which color group when merging geometries — don't lose the color association during merge
-4. Verify pindex on the <object> tag and p1 on each <triangle> are set correctly
+The .3mf file fails to open in PrusaSlicer/BambuStudio. The export uses three-3mf-exporter. Common issues:
+1. Make sure getCurrentGroup() returns the correct THREE.Group (not null)
+2. Ensure all mesh world matrices are up to date (call updateMatrixWorld(true) on the group before export if needed)
+3. Check the browser console for errors thrown by exportTo3MF
 ```
 
 ### Keyring tab doesn't appear or geometry is broken

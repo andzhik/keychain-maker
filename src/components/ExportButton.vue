@@ -1,8 +1,11 @@
 <script setup lang="ts">
-defineProps<{
+const props = withDefaults(defineProps<{
   disabled: boolean
   exporting: boolean
-}>()
+  label?: string
+}>(), {
+  label: 'Download .3mf'
+})
 
 defineEmits<{
   export: []
@@ -15,6 +18,6 @@ defineEmits<{
     :disabled="disabled || exporting"
     @click="$emit('export')"
   >
-    {{ exporting ? 'Exporting...' : 'Download .3mf' }}
+    {{ exporting ? 'Exporting...' : label }}
   </button>
 </template>
