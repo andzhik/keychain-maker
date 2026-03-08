@@ -7,11 +7,13 @@ defineProps<{
   colorGroups: ColorGroup[]
   error: string | null
   showLogo: boolean
+  keyringEnabled: boolean
 }>()
 
 const emit = defineEmits<{
   svgLoaded: [svgText: string]
   'update:showLogo': [value: boolean]
+  'update:keyringEnabled': [value: boolean]
 }>()
 </script>
 
@@ -63,11 +65,19 @@ const emit = defineEmits<{
           />
           Show logo
         </label>
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            :checked="keyringEnabled"
+            @change="emit('update:keyringEnabled', ($event.target as HTMLInputElement).checked)"
+            class="accent-gray-700"
+          />
+          Keyring hole
+        </label>
         <!-- TODO: sliders -->
         <p>Base thickness · 2 mm</p>
         <p>Corner radius · 3 mm</p>
         <p>Padding · 3 mm</p>
-        <p>Keyring hole · on · 4 mm / 8 mm</p>
         <p>Base color · #FFFFFF</p>
       </div>
     </section>

@@ -121,7 +121,9 @@ Base shape is always a rounded rectangle, auto-sized from the SVG bounding box p
 │             │                            │
 │  Controls   │                            │
 │  (sliders + │                            │
-│   Show logo)│                            │
+│   Show logo │                            │
+│   Keyring   │                            │
+│   hole ✓)   │                            │
 │             │                            │
 │  [Download  │                            │
 │   .3mf]     │                            │
@@ -131,7 +133,7 @@ Base shape is always a rounded rectangle, auto-sized from the SVG bounding box p
 └──────────────────────────────────────────┘
 ```
 
-Left panel ~300px fixed. 3D viewport fills remaining space. Dark theme.
+Left panel ~300px fixed. 3D viewport fills remaining space. Light theme.
 
 ---
 
@@ -323,4 +325,4 @@ Position inlay meshes at z=0 (flush with the base plate — same height, filling
 5. **Keyring hole** — add hole via Shape.holes, reinforcement ring geometry
 6. **Parameter controls** — wire up sliders to reactive state, debounced rebuild
 7. **3MF export** — threeMfWriter, download trigger
-8. **Polish** — error states, camera fit-to-model, dark theme cleanup
+8. **Polish** — error states, camera fit-to-model

@@ -158,6 +158,12 @@ Add the keyring hole to the base plate:
 - The reinforcement ring: extend the base plate shape upward around the hole position so there's solid material surrounding the hole. The ring outer edge should be a circle of radius ringDiameter/2, blended into the top of the rounded rectangle.
 
 When keyringEnabled is toggled off, rebuild without the hole or ring extension.
+
+Add a "Keyring hole" checkbox to the Parameters section of ControlPanel.vue:
+- Prop `keyringEnabled: boolean` (default `true`) passed from App.vue via `v-model:keyringEnabled`
+- When unchecked, rebuild the base plate without the ring extension or hole
+- App.vue owns the `keyringEnabled` ref; passes it to both ControlPanel (checkbox) and ThreeViewer (rebuild trigger)
+- ThreeViewer watches `keyringEnabled` prop changes with the same 150ms debounce, merges into config alongside DEFAULT_CONFIG
 ```
 
 **Verify:** The base plate has a circular hole at the top with a reinforcement ring around it. Toggling the keyring off removes it.

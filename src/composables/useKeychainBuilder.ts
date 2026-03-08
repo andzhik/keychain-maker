@@ -98,9 +98,13 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     scene.add(root)
     currentGroup = root
 
+    const totalHeight = config.keyringEnabled
+      ? height + config.keyringRingDiameter / 2
+      : height
+
     dimensions.value = {
       width,
-      height,
+      height: totalHeight,
       depth: config.baseThickness,
     }
 

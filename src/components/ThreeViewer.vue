@@ -8,6 +8,7 @@ import type { ColorGroup } from '../types/keychain'
 const props = defineProps<{
   colorGroups: ColorGroup[]
   showLogo: boolean
+  keyringEnabled: boolean
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
@@ -21,7 +22,8 @@ defineExpose({ dimensions })
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function rebuild() {
-  const group = build(props.colorGroups, DEFAULT_CONFIG)
+  const config = { ...DEFAULT_CONFIG, keyringEnabled: props.keyringEnabled }
+  const group = build(props.colorGroups, config)
   if (group) fitCamera(group)
 }
 
@@ -38,6 +40,11 @@ watch(() => props.colorGroups, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(rebuild, 150)
 }, { deep: true })
+
+watch(() => props.keyringEnabled, () => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(rebuild, 150)
+})
 
 watch(() => props.showLogo, (visible) => {
   setLogoVisible(visible)
