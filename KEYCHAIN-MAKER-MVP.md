@@ -258,18 +258,22 @@ shape.lineTo(w - r, -h);
 shape.quadraticCurveTo(w, -h, w, -h + r);
 shape.lineTo(w, h - r);
 shape.quadraticCurveTo(w, h, w - r, h);
-shape.lineTo(-w + r, h);
+
+// Top edge: either a keyring tab or a straight line, then top-left corner
+if (keyringEnabled) {
+  applyKeyring(shape, config, w, h, r); // modifies outer contour + adds hole
+} else {
+  shape.lineTo(-w + r, h);
+}
+
 shape.quadraticCurveTo(-w, h, -w, h - r);
 shape.lineTo(-w, -h + r);
 shape.quadraticCurveTo(-w, -h, -w + r, -h);
 
 // Add SVG outer contours as holes before extrusion
 // (so the base plate has cutouts where the flush inlays go)
-for (const group of colorGroups) {
-  for (const svgShape of group.shapes) {
-    const holePath = new THREE.Path(svgShape.getPoints());
-    shape.holes.push(holePath);
-  }
+for (const hole of svgHoles) {
+  shape.holes.push(hole);
 }
 
 const geometry = new THREE.ExtrudeGeometry(shape, {
@@ -278,17 +282,29 @@ const geometry = new THREE.ExtrudeGeometry(shape, {
 });
 ```
 
-### Keyring hole
+### Keyring tab and hole
 
-Add as a `THREE.Path` hole in the base plate shape before extrusion:
+The keyring tab is formed by modifying the **outer contour** of the base plate shape — it is not a separate mesh. After the top-right corner arc, instead of a straight line across the top, the shape traces:
+
+1. A straight line to the right fillet tangent point on the top edge
+2. A concave (inward) fillet arc curving up toward the ring
+3. The outer ring arc sweeping counterclockwise across the top (forming the rounded tab silhouette)
+4. A concave fillet arc curving back down on the left side
+5. A straight line to the top-left corner
+
+The ring is centered at the top-center of the base plate, and the tab smoothly blends into the plate with no gap or sharp joint.
+
+**Fallback:** when the ring diameter is too large relative to the base plate width for fillets to fit, the tab is a simple semicircle (straight lines from each corner to the ring edge, ring arc across the top).
+
+The hole through the tab is a `THREE.Path` circle added to `shape.holes` before extrusion — same center as the ring, with diameter = `keyringHoleDiameter`.
 
 ```typescript
 const holePath = new THREE.Path();
-holePath.absarc(holeX, holeY, holeDiameter / 2, 0, Math.PI * 2, false);
-baseShape.holes.push(holePath);
+holePath.absarc(0, h, config.keyringHoleDiameter / 2, 0, Math.PI * 2, false);
+shape.holes.push(holePath);
 ```
 
-The reinforcement ring extends the base plate around the hole position.
+All of this (tab outer contour + hole) is part of the single base plate `THREE.Shape` passed to `ExtrudeGeometry`. There is no separate ring mesh.
 
 ### Logo flush inlays
 

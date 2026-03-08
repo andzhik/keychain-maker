@@ -145,45 +145,46 @@ Also add a "Show logo" checkbox in the Parameters section of ControlPanel.vue:
 
 ---
 
-## Step 5a — Keyring Hole
+## Step 5a — Keyring Tab and Hole
 
 ```
-Reference the attached spec.
+Reference the attached spec (see "Keyring tab and hole" section).
 
-Add the keyring hole to the base plate:
-- When keyringEnabled is true (default), add a circular hole at top-center of the base plate
-- Implement as a THREE.Path hole added to the base plate Shape BEFORE extrusion (see spec's "Keyring hole" section)
-- The hole center should be positioned at the top edge of the base plate
+Add the keyring tab to the base plate:
+- When keyringEnabled is true (default), replace the straight top edge of the base plate Shape with a smooth rounded tab
+- The tab is part of the base plate's OUTER CONTOUR — not a separate mesh
+- After the top-right corner, trace: straight line to right fillet start → concave fillet arc up → ring outer arc across the top → concave fillet arc back down → straight line to top-left corner
+- When the ring is too wide for fillets (ring nearly as wide as the plate), fall back to a simpler shape: straight lines to ring edge + plain semicircle arc
+- Add the hole as a THREE.Path circle in shape.holes at the ring center (top-center of the plate), with radius = keyringHoleDiameter/2
 - Use default parameters: holeDiameter=4mm, ringDiameter=8mm
-- The reinforcement ring: extend the base plate shape upward around the hole position so there's solid material surrounding the hole. The ring outer edge should be a circle of radius ringDiameter/2, blended into the top of the rounded rectangle.
+- Ring center is at (0, h) — top-center of the base plate in local coordinates
 
-When keyringEnabled is toggled off, rebuild without the hole or ring extension.
+When keyringEnabled is toggled off, use a straight line across the top instead; no hole.
 
 Add a "Keyring hole" checkbox to the Parameters section of ControlPanel.vue:
 - Prop `keyringEnabled: boolean` (default `true`) passed from App.vue via `v-model:keyringEnabled`
-- When unchecked, rebuild the base plate without the ring extension or hole
+- When unchecked, rebuild the base plate without the tab or hole
 - App.vue owns the `keyringEnabled` ref; passes it to both ControlPanel (checkbox) and ThreeViewer (rebuild trigger)
 - ThreeViewer watches `keyringEnabled` prop changes with the same 150ms debounce, merges into config alongside DEFAULT_CONFIG
 ```
 
-**Verify:** The base plate has a circular hole at the top with a reinforcement ring around it. Toggling the keyring off removes it.
+**Verify:** The base plate has a smooth rounded tab at the top with a hole through it. The tab blends into the plate with no gap, seam, or artifact. Toggling the keyring off gives a flat top edge.
 
 ---
 
-## Step 5b — Refine Keyring Ring Geometry
+## Step 5b — Verify Keyring Geometry Across Parameter Range
 
 ```
-If the reinforcement ring from step 5a doesn't look right (common issue: it may appear as a disconnected circle or have artifacts), refine it:
+Test the keyring tab with varied parameter values:
+- Try small ring diameters (close to hole diameter) — fillets should remain smooth
+- Try large ring diameters (close to the plate width) — should fall back gracefully to the semicircle shape
+- Try different padding values affecting plate width — confirm the tab always connects cleanly
+- The overall bounding box height used for dimension display should include the tab extension
 
-- The reinforcement ring should smoothly extend the base plate's top edge upward into a rounded tab that contains the hole
-- One approach: create the base plate shape as a union of the rounded rectangle + a circle centered at the hole position with radius = ringDiameter/2. Then subtract the hole.
-- Make sure the ring seamlessly connects to the base plate — no gaps, no overlaps
-- The overall base plate height (for bounding box / dimension display) should include the ring extension
-
-Test with different padding and ring diameter values to make sure it looks correct across the parameter range.
+No separate ring mesh should exist — the tab is entirely part of the base plate shape.
 ```
 
-**Verify:** The keyring tab looks like a natural extension of the base plate — a smooth tab protruding from the top with a hole through it.
+**Verify:** The keyring tab looks correct across the parameter range — no disconnected circles, no z-fighting, no geometry artifacts.
 
 ---
 
@@ -326,11 +327,13 @@ The 3MF opens in the slicer but colors are wrong or everything is one color. Che
 4. Verify pindex on the <object> tag and p1 on each <triangle> are set correctly
 ```
 
-### Keyring hole doesn't appear or geometry is broken
+### Keyring tab doesn't appear or geometry is broken
 ```
-The keyring hole isn't cutting through the base plate, or the geometry has artifacts. The hole must be added as a THREE.Path to baseShape.holes BEFORE calling ExtrudeGeometry. Make sure:
-1. The hole path is created with absarc (full circle, 0 to Math.PI * 2)
-2. The hole is positioned relative to the shape's local coordinates (not world coordinates)
-3. The hole diameter is smaller than the ring diameter
-4. The reinforcement ring extension is part of the outer shape, not a separate mesh
+The keyring tab or hole has artifacts, or the tab looks like a disconnected circle. Remember:
+1. The tab is part of the base plate's OUTER CONTOUR — traced in the top edge section of the Shape path, not added as a separate mesh
+2. The hole is a THREE.Path circle added to shape.holes BEFORE ExtrudeGeometry — not cut by boolean operations
+3. The hole path must use absarc (full circle, 0 to Math.PI * 2) positioned at the ring center in local shape coordinates
+4. The hole diameter must be smaller than the ring diameter
+5. When the ring is too large for the fillet approach, fall back to a simple semicircle tab (straight lines from each corner to the ring edge, then a ring arc)
+6. There must be no separate ring mesh — all geometry is in the single base plate shape
 ```
