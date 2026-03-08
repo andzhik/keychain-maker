@@ -1,6 +1,39 @@
 import * as THREE from 'three'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
+function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: number, r: number) {
+  const R = config.keyringRingDiameter / 2
+  const maxFr = ((w - r) * (w - r) - R * R) / (2 * R)
+  const fr = Math.min(R * 0.75, Math.max(0, maxFr))
+
+  if (fr <= 0.01) {
+    // Fallback: simple semicircle when no room for fillets
+    shape.lineTo(R, h)
+    shape.absarc(0, h, R, 0, Math.PI, false)
+    shape.lineTo(-w + r, h)
+  } else {
+    const fx = Math.sqrt(R * R + 2 * R * fr)
+    const ringStart = Math.atan2(fr, fx)
+    const ringEnd = Math.PI - ringStart
+
+    // Top edge to right fillet start
+    shape.lineTo(fx, h)
+    // Right concave fillet arc (clockwise)
+    shape.absarc(fx, h + fr, fr, -Math.PI / 2, Math.atan2(-fr, -fx), true)
+    // Ring arc over the top (counter-clockwise)
+    shape.absarc(0, h, R, ringStart, ringEnd, false)
+    // Left concave fillet arc (clockwise)
+    shape.absarc(-fx, h + fr, fr, Math.atan2(-fr, fx), -Math.PI / 2, true)
+    // Continue to top-left corner
+    shape.lineTo(-w + r, h)
+
+    // Keyring hole (circular cutout)
+    const holePath = new THREE.Path()
+    holePath.absarc(0, h, config.keyringHoleDiameter / 2, 0, Math.PI * 2, false)
+    shape.holes.push(holePath)
+  }
+}
+
 export function buildBasePlate(config: KeychainConfig, width: number, height: number, holes: THREE.Path[] = []): THREE.Mesh {
   const r = Math.min(config.cornerRadius, width / 2, height / 2)
   const w = width / 2
@@ -20,31 +53,18 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   shape.quadraticCurveTo(w, h, w - r, h)
 
   if (config.keyringEnabled) {
-    const R = config.keyringRingDiameter / 2
-    // Top edge to ring start
-    shape.lineTo(R, h)
-    // Reinforcement ring arc (upper semicircle bulging outward)
-    shape.absarc(0, h, R, 0, Math.PI, false)
-    // Top edge from ring end to top-left corner
-    shape.lineTo(-w + r, h)
-  } else {
+    applyKeyring(shape, config, w, h, r)
+  }
+  else {
     // Straight top edge
     shape.lineTo(-w + r, h)
   }
-
   // Top-left corner
   shape.quadraticCurveTo(-w, h, -w, h - r)
   // Left edge
   shape.lineTo(-w, -h + r)
   // Bottom-left corner
   shape.quadraticCurveTo(-w, -h, -w + r, -h)
-
-  // Keyring hole (circular cutout)
-  if (config.keyringEnabled) {
-    const holePath = new THREE.Path()
-    holePath.absarc(0, h, config.keyringHoleDiameter / 2, 0, Math.PI * 2, false)
-    shape.holes.push(holePath)
-  }
 
   // SVG cutout holes
   for (const hole of holes) {
