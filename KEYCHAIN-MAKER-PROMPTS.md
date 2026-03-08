@@ -105,8 +105,8 @@ Reference the attached spec (see "Geometry Construction — Base plate" section)
 Implement the base plate in meshBuilder.ts and useKeychainBuilder.ts:
 - Create a rounded rectangle Shape using the exact approach from the spec (moveTo, lineTo, quadraticCurveTo pattern)
 - Extrude it with ExtrudeGeometry (depth = baseThickness, bevelEnabled = false)
-- Use default parameter values from the spec: baseThickness=2, cornerRadius=3, padding=3
-- The base plate size should auto-calculate from the SVG bounding box + padding. For now, if no SVG is loaded, use a placeholder size (e.g. 40×30mm)
+- Use default parameter values from the spec: baseThickness=5, cornerRadius=3, padding=3, targetWidth=50
+- The base plate size should auto-calculate from the SVG bounding box + padding scaled to targetWidth. For now, if no SVG is loaded, use a placeholder size derived from targetWidth × (2/3) aspect ratio (e.g. 50×33mm)
 - Apply a MeshStandardMaterial with the default base color (#FFFFFF)
 - Add the mesh to the scene
 - Center it at the origin
@@ -188,18 +188,39 @@ No separate ring mesh should exist — the tab is entirely part of the base plat
 
 ---
 
+## Step 5c — SVG-to-Target-Size Scaling
+
+```
+Reference the attached spec (see "Parameters" and "Geometry Construction" sections).
+
+Implement SVG-to-target-size scaling:
+- Add a `targetWidth` parameter to KeychainConfig (default 50mm, range 20–150mm)
+- When building geometry, compute a uniform scale factor: scale = targetWidth / (svgBBox.width + 2 * padding)
+- Apply this scale so the final keychain is exactly `targetWidth` mm wide
+- The height is derived from the SVG aspect ratio × the same scale factor
+- The placeholder size (no SVG loaded) should also use targetWidth × a fixed aspect ratio (e.g. 3:2)
+- Rebuild geometry when targetWidth changes (same 150ms debounce)
+
+This ensures any SVG — regardless of its pixel dimensions — produces a keychain that is 5cm wide by default, with all artwork scaled uniformly to fit.
+```
+
+**Verify:** Upload SVGs of very different pixel sizes (e.g. 10×10 and 1000×1000). Both should produce a keychain ~50mm wide. Change the target width slider and confirm the model resizes proportionally.
+
+---
+
 ## Step 6 — Parameter Controls UI
 
 ```
 Reference the spec's Parameters table.
 
 Implement ControlPanel.vue with all parameter controls:
-- Base thickness: slider, default 2, range 0.4–10, unit mm
-- Corner radius: slider, default 3, range 0–20, unit mm
-- Padding: slider, default 3, range 0–20, unit mm
+- Base thickness: slider, default 5, range 0.4–10, unit mm
+- Corner radius: slider, default 5, range 0–20, unit mm
+- Padding: slider, default 5, range 0–20, unit mm
+- Target width: slider, default 50, range 20–150, unit mm
 - Keyring hole on/off: toggle switch, default on
-- Keyring hole diameter: slider, default 4, range 2–10, unit mm (disabled/hidden when keyring is off)
-- Keyring ring diameter: slider, default 8, range 4–15, unit mm (disabled/hidden when keyring is off)
+- Keyring hole diameter: slider, default 5, range 2–10, unit mm (disabled/hidden when keyring is off)
+- Keyring ring diameter: slider, default 10, range 4–15, unit mm (disabled/hidden when keyring is off)
 - Base plate color: color picker input, default #FFFFFF
 - Show logo: checkbox, default checked — toggles visibility of the SVG inlay meshes without rebuilding geometry
 

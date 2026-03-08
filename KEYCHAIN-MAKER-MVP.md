@@ -78,6 +78,7 @@ export interface KeychainConfig {
   baseThickness: number;
   cornerRadius: number;
   padding: number;
+  targetWidth: number;
   keyringEnabled: boolean;
   keyringHoleDiameter: number;
   keyringRingDiameter: number;
@@ -91,16 +92,19 @@ export interface KeychainConfig {
 
 | Parameter | Control | Default | Range | Unit |
 |---|---|---|---|---|
-| Base thickness | Slider | 2 | 0.4–10 | mm |
+| Base thickness | Slider | 5 | 0.4–10 | mm |
 | Corner radius | Slider | 3 | 0–20 | mm |
-| Padding | Slider | 3 | 0–20 | mm |
+| Padding | Slider | 5 | 0–20 | mm |
+| Target width | Slider | 50 | 20–150 | mm |
 | Keyring hole on/off | Toggle | On | — | — |
-| Keyring hole diameter | Slider | 4 | 2–10 | mm |
-| Keyring ring diameter | Slider | 8 | 4–15 | mm |
+| Keyring hole diameter | Slider | 5 | 2–10 | mm |
+| Keyring ring diameter | Slider | 10 | 4–15 | mm |
 | Base plate color | Color picker | #FFFFFF | — | — |
 | Show logo | Checkbox | On | — | — |
 
 Base shape is always a rounded rectangle, auto-sized from the SVG bounding box plus padding. Keyring hole is always top-center.
+
+SVG artwork is scaled uniformly so that the keychain width equals the target width. The base plate height is derived from the SVG aspect ratio, scaled by the same factor.
 
 ---
 
@@ -249,6 +253,15 @@ const blob = new Blob([zipped], { type: 'application/vnd.ms-package.3dmanufactur
 ## Geometry Construction
 
 ### Base plate (rounded rectangle)
+
+Before building the rounded-rect geometry, compute a uniform scale factor from the SVG bounding box and target width:
+
+```typescript
+const scale = targetWidth / (svgBoundingBox.width + 2 * padding);
+// Apply scale to all SVG shape coordinates before extrusion.
+// The plate width becomes targetWidth
+// For the placeholder (no SVG loaded), use targetWidth × (2/3) as the height (3:2 aspect ratio).
+```
 
 ```typescript
 const shape = new THREE.Shape();

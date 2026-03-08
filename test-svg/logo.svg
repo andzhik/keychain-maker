@@ -1,19 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
- 
-  <!-- Abstract geometric shapes forming a stylized "N" / mountain motif -->
-  
-  <!-- Left triangle - teal -->
-  <polygon points="100,300 160,120 220,300" fill="#2EC4B6"/>
-  
-  <!-- Right triangle - coral -->
-  <polygon points="180,300 240,120 300,300" fill="#E76F51"/>
-  
-  <!-- Overlapping diamond accent - gold -->
-  <polygon points="200,160 230,220 200,280 170,220" fill="#F4A261" opacity="0.9"/>
-  
-  <!-- Small top accent circle -->
+
+  <!--
+    All shapes separated by at least 10px of empty space.
+    Each shape inset ~5px inward on every edge so facing edges are ≥10px apart.
+  -->
+
+  <!-- LEFT triangle (teal) — inset 5px inward on all sides -->
+  <polygon points="107,295 163,133 192,295" fill="#2EC4B6"/>
+
+  <!-- RIGHT triangle (coral) — inset 5px inward on all sides, 16px from left triangle -->
+  <polygon points="208,295 237,133 293,295" fill="#E76F51"/>
+
+  <!-- DIAMOND (gold) — shrunk inward 5px on all four sides from original -->
+  <!-- Original: 200,160 / 230,220 / 200,280 / 170,220  -->
+  <polygon points="200,185 213,220 200,255 187,220" fill="#F4A261"/>
+
+  <!-- CIRCLE — bottom edge at 102, triangle tops at 133 → 31px gap ✓ -->
   <circle cx="200" cy="90" r="12" fill="#F4A261"/>
-  
-  <!-- Brand text -->
-  <text x="200" y="355" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="32" fill="#2EC4B6" letter-spacing="6">APEX</text>
+
+  <!-- TEXT — baseline 350, triangle bottoms at 295 → 55px gap ✓ -->
+  <text x="200" y="350" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-weight="700" font-size="32" fill="#2EC4B6" letter-spacing="6">APEX</text>
+
 </svg>
