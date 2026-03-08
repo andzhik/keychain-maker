@@ -32,7 +32,7 @@ function resetView() {
   if (currentGroup) fitCamera(currentGroup)
 }
 
-defineExpose({ dimensions, resetView })
+defineExpose({ dimensions, resetView, getCurrentGroup: () => currentGroup })
 
 onMounted(() => {
   if (!containerRef.value) return
