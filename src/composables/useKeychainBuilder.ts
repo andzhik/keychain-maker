@@ -1,53 +1,90 @@
 import * as THREE from 'three'
 import { ref } from 'vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
-import { buildBasePlate } from '../utils/meshBuilder'
+import { buildBasePlate, buildLogoMeshes } from '../utils/meshBuilder'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
-  let currentMesh: THREE.Mesh | null = null
+  let currentGroup: THREE.Group | null = null
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
 
   function disposeCurrent() {
-    if (!currentMesh) return
+    if (!currentGroup) return
     const scene = getScene()
-    if (scene) scene.remove(currentMesh)
-    currentMesh.geometry.dispose()
-    ;(currentMesh.material as THREE.Material).dispose()
-    currentMesh = null
+    if (scene) scene.remove(currentGroup)
+    currentGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose()
+        ;(child.material as THREE.Material).dispose()
+      }
+    })
+    currentGroup = null
   }
 
-  function build(colorGroups: ColorGroup[], config: KeychainConfig): THREE.Mesh | null {
+  function build(colorGroups: ColorGroup[], config: KeychainConfig): THREE.Group | null {
     disposeCurrent()
     const scene = getScene()
     if (!scene) return null
 
-    // Compute size from SVG bounding box or use placeholder
+    // Compute SVG bounding box
+    const box = new THREE.Box3()
+    let hasSvg = false
+    for (const group of colorGroups) {
+      for (const shape of group.shapes) {
+        const pts = shape.getPoints(64)
+        for (const p of pts) {
+          box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
+        }
+        hasSvg = true
+      }
+    }
+
     let width = 40
     let height = 30
+    const svgCenter = new THREE.Vector2(0, 0)
 
-    if (colorGroups.length > 0) {
-      const box = new THREE.Box3()
-      for (const group of colorGroups) {
-        for (const shape of group.shapes) {
-          const pts = shape.getPoints(64)
-          for (const p of pts) {
-            box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
-          }
-        }
-      }
+    if (hasSvg) {
       const size = new THREE.Vector3()
       box.getSize(size)
       width = size.x + config.padding * 2
       height = size.y + config.padding * 2
+      const center = new THREE.Vector3()
+      box.getCenter(center)
+      svgCenter.set(center.x, center.y)
     }
 
-    const mesh = buildBasePlate(config, width, height)
-    scene.add(mesh)
-    currentMesh = mesh
+    // Parent group — rotation applied once to lay everything flat on XZ
+    const root = new THREE.Group()
+    root.rotation.x = -Math.PI / 2
 
-    dimensions.value = { width, height, depth: config.baseThickness }
+    // Base plate (built centered at origin in XY, extruded along +Z)
+    const basePlate = buildBasePlate(config, width, height)
+    root.add(basePlate)
 
-    return mesh
+    // Logo meshes
+    if (hasSvg) {
+      const logoMeshes = buildLogoMeshes(colorGroups, config)
+      const logoGroup = new THREE.Group()
+
+      // Center SVG on origin and flip Y (SVG Y is inverted vs Three.js)
+      logoGroup.scale.y = -1
+      logoGroup.position.set(-svgCenter.x, svgCenter.y, config.baseThickness)
+
+      for (const mesh of logoMeshes) {
+        logoGroup.add(mesh)
+      }
+      root.add(logoGroup)
+    }
+
+    scene.add(root)
+    currentGroup = root
+
+    dimensions.value = {
+      width,
+      height,
+      depth: config.baseThickness + (hasSvg ? config.extrusionHeight : 0),
+    }
+
+    return root
   }
 
   function dispose() {

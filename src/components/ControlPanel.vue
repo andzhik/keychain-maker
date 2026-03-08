@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import SvgUploader from './SvgUploader.vue'
 import ExportButton from './ExportButton.vue'
-import { useSvgParser } from '../composables/useSvgParser'
+import type { ColorGroup } from '../types/keychain'
 
-const { colorGroups, error, parse } = useSvgParser()
-// TODO: Step 6 — wire sliders to KeychainConfig reactive state
+defineProps<{
+  colorGroups: ColorGroup[]
+  error: string | null
+}>()
+
+const emit = defineEmits<{
+  svgLoaded: [svgText: string]
+}>()
 </script>
 
 <template>
@@ -12,7 +18,7 @@ const { colorGroups, error, parse } = useSvgParser()
     <!-- Upload -->
     <section>
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">SVG File</h2>
-      <SvgUploader @svgLoaded="parse" />
+      <SvgUploader @svgLoaded="(text: string) => emit('svgLoaded', text)" />
     </section>
 
     <!-- Color list -->

@@ -2,8 +2,10 @@
 import { ref, computed } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
+import { useSvgParser } from './composables/useSvgParser'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
+const { colorGroups, error, parse } = useSvgParser()
 
 const dimText = computed(() => {
   const d = viewerRef.value?.dimensions
@@ -23,12 +25,16 @@ const dimText = computed(() => {
     <div class="flex flex-1 overflow-hidden">
       <!-- Left sidebar: fixed 300px -->
       <aside class="w-[300px] shrink-0 flex flex-col bg-gray-50 border-r border-gray-200 overflow-y-auto">
-        <ControlPanel />
+        <ControlPanel
+          :colorGroups="colorGroups"
+          :error="error"
+          @svgLoaded="parse"
+        />
       </aside>
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
-        <ThreeViewer ref="viewerRef" />
+        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" />
       </main>
     </div>
 

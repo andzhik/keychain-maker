@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useThreeScene } from '../composables/useThreeScene'
 import { useKeychainBuilder } from '../composables/useKeychainBuilder'
 import { DEFAULT_CONFIG } from '../types/keychain'
+import type { ColorGroup } from '../types/keychain'
+
+const props = defineProps<{
+  colorGroups: ColorGroup[]
+}>()
 
 const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
@@ -12,17 +17,29 @@ const { build, dispose: disposeBuilder, dimensions } = useKeychainBuilder(getSce
 
 defineExpose({ dimensions })
 
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function rebuild() {
+  const group = build(props.colorGroups, DEFAULT_CONFIG)
+  if (group) fitCamera(group)
+}
+
 onMounted(() => {
   if (!containerRef.value) return
   const result = init(containerRef.value)
   webglUnavailable.value = result.webglUnavailable
   if (result.webglUnavailable) return
 
-  const mesh = build([], DEFAULT_CONFIG)
-  if (mesh) fitCamera(mesh)
+  rebuild()
 })
 
+watch(() => props.colorGroups, () => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(rebuild, 150)
+}, { deep: true })
+
 onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
   disposeBuilder()
   disposeScene()
 })

@@ -23,12 +23,19 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   })
 
   const material = new THREE.MeshStandardMaterial({ color: config.baseColor })
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.rotation.x = -Math.PI / 2
-  return mesh
+  return new THREE.Mesh(geometry, material)
 }
 
-// TODO: Steps 4–5
-export function buildLogoMeshes(_groups: ColorGroup[], _config: KeychainConfig): THREE.Mesh[] {
-  return []
+export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = []
+  for (const group of groups) {
+    if (group.shapes.length === 0) continue
+    const geometry = new THREE.ExtrudeGeometry(group.shapes, {
+      depth: config.extrusionHeight,
+      bevelEnabled: false,
+    })
+    const material = new THREE.MeshStandardMaterial({ color: group.color })
+    meshes.push(new THREE.Mesh(geometry, material))
+  }
+  return meshes
 }

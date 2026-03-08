@@ -132,7 +132,3 @@ function isWebGLAvailable(): boolean {
     return false
   }
 }
-
-if (import.meta.hot) {
-  import.meta.hot.decline()
-}
