@@ -3,10 +3,12 @@ import { ref, computed } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
+import { DEFAULT_CONFIG } from './types/keychain'
+import type { KeychainConfig } from './types/keychain'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 const showLogo = ref(true)
-const keyringEnabled = ref(true)
+const config = ref<KeychainConfig>({ ...DEFAULT_CONFIG })
 const { colorGroups, error, parse } = useSvgParser()
 
 const dimText = computed(() => {
@@ -31,14 +33,20 @@ const dimText = computed(() => {
           :colorGroups="colorGroups"
           :error="error"
           v-model:showLogo="showLogo"
-          v-model:keyringEnabled="keyringEnabled"
+          v-model:config="config"
           @svgLoaded="parse"
         />
       </aside>
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
-        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :keyringEnabled="keyringEnabled" />
+        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="config" />
+        <button
+          class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
+          @click="viewerRef?.resetView()"
+        >
+          Reset View
+        </button>
       </main>
     </div>
 

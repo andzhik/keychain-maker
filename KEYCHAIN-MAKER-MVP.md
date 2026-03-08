@@ -115,7 +115,7 @@ SVG artwork is scaled uniformly so that the keychain width equals the target wid
 │  Keychain Maker         [Upload SVG]     │
 ├─────────────┬────────────────────────────┤
 │             │                            │
-│  2D SVG     │      3D Viewport           │
+│  2D SVG     │      3D Viewport [Reset V]  │
 │  preview    │      (OrbitControls)        │
 │  (small)    │                            │
 │             │                            │
@@ -165,6 +165,8 @@ Left panel ~300px fixed. 3D viewport fills remaining space. Light theme.
 - Center the keychain at the origin
 - Debounce parameter changes (150ms) before geometry rebuild
 - Dispose old geometries on rebuild
+- Camera fits to model on initial load and when a new SVG is uploaded; parameter changes do **not** reset the camera
+- A **Reset View** button (overlay, top-right of viewport) re-centers the camera on the current keychain
 
 ---
 

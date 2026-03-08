@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import SvgUploader from './SvgUploader.vue'
 import ExportButton from './ExportButton.vue'
-import type { ColorGroup } from '../types/keychain'
+import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
-defineProps<{
+const props = defineProps<{
   colorGroups: ColorGroup[]
   error: string | null
   showLogo: boolean
-  keyringEnabled: boolean
+  config: KeychainConfig
 }>()
 
 const emit = defineEmits<{
   svgLoaded: [svgText: string]
   'update:showLogo': [value: boolean]
-  'update:keyringEnabled': [value: boolean]
+  'update:config': [value: KeychainConfig]
 }>()
+
+function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainConfig[K]) {
+  emit('update:config', { ...props.config, [field]: value })
+}
 </script>
 
 <template>
@@ -52,10 +56,11 @@ const emit = defineEmits<{
       </ul>
     </section>
 
-    <!-- Parameters placeholder -->
+    <!-- Parameters -->
     <section class="flex-1">
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Parameters</h2>
-      <div class="space-y-3 text-sm text-gray-400">
+      <div class="space-y-3">
+        <!-- Show logo -->
         <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
           <input
             type="checkbox"
@@ -65,20 +70,123 @@ const emit = defineEmits<{
           />
           Show logo
         </label>
+
+        <!-- Keyring hole -->
         <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
           <input
             type="checkbox"
-            :checked="keyringEnabled"
-            @change="emit('update:keyringEnabled', ($event.target as HTMLInputElement).checked)"
+            :checked="config.keyringEnabled"
+            @change="updateField('keyringEnabled', ($event.target as HTMLInputElement).checked)"
             class="accent-gray-700"
           />
           Keyring hole
         </label>
-        <!-- TODO: sliders -->
-        <p>Base thickness · 2 mm</p>
-        <p>Corner radius · 3 mm</p>
-        <p>Padding · 3 mm</p>
-        <p>Base color · #FFFFFF</p>
+
+        <!-- Base thickness -->
+        <div>
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Base thickness</span>
+            <span class="text-gray-400">{{ config.baseThickness.toFixed(1) }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.baseThickness"
+            @input="updateField('baseThickness', parseFloat(($event.target as HTMLInputElement).value))"
+            min="0.4" max="10" step="0.1"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
+        <!-- Corner radius -->
+        <div>
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Corner radius</span>
+            <span class="text-gray-400">{{ config.cornerRadius.toFixed(1) }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.cornerRadius"
+            @input="updateField('cornerRadius', parseFloat(($event.target as HTMLInputElement).value))"
+            min="0" max="20" step="0.5"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
+        <!-- Padding -->
+        <div>
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Padding</span>
+            <span class="text-gray-400">{{ config.padding.toFixed(1) }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.padding"
+            @input="updateField('padding', parseFloat(($event.target as HTMLInputElement).value))"
+            min="0" max="20" step="0.5"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
+        <!-- Target width -->
+        <div>
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Target width</span>
+            <span class="text-gray-400">{{ config.targetWidth }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.targetWidth"
+            @input="updateField('targetWidth', parseFloat(($event.target as HTMLInputElement).value))"
+            min="20" max="150" step="1"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
+        <!-- Keyring hole diameter (conditional) -->
+        <div v-if="config.keyringEnabled">
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Hole diameter</span>
+            <span class="text-gray-400">{{ config.keyringHoleDiameter.toFixed(1) }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.keyringHoleDiameter"
+            @input="updateField('keyringHoleDiameter', parseFloat(($event.target as HTMLInputElement).value))"
+            min="2" max="10" step="0.5"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
+        <!-- Keyring ring diameter (conditional) -->
+        <div v-if="config.keyringEnabled">
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Ring diameter</span>
+            <span class="text-gray-400">{{ config.keyringRingDiameter.toFixed(1) }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.keyringRingDiameter"
+            @input="updateField('keyringRingDiameter', parseFloat(($event.target as HTMLInputElement).value))"
+            min="4" max="15" step="0.5"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
+        <!-- Base color -->
+        <div>
+          <div class="flex justify-between items-center text-sm text-gray-700">
+            <span>Base color</span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-gray-400 font-mono text-xs">{{ config.baseColor }}</span>
+              <input
+                type="color"
+                :value="config.baseColor"
+                @input="updateField('baseColor', ($event.target as HTMLInputElement).value)"
+                class="w-6 h-6 rounded border border-gray-300 cursor-pointer p-0"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 

@@ -294,7 +294,7 @@ Remove the console.log from step 7a.
 Reference the spec's Error Handling section and UI Layout.
 
 Final polish pass:
-1. Camera fit-to-model: after any geometry rebuild, reposition the camera to frame the entire keychain nicely (compute bounding box, set camera distance accordingly)
+1. Camera fit-to-model: reposition the camera to frame the entire keychain on initial load and when a new SVG is uploaded. Parameter/slider changes must NOT reset the camera — only rebuild geometry. Expose a `resetView()` method on ThreeViewer and add a **Reset View** overlay button (top-right of the 3D viewport) that calls it (already implemented).
 2. Error states: make sure all these work gracefully:
    - Upload an invalid file (not SVG) → clear error message
    - Upload SVG with no filled paths → "No filled paths found" message
@@ -309,7 +309,7 @@ Final polish pass:
 Do a final check: the full flow should work — upload SVG → see 3D preview → adjust parameters → download .3mf.
 ```
 
-**Verify:** Complete end-to-end flow with 2–3 different SVGs. Try edge cases (very small SVG, SVG with only white fills, SVG with many colors). All parameter sliders work. Export opens in a slicer. No console errors.
+**Verify:** Complete end-to-end flow with 2–3 different SVGs. Try edge cases (very small SVG, SVG with only white fills, SVG with many colors). All parameter sliders work without moving the camera. Reset View button re-centers the camera. Export opens in a slicer. No console errors.
 
 ---
 

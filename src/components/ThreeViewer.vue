@@ -2,13 +2,12 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useThreeScene } from '../composables/useThreeScene'
 import { useKeychainBuilder } from '../composables/useKeychainBuilder'
-import { DEFAULT_CONFIG } from '../types/keychain'
-import type { ColorGroup } from '../types/keychain'
+import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
 const props = defineProps<{
   colorGroups: ColorGroup[]
   showLogo: boolean
-  keyringEnabled: boolean
+  config: KeychainConfig
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
@@ -17,15 +16,23 @@ const webglUnavailable = ref(false)
 const { init, dispose: disposeScene, getScene, fitCamera } = useThreeScene()
 const { build, dispose: disposeBuilder, dimensions, setLogoVisible } = useKeychainBuilder(getScene)
 
-defineExpose({ dimensions })
-
+let currentGroup: ReturnType<typeof build> = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function rebuild() {
-  const config = { ...DEFAULT_CONFIG, keyringEnabled: props.keyringEnabled }
-  const group = build(props.colorGroups, config)
-  if (group) fitCamera(group)
+  currentGroup = build(props.colorGroups, props.config)
+  if (currentGroup) fitCamera(currentGroup)
 }
+
+function rebuildOnly() {
+  currentGroup = build(props.colorGroups, props.config)
+}
+
+function resetView() {
+  if (currentGroup) fitCamera(currentGroup)
+}
+
+defineExpose({ dimensions, resetView })
 
 onMounted(() => {
   if (!containerRef.value) return
@@ -41,10 +48,10 @@ watch(() => props.colorGroups, () => {
   debounceTimer = setTimeout(rebuild, 150)
 }, { deep: true })
 
-watch(() => props.keyringEnabled, () => {
+watch(() => props.config, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(rebuild, 150)
-})
+  debounceTimer = setTimeout(rebuildOnly, 150)
+}, { deep: true })
 
 watch(() => props.showLogo, (visible) => {
   setLogoVisible(visible)
