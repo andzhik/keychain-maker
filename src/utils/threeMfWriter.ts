@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { zipSync, strToU8 } from 'fflate'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
 export function exportThreeMf(
@@ -54,10 +55,10 @@ export function exportThreeMf(
     if (merged) mergedGeometries.set(color, merged)
   }
 
-  // Extract all vertices and triangles
-  let globalVertexOffset = 0
-  const allVertices: string[] = []
-  const allTriangles: string[] = []
+  // Build one <object> per color with independent vertex/triangle buffers
+  const objectsXml: string[] = []
+  const buildItems: string[] = []
+  let objectId = 2 // id=1 is reserved for basematerials
 
   for (let ci = 0; ci < colorList.length; ci++) {
     const color = colorList[ci]
@@ -66,43 +67,51 @@ export function exportThreeMf(
 
     const pos = geo.getAttribute('position') as THREE.BufferAttribute
     const vertexCount = pos.count
+    const vertices: string[] = []
+    const triangles: string[] = []
 
-    // Add vertices with Y↔Z swap for 3MF Z-up convention
+    // Vertices (indices start at 0 per object)
     for (let i = 0; i < vertexCount; i++) {
       const x = pos.getX(i)
       const y = pos.getY(i)
       const z = pos.getZ(i)
-      // After matrixWorld (which includes root's -90° X rotation),
-      // coords are already roughly Z-up. Output as-is.
-      allVertices.push(`          <vertex x="${x.toFixed(4)}" y="${y.toFixed(4)}" z="${z.toFixed(4)}" />`)
+      vertices.push(`          <vertex x="${x.toFixed(4)}" y="${y.toFixed(4)}" z="${z.toFixed(4)}" />`)
     }
 
-    // Add triangles
+    // Triangles
     const index = geo.getIndex()
     if (index) {
       for (let i = 0; i < index.count; i += 3) {
-        const v1 = index.getX(i) + globalVertexOffset
-        const v2 = index.getX(i + 1) + globalVertexOffset
-        const v3 = index.getX(i + 2) + globalVertexOffset
-        allTriangles.push(`          <triangle v1="${v1}" v2="${v2}" v3="${v3}" pid="1" p1="${ci}" />`)
+        const v1 = index.getX(i)
+        const v2 = index.getX(i + 1)
+        const v3 = index.getX(i + 2)
+        triangles.push(`          <triangle v1="${v1}" v2="${v2}" v3="${v3}" />`)
       }
     } else {
-      // Non-indexed geometry
       for (let i = 0; i < vertexCount; i += 3) {
-        const v1 = i + globalVertexOffset
-        const v2 = i + 1 + globalVertexOffset
-        const v3 = i + 2 + globalVertexOffset
-        allTriangles.push(`          <triangle v1="${v1}" v2="${v2}" v3="${v3}" pid="1" p1="${ci}" />`)
+        triangles.push(`          <triangle v1="${i}" v2="${i + 1}" v3="${i + 2}" />`)
       }
     }
 
-    globalVertexOffset += vertexCount
+    objectsXml.push(`    <object id="${objectId}" type="model" pid="1" pindex="${ci}">
+      <mesh>
+        <vertices>
+${vertices.join('\n')}
+        </vertices>
+        <triangles>
+${triangles.join('\n')}
+        </triangles>
+      </mesh>
+    </object>`)
+
+    buildItems.push(`    <item objectid="${objectId}" />`)
+    objectId++
   }
 
   // Build materials XML
   const materialsXml = colorList.map((color, i) => {
     const label = i === 0 ? `Base - ${color}` : `Color - ${color}`
-    return `      <basematerial name="${label}" displaycolor="${color}" />`
+    return `      <m:base name="${label}" displaycolor="${color}FF" />`
   }).join('\n')
 
   // Build model XML
@@ -111,22 +120,13 @@ export function exportThreeMf(
   xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
   xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">
   <resources>
-    <basematerials id="1">
+    <m:basematerials id="1">
 ${materialsXml}
-    </basematerials>
-    <object id="2" type="model">
-      <mesh>
-        <vertices>
-${allVertices.join('\n')}
-        </vertices>
-        <triangles>
-${allTriangles.join('\n')}
-        </triangles>
-      </mesh>
-    </object>
+    </m:basematerials>
+${objectsXml.join('\n')}
   </resources>
   <build>
-    <item objectid="2" />
+${buildItems.join('\n')}
   </build>
 </model>`
 
@@ -142,14 +142,21 @@ ${allTriangles.join('\n')}
   <Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />
 </Relationships>`
 
-  // Log for testing
-  console.log('=== 3MF Model XML ===')
-  console.log(modelXml)
-  console.log('=== [Content_Types].xml ===')
-  console.log(contentTypesXml)
-  console.log('=== _rels/.rels ===')
-  console.log(relsXml)
-  console.log(`Materials: ${colorList.length}, Vertices: ${globalVertexOffset}, Triangles: ${allTriangles.length}`)
+  // Package into 3MF ZIP
+  const zipped = zipSync({
+    '[Content_Types].xml': strToU8(contentTypesXml),
+    '_rels/.rels': strToU8(relsXml),
+    '3D/3dmodel.model': strToU8(modelXml),
+  })
+  const blob = new Blob([zipped], { type: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml' })
+
+  // Trigger download
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'keychain.3mf'
+  a.click()
+  URL.revokeObjectURL(url)
 
   // Clean up cloned geometries
   for (const geo of mergedGeometries.values()) {

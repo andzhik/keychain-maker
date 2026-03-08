@@ -281,7 +281,7 @@ Implement ExportButton.vue:
 - Show a brief loading state during export
 - Catch and display any export errors
 
-Remove the console.log from step 7a.
+Remove the console.log from src/utils/threeMfWriter.ts.
 ```
 
 **Verify:** Upload an SVG, click Download .3mf. Open the file in PrusaSlicer or BambuStudio. It should load with the correct shape and each color as a separate material/extruder. If you don't have a slicer, at minimum unzip the .3mf and inspect the XML files manually.

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import SvgUploader from './SvgUploader.vue'
-import ExportButton from './ExportButton.vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
 const props = defineProps<{
@@ -188,11 +187,6 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- Export -->
-    <section class="shrink-0">
-      <ExportButton />
     </section>
   </div>
 </template>

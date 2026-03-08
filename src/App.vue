@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
+import ExportButton from './components/ExportButton.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
 import { exportThreeMf } from './utils/threeMfWriter'
@@ -10,12 +11,20 @@ import type { KeychainConfig } from './types/keychain'
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 const showLogo = ref(true)
 const config = ref<KeychainConfig>({ ...DEFAULT_CONFIG })
+const exporting = ref(false)
 const { colorGroups, error, parse } = useSvgParser()
 
-function handleExport() {
+async function handleExport() {
   const group = viewerRef.value?.getCurrentGroup()
   if (!group) return
-  exportThreeMf(group, colorGroups.value, config.value)
+  exporting.value = true
+  try {
+    exportThreeMf(group, colorGroups.value, config.value)
+  } catch (e) {
+    console.error('Export failed:', e)
+  } finally {
+    exporting.value = false
+  }
 }
 
 const dimText = computed(() => {
@@ -43,18 +52,19 @@ const dimText = computed(() => {
           v-model:config="config"
           @svgLoaded="parse"
         />
+        <div class="p-4 border-t border-gray-200 mt-auto">
+          <ExportButton
+            :disabled="colorGroups.length === 0"
+            :exporting="exporting"
+            @export="handleExport"
+          />
+        </div>
       </aside>
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
         <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="config" />
-        <div class="absolute top-2 right-2 flex gap-2">
-          <button
-            class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
-            @click="handleExport"
-          >
-            Test Export
-          </button>
+        <div class="absolute top-2 right-2">
           <button
             class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
             @click="viewerRef?.resetView()"
