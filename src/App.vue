@@ -19,7 +19,10 @@ async function handleExport() {
   if (!group) return
   exporting.value = true
   try {
-    const blob = await exportTo3MF(group)
+    // Export without the display rotation (rotation.x = -PI/2 is for viewport only)
+    const exportGroup = group.clone()
+    exportGroup.rotation.set(0, 0, 0)
+    const blob = await exportTo3MF(exportGroup)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
