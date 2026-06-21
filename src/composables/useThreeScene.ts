@@ -73,9 +73,12 @@ export function useThreeScene() {
 
     // Render loop
     function animate() {
+      // A frame may already be queued when dispose() runs; bail out if the
+      // scene has been torn down so we never touch nulled-out references.
+      if (!renderer || !scene || !camera || !controls) return
       animFrameId = requestAnimationFrame(animate)
-      controls!.update()
-      renderer!.render(scene!, camera!)
+      controls.update()
+      renderer.render(scene, camera)
     }
     animate()
 
