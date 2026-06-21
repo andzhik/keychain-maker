@@ -67,7 +67,9 @@ onUnmounted(() => {
 // that in-place HMR cannot safely swap. Force a full page reload on hot edits so
 // each save starts from a clean GL context instead of leaking one per swap.
 if (import.meta.hot) {
-  import.meta.hot.decline()
+  import.meta.hot.accept(() => {
+    import.meta.hot!.invalidate('ThreeViewer owns a WebGL context that cannot be hot-swapped')
+  })
 }
 </script>
 
