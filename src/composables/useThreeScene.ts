@@ -127,10 +127,13 @@ export function useThreeScene() {
 function isWebGLAvailable(): boolean {
   try {
     const canvas = document.createElement('canvas')
-    return !!(
-      window.WebGLRenderingContext &&
-      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
-    )
+    const gl = (canvas.getContext('webgl') ||
+      canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null
+    const available = !!(window.WebGLRenderingContext && gl)
+    // Release the probe context immediately so HMR cycles don't exhaust the
+    // browser's WebGL context limit before GC reclaims this throwaway canvas.
+    gl?.getExtension('WEBGL_lose_context')?.loseContext()
+    return available
   } catch {
     return false
   }

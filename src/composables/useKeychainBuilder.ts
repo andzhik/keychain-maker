@@ -19,6 +19,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
       }
     })
     currentGroup = null
+    logoGroupRef = null
   }
 
   function build(colorGroups: ColorGroup[], config: KeychainConfig): THREE.Group | null {
