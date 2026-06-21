@@ -8,6 +8,7 @@ export function useThreeScene() {
   let controls: OrbitControls | null = null
   let animFrameId: number | null = null
   let resizeObserver: ResizeObserver | null = null
+  let resizeRafId: number | null = null
 
   function init(container: HTMLElement): { webglUnavailable: boolean } {
     // WebGL availability check
@@ -55,8 +56,11 @@ export function useThreeScene() {
     scene.add(new THREE.GridHelper(50, 50, 0xcccccc, 0xe0e0e0))
     scene.add(new THREE.AxesHelper(10))
 
-    // Resize handling
-    resizeObserver = new ResizeObserver(() => {
+    // Resize handling — throttle to one update per animation frame so a burst
+    // of ResizeObserver callbacks (e.g. while dragging the window edge) coalesces
+    // into a single camera/renderer update instead of one per event.
+    function applyResize() {
+      resizeRafId = null
       if (!renderer || !camera) return
       const w = container.clientWidth
       const h = container.clientHeight
@@ -68,6 +72,10 @@ export function useThreeScene() {
       camera.bottom = -frustumSize / 2
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
+    }
+    resizeObserver = new ResizeObserver(() => {
+      if (resizeRafId !== null) return
+      resizeRafId = requestAnimationFrame(applyResize)
     })
     resizeObserver.observe(container)
 
@@ -87,6 +95,7 @@ export function useThreeScene() {
 
   function dispose() {
     if (animFrameId !== null) cancelAnimationFrame(animFrameId)
+    if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
     resizeObserver?.disconnect()
     controls?.dispose()
     renderer?.dispose()
@@ -97,6 +106,7 @@ export function useThreeScene() {
     camera = null
     controls = null
     resizeObserver = null
+    resizeRafId = null
   }
 
   function fitCamera(target: THREE.Object3D) {
