@@ -21,7 +21,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 p-4 h-full">
+  <div class="flex flex-col gap-4 p-4">
     <!-- Upload -->
     <section>
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">SVG File</h2>

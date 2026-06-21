@@ -53,15 +53,16 @@ const dimText = computed(() => {
     <!-- Main: sidebar + viewport -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Left sidebar: fixed 300px -->
-      <aside class="w-[300px] shrink-0 flex flex-col bg-gray-50 border-r border-gray-200 overflow-y-auto">
+      <aside class="w-[300px] shrink-0 flex flex-col bg-gray-50 border-r border-gray-200 overflow-hidden">
         <ControlPanel
+          class="flex-1 min-h-0 overflow-y-auto"
           :colorGroups="colorGroups"
           :error="error"
           v-model:showLogo="showLogo"
           v-model:config="config"
           @svgLoaded="parse"
         />
-        <div class="p-4 border-t border-gray-200 mt-auto">
+        <div class="p-4 border-t border-gray-200 shrink-0">
           <ExportButton
             :disabled="colorGroups.length === 0"
             :exporting="exporting"
