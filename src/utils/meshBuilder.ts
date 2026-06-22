@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
+import type { Profiler } from './profiler'
 
 function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: number, r: number) {
   const R = config.keyringRingDiameter / 2
@@ -41,7 +42,19 @@ function clampBevel(config: KeychainConfig): number {
   return Math.max(0, Math.min(config.edgeBevel, maxBevel))
 }
 
-export function buildBasePlate(config: KeychainConfig, width: number, height: number, holes: THREE.Path[] = []): THREE.Mesh {
+// Beveled outer-perimeter extrude (no SVG holes — those are cut later via CSG).
+function buildBeveledGeometry(shape: THREE.Shape, config: KeychainConfig, bevel: number): THREE.ExtrudeGeometry {
+  return new THREE.ExtrudeGeometry(shape, {
+    depth: config.baseThickness - 2 * bevel,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelOffset: -bevel,
+    bevelSegments: 2,
+  })
+}
+
+export function buildBasePlate(config: KeychainConfig, width: number, height: number, holes: THREE.Path[] = [], profiler?: Profiler): THREE.Mesh {
   const r = Math.min(config.cornerRadius, width / 2, height / 2)
   const w = width / 2
   const h = height / 2
@@ -92,14 +105,9 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   // bevel only the outer perimeter (the keyring hole stays part of the shape and
   // is intentionally beveled), then subtract straight vertical prisms for the
   // SVG cutouts via CSG so the logo sits flush.
-  const baseGeometry = new THREE.ExtrudeGeometry(shape, {
-    depth: config.baseThickness - 2 * bevel,
-    bevelEnabled: true,
-    bevelThickness: bevel,
-    bevelSize: bevel,
-    bevelOffset: -bevel,
-    bevelSegments: 2,
-  })
+  const baseGeometry = profiler
+    ? profiler.measure('  bevel extrude', () => buildBeveledGeometry(shape, config, bevel))
+    : buildBeveledGeometry(shape, config, bevel)
 
   if (holes.length === 0) {
     return new THREE.Mesh(baseGeometry, material)
@@ -107,17 +115,26 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
 
   // The beveled plate spans Z [-bevel, baseThickness - bevel]; make the cutter
   // prisms over-tall so they pierce both faces for a clean subtraction.
+  //
+  // Subtract one prism at a time. Counterintuitively this is ~3x faster than
+  // merging all cutters and subtracting once: three-bvh-csg handles many small
+  // local boolean ops far better than one op against a high-triangle cutter.
   const evaluator = new Evaluator()
   let result = new Brush(baseGeometry)
-  for (const hole of holes) {
-    const holeShape = new THREE.Shape(hole.getPoints())
-    const prism = new THREE.ExtrudeGeometry(holeShape, {
-      depth: config.baseThickness + 2,
-      bevelEnabled: false,
-    })
-    prism.translate(0, 0, -bevel - 1)
-    result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
-    prism.dispose()
+  for (let i = 0; i < holes.length; i++) {
+    const hole = holes[i]
+    const cut = () => {
+      const holeShape = new THREE.Shape(hole.getPoints())
+      const prism = new THREE.ExtrudeGeometry(holeShape, {
+        depth: config.baseThickness + 2,
+        bevelEnabled: false,
+      })
+      prism.translate(0, 0, -bevel - 1)
+      result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
+      prism.dispose()
+    }
+    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${holes.length}`, cut)
+    else cut()
   }
 
   return new THREE.Mesh(result.geometry, material)
