@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { ref } from 'vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import { buildBasePlate, buildLogoMeshes } from '../utils/meshBuilder'
+import { Profiler } from '../utils/profiler'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
@@ -23,22 +24,25 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   }
 
   function build(colorGroups: ColorGroup[], config: KeychainConfig): THREE.Group | null {
-    disposeCurrent()
+    const profiler = new Profiler('keychain build')
+    profiler.measure('disposeCurrent', () => disposeCurrent())
     const scene = getScene()
     if (!scene) return null
 
     // Compute SVG bounding box
     const box = new THREE.Box3()
     let hasSvg = false
-    for (const group of colorGroups) {
-      for (const shape of group.shapes) {
-        const pts = shape.getPoints(64)
-        for (const p of pts) {
-          box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
+    profiler.measure('bounding box', () => {
+      for (const group of colorGroups) {
+        for (const shape of group.shapes) {
+          const pts = shape.getPoints(64)
+          for (const p of pts) {
+            box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
+          }
+          hasSvg = true
         }
-        hasSvg = true
       }
-    }
+    })
 
     let width = config.targetWidth
     let height = config.targetWidth * (2 / 3)
@@ -62,29 +66,37 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
 
     // Build hole paths from SVG shapes for base plate cutouts
     const holePaths: THREE.Path[] = []
-    if (hasSvg) {
-      for (const group of colorGroups) {
-        for (const shape of group.shapes) {
-          const pts = shape.getPoints(64)
-          const hole = new THREE.Path()
-          for (let i = 0; i < pts.length; i++) {
-            const x = (pts[i].x - svgCenter.x) * scale
-            const y = -(pts[i].y - svgCenter.y) * scale
-            if (i === 0) hole.moveTo(x, y)
-            else hole.lineTo(x, y)
+    profiler.measure('hole paths', () => {
+      if (hasSvg) {
+        for (const group of colorGroups) {
+          for (const shape of group.shapes) {
+            // Low curve resolution keeps the CSG cutter prisms light — this is the
+            // dominant build cost. The inlaid logo hides most cutout-wall faceting.
+            const pts = shape.getPoints(16)
+            const hole = new THREE.Path()
+            for (let i = 0; i < pts.length; i++) {
+              const x = (pts[i].x - svgCenter.x) * scale
+              const y = -(pts[i].y - svgCenter.y) * scale
+              if (i === 0) hole.moveTo(x, y)
+              else hole.lineTo(x, y)
+            }
+            holePaths.push(hole)
           }
-          holePaths.push(hole)
         }
       }
-    }
+    })
 
     // Base plate with SVG cutouts
-    const basePlate = buildBasePlate(config, width, height, holePaths)
+    const basePlate = profiler.measure('buildBasePlate', () =>
+      buildBasePlate(config, width, height, holePaths, profiler),
+    )
     root.add(basePlate)
 
     // Logo meshes (flush inlay — same z as base plate)
     if (hasSvg) {
-      const logoMeshes = buildLogoMeshes(colorGroups, config)
+      const logoMeshes = profiler.measure('buildLogoMeshes', () =>
+        buildLogoMeshes(colorGroups, config),
+      )
       const logoGroup = new THREE.Group()
 
       // Center SVG on origin, flip Y, and apply uniform scale
@@ -100,6 +112,8 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
 
     scene.add(root)
     currentGroup = root
+
+    profiler.flush()
 
     const totalHeight = config.keyringEnabled
       ? height + config.keyringRingDiameter / 2

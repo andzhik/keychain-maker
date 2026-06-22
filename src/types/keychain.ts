@@ -15,6 +15,8 @@ export interface KeychainConfig {
   keyringEnabled: boolean
   keyringHoleDiameter: number
   keyringRingDiameter: number
+  edgeBevel: number
+  bevelSegments: number
   baseColor: string
 }
 
@@ -26,5 +28,7 @@ export const DEFAULT_CONFIG: KeychainConfig = {
   keyringEnabled: true,
   keyringHoleDiameter: 5,
   keyringRingDiameter: 10,
+  edgeBevel: 0.6,
+  bevelSegments: 2,
   baseColor: '#FFFFFF',
 }
