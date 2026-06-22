@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell(bun run build)",
+      "Bash(gh run *)",
+      "PowerShell(npx vue-tsc --noEmit 2>&1)",
+      "PowerShell(bun run dev)",
+      "PowerShell(bun install)",
+      "PowerShell(npx vue-tsc:*)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
     ]
   }
 }
