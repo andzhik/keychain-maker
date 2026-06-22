@@ -7,14 +7,12 @@ on:
   # Allow manual runs from the Actions tab
   workflow_dispatch:
 
-# Permissions the GITHUB_TOKEN needs to publish to Pages
+# Pushing to the gh-pages branch needs write access to repo contents
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Allow only one concurrent deployment, skipping runs queued behind the
-# in-progress one. Do not cancel in-progress runs (let deploys finish).
+# Share one concurrency group with the preview workflow so deploys never
+# push to the gh-pages branch at the same time (avoids git push races).
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -36,22 +34,13 @@ jobs:
 
       - name: Build
         run: bun run build
+        env:
+          VITE_BASE_PATH: /keychain-maker/
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to gh-pages (site root)
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: ./dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          # Keep existing files (e.g. the preview/ folder) when updating prod.
+          keep_files: true
