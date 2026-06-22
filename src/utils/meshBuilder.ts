@@ -3,7 +3,13 @@ import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import type { Profiler } from './profiler'
 
-function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: number, r: number) {
+// Draws the keyring loop onto the shape's top edge. Returns the circular keyring
+// hole as a polygon path (caller decides whether to cut it as a flat shape hole
+// or via CSG), or null when there's no room for the loop and we fall back to a
+// solid semicircle. The hole is NOT pushed onto shape.holes here: when beveled,
+// ExtrudeGeometry would bevel this small inner contour and the offset cap would
+// self-intersect (see buildBasePlate), so it must be cut as a vertical prism.
+function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: number, r: number): THREE.Path | null {
   const R = config.keyringRingDiameter / 2
   const maxFr = ((w - r) * (w - r) - R * R) / (2 * R)
   const fr = Math.min(R * 0.75, Math.max(0, maxFr))
@@ -13,27 +19,37 @@ function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: 
     shape.lineTo(R, h)
     shape.absarc(0, h, R, 0, Math.PI, false)
     shape.lineTo(-w + r, h)
-  } else {
-    const fx = Math.sqrt(R * R + 2 * R * fr)
-    const ringStart = Math.atan2(fr, fx)
-    const ringEnd = Math.PI - ringStart
-
-    // Top edge to right fillet start
-    shape.lineTo(fx, h)
-    // Right concave fillet arc (clockwise)
-    shape.absarc(fx, h + fr, fr, -Math.PI / 2, Math.atan2(-fr, -fx), true)
-    // Ring arc over the top (counter-clockwise)
-    shape.absarc(0, h, R, ringStart, ringEnd, false)
-    // Left concave fillet arc (clockwise)
-    shape.absarc(-fx, h + fr, fr, Math.atan2(-fr, fx), -Math.PI / 2, true)
-    // Continue to top-left corner
-    shape.lineTo(-w + r, h)
-
-    // Keyring hole (circular cutout)
-    const holePath = new THREE.Path()
-    holePath.absarc(0, h, config.keyringHoleDiameter / 2, 0, Math.PI * 2, false)
-    shape.holes.push(holePath)
+    return null
   }
+
+  const fx = Math.sqrt(R * R + 2 * R * fr)
+  const ringStart = Math.atan2(fr, fx)
+  const ringEnd = Math.PI - ringStart
+
+  // Top edge to right fillet start
+  shape.lineTo(fx, h)
+  // Right concave fillet arc (clockwise)
+  shape.absarc(fx, h + fr, fr, -Math.PI / 2, Math.atan2(-fr, -fx), true)
+  // Ring arc over the top (counter-clockwise)
+  shape.absarc(0, h, R, ringStart, ringEnd, false)
+  // Left concave fillet arc (clockwise)
+  shape.absarc(-fx, h + fr, fr, Math.atan2(-fr, fx), -Math.PI / 2, true)
+  // Continue to top-left corner
+  shape.lineTo(-w + r, h)
+
+  // Keyring hole as an explicit polygon (matches the SVG hole paths, so the CSG
+  // cutter prism stays light — getPoints() returns exactly these vertices).
+  const hr = config.keyringHoleDiameter / 2
+  const segs = 48
+  const holePath = new THREE.Path()
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2
+    const x = Math.cos(a) * hr
+    const y = h + Math.sin(a) * hr
+    if (i === 0) holePath.moveTo(x, y)
+    else holePath.lineTo(x, y)
+  }
+  return holePath
 }
 
 // Clamp the requested edge bevel so the extrude depth (baseThickness - 2*bevel) stays positive.
@@ -43,13 +59,19 @@ function clampBevel(config: KeychainConfig): number {
 }
 
 // Beveled outer-perimeter extrude (no SVG holes — those are cut later via CSG).
+//
+// bevelOffset is 0 (not -bevel): a negative offset insets the bevel and folds at
+// the keyring loop's concave fillets — ExtrudeGeometry emits flipped cap triangles
+// there, worse as bevel grows, which show as flat shards poking out of the loop
+// edge. With offset 0 the top/bottom faces stay on the outline and the edge
+// bulges outward by `bevel` instead, which is fold-free for every contour.
 function buildBeveledGeometry(shape: THREE.Shape, config: KeychainConfig, bevel: number): THREE.ExtrudeGeometry {
   return new THREE.ExtrudeGeometry(shape, {
     depth: config.baseThickness - 2 * bevel,
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
-    bevelOffset: -bevel,
+    bevelOffset: 0,
     bevelSegments: Math.max(1, Math.round(config.bevelSegments)),
   })
 }
@@ -72,8 +94,9 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   // Top-right corner
   shape.quadraticCurveTo(w, h, w - r, h)
 
+  let keyringHole: THREE.Path | null = null
   if (config.keyringEnabled) {
-    applyKeyring(shape, config, w, h, r)
+    keyringHole = applyKeyring(shape, config, w, h, r)
   }
   else {
     // Straight top edge
@@ -90,9 +113,10 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   const material = new THREE.MeshStandardMaterial({ color: config.baseColor })
 
   // No bevel: the extruder produces vertical walls everywhere, so the SVG
-  // cutouts can be cut directly as shape holes (logo stays flush).
+  // cutouts and the keyring hole can be cut directly as shape holes.
   if (bevel <= 0.01) {
     for (const hole of holes) shape.holes.push(hole)
+    if (keyringHole) shape.holes.push(keyringHole)
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: config.baseThickness,
       bevelEnabled: false,
@@ -100,16 +124,18 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
     return new THREE.Mesh(geometry, material)
   }
 
-  // Beveled: ExtrudeGeometry bevels every contour, so cutting the SVG holes as
-  // shape holes would flare their walls and leave a gap around the logo. Instead
-  // bevel only the outer perimeter (the keyring hole stays part of the shape and
-  // is intentionally beveled), then subtract straight vertical prisms for the
-  // SVG cutouts via CSG so the logo sits flush.
+  // Beveled: ExtrudeGeometry bevels every contour, so cutting holes as shape
+  // holes would flare their walls. For the SVG cutouts that leaves a gap around
+  // the logo; for the small keyring hole the offset bevel cap self-intersects
+  // (worse as bevel grows toward the hole radius), producing a triangulated
+  // artifact. So bevel only the outer perimeter, then subtract straight vertical
+  // prisms for every cutout — SVG and keyring alike — via CSG.
   const baseGeometry = profiler
     ? profiler.measure('  bevel extrude', () => buildBeveledGeometry(shape, config, bevel))
     : buildBeveledGeometry(shape, config, bevel)
 
-  if (holes.length === 0) {
+  const csgHoles = keyringHole ? [...holes, keyringHole] : holes
+  if (csgHoles.length === 0) {
     return new THREE.Mesh(baseGeometry, material)
   }
 
@@ -121,8 +147,8 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   // local boolean ops far better than one op against a high-triangle cutter.
   const evaluator = new Evaluator()
   let result = new Brush(baseGeometry)
-  for (let i = 0; i < holes.length; i++) {
-    const hole = holes[i]
+  for (let i = 0; i < csgHoles.length; i++) {
+    const hole = csgHoles[i]
     const cut = () => {
       const holeShape = new THREE.Shape(hole.getPoints())
       const prism = new THREE.ExtrudeGeometry(holeShape, {
@@ -133,7 +159,7 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
       result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
       prism.dispose()
     }
-    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${holes.length}`, cut)
+    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${csgHoles.length}`, cut)
     else cut()
   }
 
