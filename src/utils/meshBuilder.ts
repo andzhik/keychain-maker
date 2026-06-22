@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
 function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: number, r: number) {
@@ -34,6 +35,12 @@ function applyKeyring(shape: THREE.Shape, config: KeychainConfig, w: number, h: 
   }
 }
 
+// Clamp the requested edge bevel so the extrude depth (baseThickness - 2*bevel) stays positive.
+function clampBevel(config: KeychainConfig): number {
+  const maxBevel = config.baseThickness / 2 - 0.05
+  return Math.max(0, Math.min(config.edgeBevel, maxBevel))
+}
+
 export function buildBasePlate(config: KeychainConfig, width: number, height: number, holes: THREE.Path[] = []): THREE.Mesh {
   const r = Math.min(config.cornerRadius, width / 2, height / 2)
   const w = width / 2
@@ -66,21 +73,60 @@ export function buildBasePlate(config: KeychainConfig, width: number, height: nu
   // Bottom-left corner
   shape.quadraticCurveTo(-w, -h, -w + r, -h)
 
-  // SVG cutout holes
-  for (const hole of holes) {
-    shape.holes.push(hole)
+  const bevel = clampBevel(config)
+  const material = new THREE.MeshStandardMaterial({ color: config.baseColor })
+
+  // No bevel: the extruder produces vertical walls everywhere, so the SVG
+  // cutouts can be cut directly as shape holes (logo stays flush).
+  if (bevel <= 0.01) {
+    for (const hole of holes) shape.holes.push(hole)
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: config.baseThickness,
+      bevelEnabled: false,
+    })
+    return new THREE.Mesh(geometry, material)
   }
 
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: config.baseThickness,
-    bevelEnabled: false,
+  // Beveled: ExtrudeGeometry bevels every contour, so cutting the SVG holes as
+  // shape holes would flare their walls and leave a gap around the logo. Instead
+  // bevel only the outer perimeter (the keyring hole stays part of the shape and
+  // is intentionally beveled), then subtract straight vertical prisms for the
+  // SVG cutouts via CSG so the logo sits flush.
+  const baseGeometry = new THREE.ExtrudeGeometry(shape, {
+    depth: config.baseThickness - 2 * bevel,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelOffset: -bevel,
+    bevelSegments: 2,
   })
 
-  const material = new THREE.MeshStandardMaterial({ color: config.baseColor })
-  return new THREE.Mesh(geometry, material)
+  if (holes.length === 0) {
+    return new THREE.Mesh(baseGeometry, material)
+  }
+
+  // The beveled plate spans Z [-bevel, baseThickness - bevel]; make the cutter
+  // prisms over-tall so they pierce both faces for a clean subtraction.
+  const evaluator = new Evaluator()
+  let result = new Brush(baseGeometry)
+  for (const hole of holes) {
+    const holeShape = new THREE.Shape(hole.getPoints())
+    const prism = new THREE.ExtrudeGeometry(holeShape, {
+      depth: config.baseThickness + 2,
+      bevelEnabled: false,
+    })
+    prism.translate(0, 0, -bevel - 1)
+    result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
+    prism.dispose()
+  }
+
+  return new THREE.Mesh(result.geometry, material)
 }
 
 export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): THREE.Mesh[] {
+  // The beveled base plate spans Z [-bevel, baseThickness - bevel], so shift the
+  // (un-beveled) logo down by the same amount to keep it flush with the base faces.
+  const bevel = clampBevel(config)
   const meshes: THREE.Mesh[] = []
   for (const group of groups) {
     if (group.shapes.length === 0) continue
@@ -88,6 +134,7 @@ export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): T
       depth: config.baseThickness,
       bevelEnabled: false,
     })
+    if (bevel > 0) geometry.translate(0, 0, -bevel)
     const material = new THREE.MeshStandardMaterial({ color: group.color })
     meshes.push(new THREE.Mesh(geometry, material))
   }

@@ -96,6 +96,21 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           />
         </div>
 
+        <!-- Edge bevel -->
+        <div>
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Edge bevel</span>
+            <span class="text-gray-400">{{ config.edgeBevel.toFixed(1) }} mm</span>
+          </div>
+          <input
+            type="range"
+            :value="config.edgeBevel"
+            @input="updateField('edgeBevel', parseFloat(($event.target as HTMLInputElement).value))"
+            min="0" max="2" step="0.1"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
         <!-- Corner radius -->
         <div>
           <div class="flex justify-between text-sm text-gray-700">
