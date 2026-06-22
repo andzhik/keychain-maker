@@ -50,7 +50,7 @@ function buildBeveledGeometry(shape: THREE.Shape, config: KeychainConfig, bevel:
     bevelThickness: bevel,
     bevelSize: bevel,
     bevelOffset: -bevel,
-    bevelSegments: 2,
+    bevelSegments: Math.max(1, Math.round(config.bevelSegments)),
   })
 }
 

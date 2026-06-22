@@ -111,6 +111,21 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           />
         </div>
 
+        <!-- Bevel segments -->
+        <div v-if="config.edgeBevel > 0">
+          <div class="flex justify-between text-sm text-gray-700">
+            <span>Bevel segments</span>
+            <span class="text-gray-400">{{ config.bevelSegments }}</span>
+          </div>
+          <input
+            type="range"
+            :value="config.bevelSegments"
+            @input="updateField('bevelSegments', parseInt(($event.target as HTMLInputElement).value, 10))"
+            min="1" max="8" step="1"
+            class="w-full accent-gray-700"
+          />
+        </div>
+
         <!-- Corner radius -->
         <div>
           <div class="flex justify-between text-sm text-gray-700">
