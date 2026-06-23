@@ -15,7 +15,7 @@ export function svgToShapes(svgString: string): ColorGroup[] {
     const shapes = SVGLoader.createShapes(path)
     if (shapes.length === 0) continue
 
-    const color = '#' + path.color.getHexString()
+    const color = normalizeColor(path.color)
 
     const existing = colorMap.get(color)
     if (existing) {

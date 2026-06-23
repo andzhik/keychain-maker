@@ -7,8 +7,28 @@ export function useThreeScene() {
   let camera: THREE.OrthographicCamera | null = null
   let controls: OrbitControls | null = null
   let animFrameId: number | null = null
+  let renderRequested = false
   let resizeObserver: ResizeObserver | null = null
   let resizeRafId: number | null = null
+
+  // Render-on-demand: instead of pinning the GPU at the display refresh rate for a
+  // static scene, we only draw when something changes. A frame advances the
+  // OrbitControls damping; `update()` returns true while the camera is still
+  // settling, so the loop keeps itself alive for the damping tail and stops once
+  // the scene is at rest.
+  function renderFrame() {
+    renderRequested = false
+    if (!renderer || !scene || !camera || !controls) return
+    const cameraMoved = controls.update()
+    renderer.render(scene, camera)
+    if (cameraMoved) requestRender()
+  }
+
+  function requestRender() {
+    if (renderRequested || !renderer) return
+    renderRequested = true
+    animFrameId = requestAnimationFrame(renderFrame)
+  }
 
   function init(container: HTMLElement): { webglUnavailable: boolean } {
     // WebGL availability check
@@ -72,6 +92,7 @@ export function useThreeScene() {
       camera.bottom = -frustumSize / 2
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
+      requestRender()
     }
     resizeObserver = new ResizeObserver(() => {
       if (resizeRafId !== null) return
@@ -79,22 +100,16 @@ export function useThreeScene() {
     })
     resizeObserver.observe(container)
 
-    // Render loop
-    function animate() {
-      // A frame may already be queued when dispose() runs; bail out if the
-      // scene has been torn down so we never touch nulled-out references.
-      if (!renderer || !scene || !camera || !controls) return
-      animFrameId = requestAnimationFrame(animate)
-      controls.update()
-      renderer.render(scene, camera)
-    }
-    animate()
+    // Repaint whenever the user orbits/zooms; renderFrame handles the damping tail.
+    controls.addEventListener('change', requestRender)
+    requestRender()
 
     return { webglUnavailable: false }
   }
 
   function dispose() {
     if (animFrameId !== null) cancelAnimationFrame(animFrameId)
+    renderRequested = false
     if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
     resizeObserver?.disconnect()
     controls?.dispose()
@@ -115,7 +130,6 @@ export function useThreeScene() {
     const sphere = new THREE.Sphere()
     box.getBoundingSphere(sphere)
     const radius = sphere.radius * 1.3
-    const aspect = (camera.right - camera.left) / (camera.top - camera.bottom)
     camera.zoom = Math.min(
       (camera.right - camera.left) / (2 * radius),
       (camera.top - camera.bottom) / (2 * radius)
@@ -125,13 +139,14 @@ export function useThreeScene() {
     camera.position.copy(sphere.center).add(offset)
     controls.target.copy(sphere.center)
     controls.update()
+    requestRender()
   }
 
   function getScene() { return scene }
   function getCamera() { return camera }
   function getRenderer() { return renderer }
 
-  return { init, dispose, getScene, getCamera, getRenderer, fitCamera }
+  return { init, dispose, getScene, getCamera, getRenderer, fitCamera, requestRender }
 }
 
 function isWebGLAvailable(): boolean {

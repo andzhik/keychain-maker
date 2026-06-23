@@ -13,7 +13,7 @@ const props = defineProps<{
 const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
 
-const { init, dispose: disposeScene, getScene, fitCamera } = useThreeScene()
+const { init, dispose: disposeScene, getScene, fitCamera, requestRender } = useThreeScene()
 const { build, dispose: disposeBuilder, dimensions, setLogoVisible } = useKeychainBuilder(getScene)
 
 let currentGroup: ReturnType<typeof build> = null
@@ -26,6 +26,7 @@ function rebuild() {
 
 function rebuildOnly() {
   currentGroup = build(props.colorGroups, props.config)
+  requestRender()
 }
 
 function resetView() {
@@ -55,6 +56,7 @@ watch(() => props.config, () => {
 
 watch(() => props.showLogo, (visible) => {
   setLogoVisible(visible)
+  requestRender()
 })
 
 onUnmounted(() => {

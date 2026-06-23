@@ -4,6 +4,7 @@
 
 - Ignore tests unless explicitly asked to run or modify.
 - Use Windows PowerShell.
+- Every time you finished a change and it is complete, generate a concise commit message, but do not commit
 
 ## Conventions
 

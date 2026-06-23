@@ -29,13 +29,18 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const scene = getScene()
     if (!scene) return null
 
-    // Compute SVG bounding box
+    // Tessellate every shape once and reuse the points for both the bounding box
+    // and the hole paths below. Low curve resolution keeps the CSG cutter prisms
+    // light — this is the dominant build cost. The inlaid logo hides most
+    // cutout-wall faceting.
+    const shapePoints: THREE.Vector2[][] = []
     const box = new THREE.Box3()
     let hasSvg = false
     profiler.measure('bounding box', () => {
       for (const group of colorGroups) {
         for (const shape of group.shapes) {
-          const pts = shape.getPoints(64)
+          const pts = shape.getPoints(16)
+          shapePoints.push(pts)
           for (const p of pts) {
             box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
           }
@@ -68,20 +73,15 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const holePaths: THREE.Path[] = []
     profiler.measure('hole paths', () => {
       if (hasSvg) {
-        for (const group of colorGroups) {
-          for (const shape of group.shapes) {
-            // Low curve resolution keeps the CSG cutter prisms light — this is the
-            // dominant build cost. The inlaid logo hides most cutout-wall faceting.
-            const pts = shape.getPoints(16)
-            const hole = new THREE.Path()
-            for (let i = 0; i < pts.length; i++) {
-              const x = (pts[i].x - svgCenter.x) * scale
-              const y = -(pts[i].y - svgCenter.y) * scale
-              if (i === 0) hole.moveTo(x, y)
-              else hole.lineTo(x, y)
-            }
-            holePaths.push(hole)
+        for (const pts of shapePoints) {
+          const hole = new THREE.Path()
+          for (let i = 0; i < pts.length; i++) {
+            const x = (pts[i].x - svgCenter.x) * scale
+            const y = -(pts[i].y - svgCenter.y) * scale
+            if (i === 0) hole.moveTo(x, y)
+            else hole.lineTo(x, y)
           }
+          holePaths.push(hole)
         }
       }
     })
