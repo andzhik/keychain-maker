@@ -69,8 +69,8 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2
 
-    // Build hole paths from SVG shapes for base plate cutouts
-    const holePaths: THREE.Path[] = []
+    // Logo cutout paths — subtracted from the beveled base after logo extrude (step 5).
+    const logoHoles: THREE.Path[] = []
     profiler.measure('hole paths', () => {
       if (hasSvg) {
         for (const pts of shapePoints) {
@@ -81,18 +81,18 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
             if (i === 0) hole.moveTo(x, y)
             else hole.lineTo(x, y)
           }
-          holePaths.push(hole)
+          logoHoles.push(hole)
         }
       }
     })
 
-    // Base plate with SVG cutouts
+    // Base plate: outline spline → keyhole → bevel extrude → subtract logo holes
     const basePlate = profiler.measure('buildBasePlate', () =>
-      buildBasePlate(config, width, height, holePaths, profiler),
+      buildBasePlate(config, width, height, logoHoles, profiler),
     )
     root.add(basePlate)
 
-    // Logo meshes (flush inlay — same z as base plate)
+    // Logo meshes: un-beveled extrude, flush with base faces
     if (hasSvg) {
       const logoMeshes = profiler.measure('buildLogoMeshes', () =>
         buildLogoMeshes(colorGroups, config),
