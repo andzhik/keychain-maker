@@ -70,3 +70,6 @@ backend/pytest.log
 # Test coverage
 coverage.xml
 htmlcov/
+
+# test results
+test-output/
