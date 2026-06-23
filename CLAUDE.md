@@ -5,6 +5,9 @@
 - Ignore tests unless explicitly asked to run or modify.
 - Use Windows PowerShell.
 - Every time you finished a change and it is complete, generate a concise commit message, but do not commit
+- If no simple fix is apparent, do not brute-force a solution — investigate carefully and
+  highlight likely causes, trade-offs, and options to the user before making large or
+  speculative changes.
 
 ## Conventions
 

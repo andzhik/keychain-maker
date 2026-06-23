@@ -9,6 +9,9 @@ Vue 3 + Three.js + Tailwind v4, built with Bun and Vite 6.
 - Do **not** commit unless the user explicitly asks. When a change is complete, you may
   suggest a concise commit message — do not run `git commit` on your own.
 - Use the project shell (bash/zsh on macOS/Linux). Prefer `bun` scripts over ad-hoc tooling.
+- If no simple fix is apparent, do not brute-force a solution — investigate carefully and
+  highlight likely causes, trade-offs, and options to the user before making large or
+  speculative changes.
 
 ## Conventions
 
