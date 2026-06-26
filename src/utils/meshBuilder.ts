@@ -9,7 +9,7 @@ function buildBasePlateOutline(
   w: number,
   h: number,
   r: number,
-): { shape: THREE.Shape, withKeyhole: boolean } {
+): THREE.Shape {
   const shape = new THREE.Shape()
 
   shape.moveTo(-w + r, -h)
@@ -18,9 +18,8 @@ function buildBasePlateOutline(
   shape.lineTo(w, h - r)
   shape.quadraticCurveTo(w, h, w - r, h)
 
-  let withKeyhole = false
   if (config.keyringEnabled) {
-    withKeyhole = drawKeyringOutline(shape, config, w, h, r)
+    drawKeyringOutline(shape, config, w, h, r)
   }
   else {
     shape.lineTo(-w + r, h)
@@ -30,20 +29,17 @@ function buildBasePlateOutline(
   shape.lineTo(-w, -h + r)
   shape.quadraticCurveTo(-w, -h, -w + r, -h)
 
-  return { shape, withKeyhole }
+  return shape
 }
 
-/**
- * Extends the top edge with the keyring loop splines.
- * Returns true when fillets fit and a keyhole cutout should be added.
- */
+/** Extends the top edge with the keyring loop splines. */
 function drawKeyringOutline(
   shape: THREE.Shape,
   config: KeychainConfig,
   w: number,
   h: number,
   r: number,
-): boolean {
+): void {
   const R = config.keyringRingDiameter / 2
   const maxFr = ((w - r) * (w - r) - R * R) / (2 * R)
   const fr = Math.min(R * 0.75, Math.max(0, maxFr))
@@ -52,7 +48,7 @@ function drawKeyringOutline(
     shape.lineTo(R, h)
     shape.absarc(0, h, R, 0, Math.PI, false)
     shape.lineTo(-w + r, h)
-    return false
+    return
   }
 
   const fx = Math.sqrt(R * R + 2 * R * fr)
@@ -64,14 +60,26 @@ function drawKeyringOutline(
   shape.absarc(0, h, R, ringStart, ringEnd, false)
   shape.absarc(-fx, h + fr, fr, Math.atan2(-fr, fx), -Math.PI / 2, true)
   shape.lineTo(-w + r, h)
-  return true
 }
 
-/** Step 2: optional circular keyhole cutout as a spline hole on the shape. */
-function addKeyringHole(shape: THREE.Shape, config: KeychainConfig, h: number): void {
-  const hole = new THREE.Path()
-  hole.absarc(0, h, config.keyringHoleDiameter / 2, 0, Math.PI * 2, false)
-  shape.holes.push(hole)
+/**
+ * Circular keyring hole as an explicit polygon — matches the SVG hole paths so the
+ * CSG cutter prism stays light. Not pushed onto shape.holes before bevel extrude:
+ * ExtrudeGeometry would bevel this small inner contour and the offset cap would
+ * self-intersect (worse as bevel grows toward the hole radius).
+ */
+function buildKeyringHolePath(config: KeychainConfig, h: number): THREE.Path {
+  const hr = config.keyringHoleDiameter / 2
+  const segs = 48
+  const holePath = new THREE.Path()
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2
+    const x = Math.cos(a) * hr
+    const y = h + Math.sin(a) * hr
+    if (i === 0) holePath.moveTo(x, y)
+    else holePath.lineTo(x, y)
+  }
+  return holePath
 }
 
 function clampBevel(config: KeychainConfig): number {
@@ -97,10 +105,10 @@ function buildBeveledGeometry(shape: THREE.Shape, config: KeychainConfig, bevel:
   })
 }
 
-/** Step 5: subtract straight vertical logo cutout prisms from the beveled base. */
-function subtractLogoHoles(
+/** Step 5: subtract straight vertical cutout prisms (logo + keyring hole) from the beveled base. */
+function subtractCutoutHoles(
   baseGeometry: THREE.ExtrudeGeometry,
-  logoHoles: THREE.Path[],
+  cutoutHoles: THREE.Path[],
   config: KeychainConfig,
   bevel: number,
   profiler?: Profiler,
@@ -108,8 +116,8 @@ function subtractLogoHoles(
   const evaluator = new Evaluator()
   let result = new Brush(baseGeometry)
 
-  for (let i = 0; i < logoHoles.length; i++) {
-    const hole = logoHoles[i]
+  for (let i = 0; i < cutoutHoles.length; i++) {
+    const hole = cutoutHoles[i]
     const cut = () => {
       const holeShape = new THREE.Shape(hole.getPoints())
       const prism = new THREE.ExtrudeGeometry(holeShape, {
@@ -120,7 +128,7 @@ function subtractLogoHoles(
       result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
       prism.dispose()
     }
-    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${logoHoles.length}`, cut)
+    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${cutoutHoles.length}`, cut)
     else cut()
   }
 
@@ -140,17 +148,15 @@ export function buildBasePlate(
   const w = width / 2
   const h = height / 2
 
-  const { shape, withKeyhole } = buildBasePlateOutline(config, w, h, r)
-
-  if (withKeyhole) {
-    addKeyringHole(shape, config, h)
-  }
+  const shape = buildBasePlateOutline(config, w, h, r)
+  const keyringHole = config.keyringEnabled ? buildKeyringHolePath(config, h) : null
 
   const bevel = clampBevel(config)
   const material = new THREE.MeshStandardMaterial({ color: config.baseColor })
 
   if (bevel <= 0.01) {
     for (const hole of logoHoles) shape.holes.push(hole)
+    if (keyringHole) shape.holes.push(keyringHole)
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: config.baseThickness,
       bevelEnabled: false,
@@ -162,11 +168,12 @@ export function buildBasePlate(
     ? profiler.measure('  bevel extrude', () => buildBeveledGeometry(shape, config, bevel))
     : buildBeveledGeometry(shape, config, bevel)
 
-  if (logoHoles.length === 0) {
+  const csgHoles = keyringHole ? [...logoHoles, keyringHole] : logoHoles
+  if (csgHoles.length === 0) {
     return new THREE.Mesh(baseGeometry, material)
   }
 
-  const geometry = subtractLogoHoles(baseGeometry, logoHoles, config, bevel, profiler)
+  const geometry = subtractCutoutHoles(baseGeometry, csgHoles, config, bevel, profiler)
   return new THREE.Mesh(geometry, material)
 }
 
