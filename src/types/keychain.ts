@@ -7,7 +7,10 @@ export interface ColorGroup {
   pathCount: number
 }
 
+export type BasePlateShape = 'square' | 'circle'
+
 export interface KeychainConfig {
+  basePlateShape: BasePlateShape
   baseThickness: number
   cornerRadius: number
   padding: number
@@ -21,6 +24,7 @@ export interface KeychainConfig {
 }
 
 export const DEFAULT_CONFIG: KeychainConfig = {
+  basePlateShape: 'square',
   baseThickness: 5,
   cornerRadius: 5,
   padding: 5,

@@ -65,6 +65,12 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
       svgCenter.set(center.x, center.y)
     }
 
+    if (config.basePlateShape === 'circle') {
+      const diameter = Math.max(width, height)
+      width = diameter
+      height = diameter
+    }
+
     // Parent group — rotation applied once to lay everything flat on XZ
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2

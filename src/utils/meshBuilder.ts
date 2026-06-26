@@ -134,7 +134,9 @@ export function buildBasePlate(
   logoHoles: THREE.Path[] = [],
   profiler?: Profiler,
 ): THREE.Mesh {
-  const r = Math.min(config.cornerRadius, width / 2, height / 2)
+  const r = config.basePlateShape === 'circle'
+    ? Math.min(width, height) / 2
+    : Math.min(config.cornerRadius, width / 2, height / 2)
   const w = width / 2
   const h = height / 2
 

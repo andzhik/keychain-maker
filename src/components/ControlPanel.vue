@@ -70,6 +70,35 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           Show logo
         </label>
 
+        <!-- Base plate shape -->
+        <div>
+          <span class="text-sm text-gray-700">Base plate</span>
+          <div class="flex gap-4 mt-1">
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="radio"
+                name="basePlateShape"
+                value="square"
+                :checked="config.basePlateShape === 'square'"
+                @change="updateField('basePlateShape', 'square')"
+                class="accent-gray-700"
+              />
+              Square
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="radio"
+                name="basePlateShape"
+                value="circle"
+                :checked="config.basePlateShape === 'circle'"
+                @change="updateField('basePlateShape', 'circle')"
+                class="accent-gray-700"
+              />
+              Circle
+            </label>
+          </div>
+        </div>
+
         <!-- Keyring hole -->
         <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
           <input
@@ -126,8 +155,8 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           />
         </div>
 
-        <!-- Corner radius -->
-        <div>
+        <!-- Corner radius (square plates only) -->
+        <div v-if="config.basePlateShape === 'square'">
           <div class="flex justify-between text-sm text-gray-700">
             <span>Corner radius</span>
             <span class="text-gray-400">{{ config.cornerRadius.toFixed(1) }} mm</span>
