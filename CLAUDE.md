@@ -37,7 +37,10 @@
 
 Non-obvious files only (the rest are self-describing):
 
-- `utils/meshBuilder.ts` — base plate (CSG keyring hole) + logo meshes + 3MF export
+- `utils/meshBuilder.ts` — base plate + logo meshes + 3MF export.
+  **Mesh build order (do not reorder):** (1) base-plate spline, (2) optional keyring + hole
+  (`shape.holes` before extrude), (3) base bevel extrude, (4) logo extrude (no bevel),
+  (5) CSG logo cutout only.
 - `composables/useThreeScene.ts` — camera, OrbitControls, lights
 - `utils/profiler.ts` — perf instrumentation, threaded into `buildBasePlate`
 - `types/keychain.ts` — `KeychainConfig` + `DEFAULT_CONFIG`, the config shape everything builds from
@@ -47,7 +50,8 @@ Non-obvious files only (the rest are self-describing):
 - `src/components/ThreeViewer.vue` intentionally calls `import.meta.hot.decline()`
   (full reload on HMR, not in-place swap). Do NOT remove it — it guards a cluster
   of WebGL lifecycle leaks. See `docs/CODE-REVIEW-TECH-DEBT.md`.
-- Export uses `three-3mf-exporter`; the keyring hole uses `three-bvh-csg` (CSG
-  boolean subtraction) in `src/utils/meshBuilder.ts`.
+- Export uses `three-3mf-exporter`; logo cutouts use `three-bvh-csg` (CSG boolean
+  subtraction) in `src/utils/meshBuilder.ts`. The keyring hole is a `shape.holes`
+  contour before bevel extrude (inner bevel), not CSG.
 - Deploy is GitHub Pages (`.github/workflows/`); the Vite `base` path is driven by
   the `VITE_BASE_PATH` env var.

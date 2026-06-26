@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { ref } from 'vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
-import { buildBasePlate, buildLogoMeshes } from '../utils/meshBuilder'
+import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/meshBuilder'
 import { Profiler } from '../utils/profiler'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
@@ -75,7 +75,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2
 
-    // Logo cutout paths — subtracted from the beveled base after logo extrude (step 5).
+    // Logo cutout paths (step 5) — tessellated once, reused for CSG subtract prisms.
     const logoHoles: THREE.Path[] = []
     profiler.measure('hole paths', () => {
       if (hasSvg) {
@@ -92,13 +92,13 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
       }
     })
 
-    // Base plate: outline spline → keyhole → bevel extrude → subtract logo holes
+    // Steps 1–3: base-plate spline, optional keyring, bevel extrude
     const basePlate = profiler.measure('buildBasePlate', () =>
       buildBasePlate(config, width, height, logoHoles, profiler),
     )
     root.add(basePlate)
 
-    // Logo meshes: un-beveled extrude, flush with base faces
+    // Step 4: logo meshes — un-beveled extrude, flush with base faces
     if (hasSvg) {
       const logoMeshes = profiler.measure('buildLogoMeshes', () =>
         buildLogoMeshes(colorGroups, config),
@@ -115,6 +115,11 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
       root.add(logoGroup)
       logoGroupRef = logoGroup
     }
+
+    // Step 5: CSG subtract logo cutouts from beveled base (keyring hole is in step 3 extrude)
+    profiler.measure('cutoutBasePlateHoles', () =>
+      cutoutBasePlateHoles(basePlate, logoHoles, config, profiler),
+    )
 
     scene.add(root)
     currentGroup = root
