@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Test
+        run: bun run test
+
       - name: Compute preview slug
         id: slug
         # Sanitize the branch name into a single path segment (e.g.
