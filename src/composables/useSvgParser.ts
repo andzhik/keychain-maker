@@ -16,7 +16,8 @@ export function useSvgParser() {
       } else {
         colorGroups.value = groups
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to parse SVG:', e)
       error.value = 'Failed to parse SVG'
       colorGroups.value = []
     }

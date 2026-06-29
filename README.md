@@ -33,7 +33,7 @@ For the cleanest geometry, use simple SVG artwork made from filled paths.
 
 - Vue 3 with `<script setup>` and TypeScript
 - Three.js for geometry, lighting, camera controls, and viewport rendering
-- `three-bvh-csg` for the keyring-hole boolean operation
+- `three-bvh-csg` for logo cutouts in beveled bases
 - `three-3mf-exporter` for multi-color `.3mf` export
 - Tailwind CSS v4
 - Vite 6 and Bun
@@ -52,6 +52,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | Command | Description |
 | --- | --- |
 | `bun run dev` | Start the Vite dev server |
+| `bun run test` | Run focused unit tests for geometry and SVG parsing |
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
