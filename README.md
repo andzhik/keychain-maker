@@ -71,4 +71,6 @@ The render harness lives in `test-render/` and runs under Node because Playwrigh
 
 ## Deployment
 
-The app is deployed to GitHub Pages from the workflow in `.github/workflows/`. The Vite base path is controlled by `VITE_BASE_PATH`, so the same build can target local preview or the published Pages path.
+The production app is deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `master`. In GitHub, set **Settings -> Pages -> Build and deployment -> Source** to **GitHub Actions** so the workflow artifact is published as the Pages site.
+
+The Vite base path is controlled by `VITE_BASE_PATH`, so the same build can target local preview or the published Pages path.
