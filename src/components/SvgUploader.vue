@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 
 const emit = defineEmits<{
   svgLoaded: [svgString: string]
@@ -7,10 +7,12 @@ const emit = defineEmits<{
 
 const isDragging = ref(false)
 const previewUrl = ref<string | null>(null)
+const readError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 function handleFile(file: File) {
   if (!file.name.toLowerCase().endsWith('.svg') && file.type !== 'image/svg+xml') return
+  readError.value = null
   const reader = new FileReader()
   reader.onload = (e) => {
     const text = e.target?.result as string
@@ -19,8 +21,15 @@ function handleFile(file: File) {
     previewUrl.value = URL.createObjectURL(blob)
     emit('svgLoaded', text)
   }
+  reader.onerror = () => {
+    readError.value = `Could not read "${file.name}".`
+  }
   reader.readAsText(file)
 }
+
+onUnmounted(() => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+})
 
 function onDrop(e: DragEvent) {
   isDragging.value = false
@@ -29,8 +38,11 @@ function onDrop(e: DragEvent) {
 }
 
 function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (file) handleFile(file)
+  // Reset so picking the same file again still fires `change`.
+  input.value = ''
 }
 </script>
 
@@ -63,6 +75,8 @@ function onFileChange(e: Event) {
         @change="onFileChange"
       />
     </div>
+
+    <p v-if="readError" class="text-xs text-red-500">{{ readError }}</p>
 
     <!-- 2D inline preview -->
     <div v-if="previewUrl" class="border border-gray-200 rounded-lg overflow-hidden bg-white">

@@ -18,15 +18,23 @@ const { build, dispose: disposeBuilder, dimensions, setLogoVisible } = useKeycha
 
 let currentGroup: ReturnType<typeof build> = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+// Sticky until the debounced rebuild runs, so a config change landing within
+// the debounce window of a new SVG doesn't cancel the camera refit.
+let refitPending = false
 
 function rebuild() {
+  debounceTimer = null
   currentGroup = build(props.colorGroups, props.config)
-  if (currentGroup) fitCamera(currentGroup)
+  if (!currentGroup) return
+  if (refitPending) fitCamera(currentGroup)
+  else requestRender()
+  refitPending = false
 }
 
-function rebuildOnly() {
-  currentGroup = build(props.colorGroups, props.config)
-  requestRender()
+function scheduleRebuild(refit: boolean) {
+  refitPending ||= refit
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(rebuild, 150)
 }
 
 function resetView() {
@@ -42,20 +50,15 @@ onMounted(() => {
   if (result.webglUnavailable) return
 
   setLogoVisible(props.showLogo)
+  refitPending = true
   rebuild()
 })
 
 // Not deep: a new SVG replaces the whole array, and walking every THREE.Shape
 // curve and vector on each change would be wasted work.
-watch(() => props.colorGroups, () => {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(rebuild, 150)
-})
+watch(() => props.colorGroups, () => scheduleRebuild(true))
 
-watch(() => props.config, () => {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(rebuildOnly, 150)
-}, { deep: true })
+watch(() => props.config, () => scheduleRebuild(false), { deep: true })
 
 watch(() => props.showLogo, (visible) => {
   setLogoVisible(visible)

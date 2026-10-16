@@ -156,14 +156,14 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
 
     profiler.flush()
 
-    const totalHeight = config.keyringEnabled
-      ? height + config.keyringRingDiameter / 2
-      : height
-
+    // Measured from the finished plate: the bevel bulges the outline outward
+    // (bevelOffset 0), and the keyring loop extends past the nominal height.
+    basePlate.geometry.computeBoundingBox()
+    const plateBox = basePlate.geometry.boundingBox!
     dimensions.value = {
-      width,
-      height: totalHeight,
-      depth: config.baseThickness,
+      width: plateBox.max.x - plateBox.min.x,
+      height: plateBox.max.y - plateBox.min.y,
+      depth: plateBox.max.z - plateBox.min.z,
     }
 
     return root

@@ -16,12 +16,14 @@ const config = ref<KeychainConfig>({ ...DEFAULT_CONFIG })
 // The sliders keep the user's raw values; the model is built from these.
 const constrained = computed(() => constrainConfig(config.value))
 const exporting = ref(false)
+const exportError = ref<string | null>(null)
 const { colorGroups, error, parse } = useSvgParser()
 
 async function handleExport() {
   const group = viewerRef.value?.getCurrentGroup()
   if (!group) return
   exporting.value = true
+  exportError.value = null
   try {
     // Export without the display rotation (rotation.x = -PI/2 is for viewport only)
     const exportGroup = group.clone()
@@ -37,9 +39,11 @@ async function handleExport() {
     a.href = url
     a.download = 'keychain.3mf'
     a.click()
-    URL.revokeObjectURL(url)
+    // Revoking synchronously can abort the download before it starts (Firefox).
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   } catch (e) {
     console.error('Export failed:', e)
+    exportError.value = `Export failed: ${e instanceof Error ? e.message : String(e)}`
   } finally {
     exporting.value = false
   }
@@ -79,6 +83,7 @@ const dimText = computed(() => {
             :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
             @export="handleExport"
           />
+          <p v-if="exportError" class="mt-2 text-xs text-red-500">{{ exportError }}</p>
         </div>
       </aside>
 

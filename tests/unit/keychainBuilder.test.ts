@@ -60,7 +60,7 @@ test('a square logo fits inside a circle plate', () => {
   const logo = root.children[1].children[0] as THREE.Mesh
   logo.geometry.computeBoundingSphere()
 
-  expect(dimensions.value.width).toBe(cfg.targetWidth)
+  expect(dimensions.value.width).toBeCloseTo(cfg.targetWidth + 2 * cfg.edgeBevel, 1)
   const position = logo.geometry.getAttribute('position')
   const maxRadius = cfg.targetWidth / 2 - cfg.padding
   for (let i = 0; i < position.count; i++) {
@@ -117,9 +117,21 @@ test('a zero-width logo builds the plain plate instead of Infinity geometry', ()
   const { build, dimensions } = useKeychainBuilder(() => new THREE.Scene())
   build([group], config())
 
-  expect(dimensions.value.width).toBe(DEFAULT_CONFIG.targetWidth)
+  expect(dimensions.value.width).toBeCloseTo(DEFAULT_CONFIG.targetWidth + 2 * DEFAULT_CONFIG.edgeBevel, 1)
   expect(Number.isFinite(dimensions.value.height)).toBe(true)
 })
+
+for (const edgeBevel of [0.6, 0]) {
+  test(`dimensions include the outward bevel (bevel ${edgeBevel})`, () => {
+    const { build, dimensions } = useKeychainBuilder(() => new THREE.Scene())
+    build([letterO()], config({ basePlateShape: 'circle', edgeBevel }))
+
+    // The bevel bulges the outline outward by `edgeBevel` on every side.
+    expect(dimensions.value.width).toBeCloseTo(DEFAULT_CONFIG.targetWidth + 2 * edgeBevel, 1)
+    expect(dimensions.value.height).toBeCloseTo(DEFAULT_CONFIG.targetWidth + 2 * edgeBevel, 1)
+    expect(dimensions.value.depth).toBeCloseTo(DEFAULT_CONFIG.baseThickness, 5)
+  })
+}
 
 test('several logo parts are all cut out of the beveled plate', () => {
   const square = (x: number) => {
