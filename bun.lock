@@ -7,7 +7,7 @@
       "dependencies": {
         "three": "^0.170.0",
         "three-3mf-exporter": "^45.1.0",
-        "three-bvh-csg": "^0.0.18",
+        "three-bvh-csg": "^0.0.17",
         "three-mesh-bvh": "^0.9.10",
         "vue": "^3.5.13",
       },
@@ -337,7 +337,7 @@
 
     "three-3mf-exporter": ["three-3mf-exporter@45.1.0", "", { "dependencies": { "fast-xml-parser": "^5.0.9", "jszip": "^3.10.1" }, "peerDependencies": { "three": "*" } }, "sha512-lNQSK+dHaHVBsviJsViMlniBjb/hRUKIHHf5Fjnppv/wqCtbJiseuzjpptJV5jiyY3zsdjLgnKTQ/g4COgMvmw=="],
 
-    "three-bvh-csg": ["three-bvh-csg@0.0.18", "", { "peerDependencies": { "three": ">=0.179.0", "three-mesh-bvh": ">=0.9.7" } }, "sha512-M3GCZMmGFgASGuDf+YMamM83nVlD/vdwzVHcYbFxgW+g1S7/nKPiuY00YVHOMbjmJPh8mLevGZL65ItHUuGt2w=="],
+    "three-bvh-csg": ["three-bvh-csg@0.0.17", "", { "peerDependencies": { "three": ">=0.151.0", "three-mesh-bvh": ">=0.6.6" } }, "sha512-iEkHDF8GRfGM6593Cuw8SnF1vfENCp46gIAtRzuL4nGXGWPcR1sbTBwM9ptDONb5twqlZp5WkAKya5aBKe2qcA=="],
 
     "three-mesh-bvh": ["three-mesh-bvh@0.9.10", "", { "peerDependencies": { "three": ">= 0.159.0" } }, "sha512-UOlTgPIeqUURcwaG8knxvBaruwZlC4X3/WSHEFO7rYvMVv/YNUrkfFEszvfj36pXV88dCHoHNnIp0PifkirnTQ=="],
 

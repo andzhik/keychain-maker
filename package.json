@@ -12,7 +12,7 @@
   "dependencies": {
     "three": "^0.170.0",
     "three-3mf-exporter": "^45.1.0",
-    "three-bvh-csg": "^0.0.18",
+    "three-bvh-csg": "^0.0.17",
     "three-mesh-bvh": "^0.9.10",
     "vue": "^3.5.13"
   },
