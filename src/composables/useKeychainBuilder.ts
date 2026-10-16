@@ -7,6 +7,8 @@ import { Profiler } from '../utils/profiler'
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
   let logoGroupRef: THREE.Group | null = null
+  // Survives rebuilds so a hidden logo stays hidden when the config changes.
+  let logoVisible = true
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
 
   function disposeCurrent() {
@@ -29,19 +31,19 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const scene = getScene()
     if (!scene) return null
 
-    // Tessellate every shape once and reuse the points for both the bounding box
-    // and the hole paths below. Low curve resolution keeps the CSG cutter prisms
-    // light — this is the dominant build cost. The inlaid logo hides most
-    // cutout-wall faceting.
-    const shapePoints: THREE.Vector2[][] = []
+    // Tessellate every shape (outer contour + holes) once and reuse the points
+    // for both the bounding box and the cutout shapes below. Low curve
+    // resolution keeps the CSG cutter prisms light — this is the dominant build
+    // cost. The inlaid logo hides most cutout-wall faceting.
+    const shapePoints: { shape: THREE.Vector2[]; holes: THREE.Vector2[][] }[] = []
     const box = new THREE.Box3()
     let hasSvg = false
     profiler.measure('bounding box', () => {
       for (const group of colorGroups) {
         for (const shape of group.shapes) {
-          const pts = shape.getPoints(16)
+          const pts = shape.extractPoints(16)
           shapePoints.push(pts)
-          for (const p of pts) {
+          for (const p of pts.shape) {
             box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
           }
           hasSvg = true
@@ -75,26 +77,25 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2
 
-    // Logo cutout paths (step 5) — tessellated once, reused for CSG subtract prisms.
-    const logoHoles: THREE.Path[] = []
-    profiler.measure('hole paths', () => {
+    // Logo cutout shapes (step 5) — tessellated once, reused for CSG subtract
+    // prisms. Each keeps its holes so a logo counter (the middle of an "O")
+    // stays as plate material instead of becoming a through-hole.
+    const toPlate = (pts: THREE.Vector2[]) =>
+      pts.map(p => new THREE.Vector2((p.x - svgCenter.x) * scale, -(p.y - svgCenter.y) * scale))
+    const logoCutouts: THREE.Shape[] = []
+    profiler.measure('cutout shapes', () => {
       if (hasSvg) {
         for (const pts of shapePoints) {
-          const hole = new THREE.Path()
-          for (let i = 0; i < pts.length; i++) {
-            const x = (pts[i].x - svgCenter.x) * scale
-            const y = -(pts[i].y - svgCenter.y) * scale
-            if (i === 0) hole.moveTo(x, y)
-            else hole.lineTo(x, y)
-          }
-          logoHoles.push(hole)
+          const cutout = new THREE.Shape(toPlate(pts.shape))
+          for (const hole of pts.holes) cutout.holes.push(new THREE.Path(toPlate(hole)))
+          logoCutouts.push(cutout)
         }
       }
     })
 
     // Steps 1–3: base-plate spline, optional keyring, bevel extrude
     const basePlate = profiler.measure('buildBasePlate', () =>
-      buildBasePlate(config, width, height, logoHoles, profiler),
+      buildBasePlate(config, width, height, logoCutouts, profiler),
     )
     root.add(basePlate)
 
@@ -112,13 +113,14 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
       for (const mesh of logoMeshes) {
         logoGroup.add(mesh)
       }
+      logoGroup.visible = logoVisible
       root.add(logoGroup)
       logoGroupRef = logoGroup
     }
 
     // Step 5: CSG subtract logo cutouts from beveled base (keyring hole is in step 3 extrude)
     profiler.measure('cutoutBasePlateHoles', () =>
-      cutoutBasePlateHoles(basePlate, logoHoles, config, profiler),
+      cutoutBasePlateHoles(basePlate, logoCutouts, config, profiler),
     )
 
     scene.add(root)
@@ -144,6 +146,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   }
 
   function setLogoVisible(visible: boolean) {
+    logoVisible = visible
     if (logoGroupRef) logoGroupRef.visible = visible
   }
 

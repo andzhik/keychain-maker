@@ -7,7 +7,7 @@ import type { Profiler } from './profiler'
  * Mesh build pipeline (keep this order in code and callers):
  * 1. base-plate outline spline
  * 2. optional keyring loop on outline + keyring hole path → shape.holes before extrude
- * 3. base extrude with bevel (keyring hole beveled inside; flat path uses shape.holes for logo too)
+ * 3. base extrude with bevel (keyring hole beveled inside; flat path uses shape.holes + islands for logo too)
  * 4. logo extrude — no bevel (`buildLogoMeshes`, caller)
  * 5. CSG subtract logo cutouts from beveled base (`cutoutBasePlateHoles`, caller)
  */
@@ -19,6 +19,8 @@ function buildBasePlateOutline(
   h: number,
   r: number,
 ): THREE.Shape {
+  if (config.basePlateShape === 'circle') return buildCirclePlateOutline(config, Math.min(w, h))
+
   const shape = new THREE.Shape()
 
   shape.moveTo(-w + r, -h)
@@ -71,6 +73,45 @@ function drawKeyringOutline(
   shape.lineTo(-w + r, h)
 }
 
+/**
+ * Steps 1–2 for circle plates: a true circle of radius `p`, unioned with the
+ * keyring loop (centred on the top of the circle) through two concave fillets.
+ * The square-plate keyring code assumes a flat top edge, which a circle lacks.
+ */
+function buildCirclePlateOutline(config: KeychainConfig, p: number): THREE.Shape {
+  const shape = new THREE.Shape()
+  if (!config.keyringEnabled) {
+    shape.absarc(0, 0, p, 0, Math.PI * 2, false)
+    return shape
+  }
+
+  const R = config.keyringRingDiameter / 2
+  // Fillet circle (radius f) tangent to the plate circle (0,0,p) and the ring
+  // circle (0,p,R): its centre (cx, cy) is p+f from the origin and R+f from the
+  // ring centre. With f = 0 the same formula gives the circles' intersection.
+  const filletCenter = (f: number) => {
+    const cy = (p * p + (p + f) * (p + f) - (R + f) * (R + f)) / (2 * p)
+    return { cx: Math.sqrt((p + f) * (p + f) - cy * cy), cy }
+  }
+  let f = R * 0.75
+  let { cx, cy } = filletCenter(f)
+  if (!(cx > 0)) {
+    f = 0
+    ;({ cx, cy } = filletCenter(0))
+  }
+
+  // Tangent points on the plate circle and on the ring circle (right side).
+  const plateAngle = Math.atan2(cy, cx)
+  const ringAngle = Math.atan2(cy - p, cx)
+
+  shape.absarc(0, 0, p, Math.PI - plateAngle, plateAngle, false)
+  if (f > 0) shape.absarc(cx, cy, f, Math.atan2(-cy, -cx), Math.atan2(p - cy, -cx), true)
+  shape.absarc(0, p, R, ringAngle, Math.PI - ringAngle, false)
+  if (f > 0) shape.absarc(-cx, cy, f, Math.atan2(p - cy, cx), Math.atan2(-cy, cx), true)
+
+  return shape
+}
+
 /** Step 2 (hole path): keyring hole pushed onto shape.holes before extrude so the inner edge bevels. */
 function buildKeyringHolePath(config: KeychainConfig, h: number): THREE.Path {
   const hr = config.keyringHoleDiameter / 2
@@ -114,7 +155,7 @@ export function buildBasePlate(
   config: KeychainConfig,
   width: number,
   height: number,
-  logoHoles: THREE.Path[] = [],
+  logoCutouts: THREE.Shape[] = [],
   profiler?: Profiler,
 ): THREE.Mesh {
   const r = config.basePlateShape === 'circle'
@@ -132,8 +173,15 @@ export function buildBasePlate(
   if (keyringHole) shape.holes.push(keyringHole)
 
   if (bevel <= 0.01) {
-    for (const hole of logoHoles) shape.holes.push(hole)
-    const geometry = new THREE.ExtrudeGeometry(shape, {
+    // Each cutout's outer contour becomes a plate hole; its own holes (the
+    // counter of an "O") are re-filled as plate islands, matching what the CSG
+    // path leaves behind.
+    const islands: THREE.Shape[] = []
+    for (const cutout of logoCutouts) {
+      shape.holes.push(new THREE.Path(cutout.getPoints()))
+      for (const inner of cutout.holes) islands.push(new THREE.Shape(inner.getPoints()))
+    }
+    const geometry = new THREE.ExtrudeGeometry(islands.length ? [shape, ...islands] : shape, {
       depth: config.baseThickness,
       bevelEnabled: false,
     })
@@ -167,22 +215,22 @@ export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): T
 /** Step 5: subtract straight vertical logo cutout prisms from the beveled base (keyring hole is step 2–3). */
 export function cutoutBasePlateHoles(
   basePlate: THREE.Mesh,
-  logoHoles: THREE.Path[],
+  logoCutouts: THREE.Shape[],
   config: KeychainConfig,
   profiler?: Profiler,
 ): void {
   const bevel = clampBevel(config)
-  if (bevel <= 0.01 || logoHoles.length === 0) return
+  if (bevel <= 0.01 || logoCutouts.length === 0) return
 
   const baseGeometry = basePlate.geometry as THREE.ExtrudeGeometry
-  const geometry = subtractCutoutHoles(baseGeometry, logoHoles, config, bevel, profiler)
+  const geometry = subtractCutoutHoles(baseGeometry, logoCutouts, config, bevel, profiler)
   basePlate.geometry.dispose()
   basePlate.geometry = geometry
 }
 
 function subtractCutoutHoles(
   baseGeometry: THREE.ExtrudeGeometry,
-  cutoutHoles: THREE.Path[],
+  cutouts: THREE.Shape[],
   config: KeychainConfig,
   bevel: number,
   profiler?: Profiler,
@@ -190,11 +238,11 @@ function subtractCutoutHoles(
   const evaluator = new Evaluator()
   let result = new Brush(baseGeometry)
 
-  for (let i = 0; i < cutoutHoles.length; i++) {
-    const hole = cutoutHoles[i]
+  for (let i = 0; i < cutouts.length; i++) {
+    const cutout = cutouts[i]
     const cut = () => {
-      const holeShape = new THREE.Shape(hole.getPoints())
-      const prism = new THREE.ExtrudeGeometry(holeShape, {
+      // The cutout keeps its holes, so a logo counter stays as plate material.
+      const prism = new THREE.ExtrudeGeometry(cutout, {
         depth: config.baseThickness + 2,
         bevelEnabled: false,
       })
@@ -202,7 +250,7 @@ function subtractCutoutHoles(
       result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
       prism.dispose()
     }
-    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${cutoutHoles.length}`, cut)
+    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${cutouts.length}`, cut)
     else cut()
   }
 

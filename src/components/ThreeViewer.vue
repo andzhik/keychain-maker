@@ -41,6 +41,7 @@ onMounted(() => {
   webglUnavailable.value = result.webglUnavailable
   if (result.webglUnavailable) return
 
+  setLogoVisible(props.showLogo)
   rebuild()
 })
 
