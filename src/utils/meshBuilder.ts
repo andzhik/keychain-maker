@@ -195,8 +195,36 @@ export function buildBasePlate(
   return new THREE.Mesh(baseGeometry, material)
 }
 
-/** Step 4: un-beveled logo extrude (positioned flush with the beveled base in the caller). */
-export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): THREE.Mesh[] {
+/**
+ * Swaps the last two vertices of every triangle in a non-indexed geometry
+ * (ExtrudeGeometry is never indexed), turning its faces back outward after a
+ * mirroring transform. Normals are already mirrored correctly by applyMatrix4.
+ */
+function flipWinding(geometry: THREE.BufferGeometry): void {
+  for (const attribute of Object.values(geometry.attributes) as THREE.BufferAttribute[]) {
+    const { array, itemSize } = attribute
+    for (let i = 0; i < attribute.count; i += 3) {
+      for (let k = 0; k < itemSize; k++) {
+        const a = (i + 1) * itemSize + k
+        const b = (i + 2) * itemSize + k
+        const t = array[a]
+        array[a] = array[b]
+        array[b] = t
+      }
+    }
+    attribute.needsUpdate = true
+  }
+}
+
+/**
+ * Step 4: un-beveled logo extrude (positioned flush with the beveled base).
+ * `transform` (SVG → plate space, may mirror) is baked into the geometry.
+ */
+export function buildLogoMeshes(
+  groups: ColorGroup[],
+  config: KeychainConfig,
+  transform?: THREE.Matrix4,
+): THREE.Mesh[] {
   const bevel = clampBevel(config)
   const meshes: THREE.Mesh[] = []
   for (const group of groups) {
@@ -206,6 +234,10 @@ export function buildLogoMeshes(groups: ColorGroup[], config: KeychainConfig): T
       bevelEnabled: false,
     })
     if (bevel > 0) geometry.translate(0, 0, -bevel)
+    if (transform) {
+      geometry.applyMatrix4(transform)
+      if (transform.determinant() < 0) flipWinding(geometry)
+    }
     const material = new THREE.MeshStandardMaterial({ color: group.color })
     meshes.push(new THREE.Mesh(geometry, material))
   }

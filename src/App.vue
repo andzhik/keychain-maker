@@ -7,6 +7,7 @@ import { useSvgParser } from './composables/useSvgParser'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { DEFAULT_CONFIG } from './types/keychain'
 import type { KeychainConfig } from './types/keychain'
+import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 const showLogo = ref(true)
@@ -22,6 +23,11 @@ async function handleExport() {
     // Export without the display rotation (rotation.x = -PI/2 is for viewport only)
     const exportGroup = group.clone()
     exportGroup.rotation.set(0, 0, 0)
+    // The exporter ignores `visible`; drop hidden parts (a hidden logo) so the
+    // file matches the viewport — the button label says when that happens.
+    const hidden: THREE.Object3D[] = []
+    exportGroup.traverse((child) => { if (!child.visible) hidden.push(child) })
+    for (const child of hidden) child.removeFromParent()
     const blob = await exportTo3MF(exportGroup)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -66,6 +72,7 @@ const dimText = computed(() => {
           <ExportButton
             :disabled="colorGroups.length === 0"
             :exporting="exporting"
+            :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
             @export="handleExport"
           />
         </div>

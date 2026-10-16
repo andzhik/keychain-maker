@@ -57,20 +57,30 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const svgCenter = new THREE.Vector2(0, 0)
 
     if (hasSvg) {
-      const size = new THREE.Vector3()
-      box.getSize(size)
-      scale = (config.targetWidth - config.padding * 2) / size.x
-      width = config.targetWidth
-      height = size.y * scale + config.padding * 2
       const center = new THREE.Vector3()
       box.getCenter(center)
       svgCenter.set(center.x, center.y)
+
+      if (config.basePlateShape === 'circle') {
+        // Fit the logo's farthest point inside the padded circle. Fitting the
+        // bounding box instead lets its corners (at half the diagonal) poke out.
+        let maxRadius = 0
+        for (const pts of shapePoints) {
+          for (const p of pts.shape) maxRadius = Math.max(maxRadius, p.distanceTo(svgCenter))
+        }
+        scale = (config.targetWidth / 2 - config.padding) / maxRadius
+      }
+      else {
+        const size = new THREE.Vector3()
+        box.getSize(size)
+        scale = (config.targetWidth - config.padding * 2) / size.x
+        height = size.y * scale + config.padding * 2
+      }
     }
 
     if (config.basePlateShape === 'circle') {
-      const diameter = Math.max(width, height)
-      width = diameter
-      height = diameter
+      width = config.targetWidth
+      height = config.targetWidth
     }
 
     // Parent group — rotation applied once to lay everything flat on XZ
@@ -101,14 +111,16 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
 
     // Step 4: logo meshes — un-beveled extrude, flush with base faces
     if (hasSvg) {
+      // Center SVG on origin, flip Y, and apply uniform scale. Baked into the
+      // geometry rather than set on the group: a mirrored (negative-determinant)
+      // node transform is exported as-is to 3MF, and slicers handle it unevenly.
+      const logoTransform = new THREE.Matrix4()
+        .makeScale(scale, -scale, 1)
+        .setPosition(-svgCenter.x * scale, svgCenter.y * scale, 0)
       const logoMeshes = profiler.measure('buildLogoMeshes', () =>
-        buildLogoMeshes(colorGroups, config),
+        buildLogoMeshes(colorGroups, config, logoTransform),
       )
       const logoGroup = new THREE.Group()
-
-      // Center SVG on origin, flip Y, and apply uniform scale
-      logoGroup.scale.set(scale, -scale, 1)
-      logoGroup.position.set(-svgCenter.x * scale, svgCenter.y * scale, 0)
 
       for (const mesh of logoMeshes) {
         logoGroup.add(mesh)
