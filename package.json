@@ -10,6 +10,7 @@
     "render": "node --experimental-strip-types test-render/capture.ts"
   },
   "dependencies": {
+    "polygon-clipping": "0.15.7",
     "three": "^0.170.0",
     "three-3mf-exporter": "^45.1.0",
     "three-bvh-csg": "^0.0.17",

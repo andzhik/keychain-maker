@@ -2,7 +2,8 @@ import { expect, spyOn, test } from 'bun:test'
 import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import { Color } from 'three'
 import { useSvgParser } from '../../src/composables/useSvgParser'
-import { normalizeColor, svgToShapes } from '../../src/utils/svgToShapes'
+import { logoOutline, normalizeColor, svgToShapes } from '../../src/utils/svgToShapes'
+import { ShapeUtils, type Shape } from 'three'
 
 type XmlEntry = Record<string, unknown>
 
@@ -131,6 +132,60 @@ test('svgToShapes skips paths with no fill', () => {
   expect(groups).toHaveLength(1)
   expect(groups[0].color).toBe('#0000ff')
   expect(groups[0].pathCount).toBe(1)
+})
+
+function area(shape: Shape): number {
+  const { shape: outer, holes } = shape.extractPoints(16)
+  return Math.abs(ShapeUtils.area(outer)) - holes.reduce((sum, h) => sum + Math.abs(ShapeUtils.area(h)), 0)
+}
+
+const totalArea = (shapes: Shape[]) => shapes.reduce((sum, s) => sum + area(s), 0)
+
+test('svgToShapes cuts later-painted paths out of the shapes below them', () => {
+  // A background square with a smaller square painted on top.
+  const groups = svgToShapes(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
+      <path fill="#000000" d="M0 0H10V10H0Z" />
+      <path fill="#ffffff" d="M2 2H6V6H2Z" />
+    </svg>
+  `)
+  const background = groups.find(group => group.color === '#000000')!
+  const top = groups.find(group => group.color === '#ffffff')!
+
+  expect(totalArea(top.shapes)).toBeCloseTo(16, 6)
+  // The background keeps only its visible part: the square has a hole.
+  expect(totalArea(background.shapes)).toBeCloseTo(100 - 16, 6)
+  expect(background.shapes[0].holes).toHaveLength(1)
+  // The outline is the whole background square, with no holes.
+  const outline = logoOutline(groups)
+  expect(outline).toHaveLength(1)
+  expect(outline[0].holes).toHaveLength(0)
+  expect(totalArea(outline)).toBeCloseTo(100, 6)
+})
+
+test('svgToShapes merges overlapping paths of the same color', () => {
+  const groups = svgToShapes(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
+      <path fill="#ff0000" d="M0 0H6V6H0Z" />
+      <path fill="#ff0000" d="M3 3H9V9H3Z" />
+    </svg>
+  `)
+
+  expect(groups).toHaveLength(1)
+  expect(groups[0].pathCount).toBe(2)
+  expect(groups[0].shapes).toHaveLength(1)
+  expect(totalArea(groups[0].shapes)).toBeCloseTo(36 + 36 - 9, 6)
+})
+
+test('svgToShapes drops a color painted over entirely', () => {
+  const groups = svgToShapes(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
+      <path fill="#ff0000" d="M2 2H4V4H2Z" />
+      <path fill="#00ff00" d="M0 0H10V10H0Z" />
+    </svg>
+  `)
+
+  expect(groups.map(group => group.color)).toEqual(['#00ff00'])
 })
 
 test('useSvgParser reports when an SVG has no filled paths', () => {

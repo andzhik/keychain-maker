@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import SvgUploader from './SvgUploader.vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
+import type { ConfigAdjustment } from '../utils/configConstraints'
 
 const props = defineProps<{
   colorGroups: ColorGroup[]
   error: string | null
   showLogo: boolean
   config: KeychainConfig
+  adjustments: ConfigAdjustment[]
 }>()
 
 const emit = defineEmits<{
@@ -14,6 +16,10 @@ const emit = defineEmits<{
   'update:showLogo': [value: boolean]
   'update:config': [value: KeychainConfig]
 }>()
+
+function adjustment(field: keyof KeychainConfig): string | undefined {
+  return props.adjustments.find(a => a.field === field)?.message
+}
 
 function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainConfig[K]) {
   emit('update:config', { ...props.config, [field]: value })
@@ -183,6 +189,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             min="0" max="20" step="0.5"
             class="w-full accent-gray-700"
           />
+          <p v-if="adjustment('padding')" class="text-xs text-amber-600">{{ adjustment('padding') }}</p>
         </div>
 
         <!-- Target width -->
@@ -213,6 +220,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             min="2" max="10" step="0.5"
             class="w-full accent-gray-700"
           />
+          <p v-if="adjustment('keyringHoleDiameter')" class="text-xs text-amber-600">{{ adjustment('keyringHoleDiameter') }}</p>
         </div>
 
         <!-- Keyring ring diameter (conditional) -->

@@ -45,10 +45,12 @@ onMounted(() => {
   rebuild()
 })
 
+// Not deep: a new SVG replaces the whole array, and walking every THREE.Shape
+// curve and vector on each change would be wasted work.
 watch(() => props.colorGroups, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(rebuild, 150)
-}, { deep: true })
+})
 
 watch(() => props.config, () => {
   if (debounceTimer) clearTimeout(debounceTimer)

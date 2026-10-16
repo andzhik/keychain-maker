@@ -6,12 +6,15 @@ import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { DEFAULT_CONFIG } from './types/keychain'
+import { constrainConfig } from './utils/configConstraints'
 import type { KeychainConfig } from './types/keychain'
 import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 const showLogo = ref(true)
 const config = ref<KeychainConfig>({ ...DEFAULT_CONFIG })
+// The sliders keep the user's raw values; the model is built from these.
+const constrained = computed(() => constrainConfig(config.value))
 const exporting = ref(false)
 const { colorGroups, error, parse } = useSvgParser()
 
@@ -66,6 +69,7 @@ const dimText = computed(() => {
           :error="error"
           v-model:showLogo="showLogo"
           v-model:config="config"
+          :adjustments="constrained.adjustments"
           @svgLoaded="parse"
         />
         <div class="p-4 border-t border-gray-200 shrink-0">
@@ -80,7 +84,7 @@ const dimText = computed(() => {
 
       <!-- 3D viewport: fills remaining space -->
       <main class="flex-1 relative bg-gray-100">
-        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="config" />
+        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="constrained.config" />
         <div class="absolute top-2 right-2">
           <button
             class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"

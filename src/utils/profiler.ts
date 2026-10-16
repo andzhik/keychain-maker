@@ -1,7 +1,7 @@
 // Lightweight build profiler — measures wall-clock time of named phases and
 // prints a sorted summary to the console so the slowest steps are obvious.
-// Toggle off by setting ENABLED to false.
-const ENABLED = true
+// Dev builds only, so production stays quiet on every slider change.
+const ENABLED = import.meta.env?.DEV === true
 
 export class Profiler {
   private label: string

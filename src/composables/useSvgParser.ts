@@ -1,9 +1,11 @@
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { svgToShapes } from '../utils/svgToShapes'
 import type { ColorGroup } from '../types/keychain'
 
 export function useSvgParser() {
-  const colorGroups = ref<ColorGroup[]>([])
+  // Shallow: Vue must not proxy every curve and vector inside the THREE.Shapes.
+  // The array is only ever replaced, never mutated in place.
+  const colorGroups = shallowRef<ColorGroup[]>([])
   const error = ref<string | null>(null)
 
   function parse(svgString: string) {

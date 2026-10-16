@@ -267,24 +267,22 @@ function subtractCutoutHoles(
   bevel: number,
   profiler?: Profiler,
 ): THREE.BufferGeometry {
-  const evaluator = new Evaluator()
-  let result = new Brush(baseGeometry)
-
-  for (let i = 0; i < cutouts.length; i++) {
-    const cutout = cutouts[i]
-    const cut = () => {
-      // The cutout keeps its holes, so a logo counter stays as plate material.
-      const prism = new THREE.ExtrudeGeometry(cutout, {
-        depth: config.baseThickness + 2,
-        bevelEnabled: false,
-      })
-      prism.translate(0, 0, -bevel - 1)
-      result = evaluator.evaluate(result, new Brush(prism), SUBTRACTION)
-      prism.dispose()
-    }
-    if (profiler) profiler.measure(`  CSG subtract #${i + 1}/${cutouts.length}`, cut)
-    else cut()
+  const cut = () => {
+    // All cutter prisms go into one geometry and are subtracted in a single
+    // pass — far cheaper than one CSG evaluation per cutout. The cutouts are
+    // disjoint (they come from the logo outline union), so the merged cutter
+    // is a set of separate closed bodies. Each keeps its holes, so a logo
+    // counter stays as plate material.
+    const prisms = new THREE.ExtrudeGeometry(cutouts, {
+      depth: config.baseThickness + 2,
+      bevelEnabled: false,
+    })
+    prisms.translate(0, 0, -bevel - 1)
+    const result = new Evaluator().evaluate(new Brush(baseGeometry), new Brush(prisms), SUBTRACTION)
+    prisms.dispose()
+    return result.geometry
   }
-
-  return result.geometry
+  return profiler
+    ? profiler.measure(`  CSG subtract (${cutouts.length} cutouts)`, cut)
+    : cut()
 }

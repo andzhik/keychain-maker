@@ -3,12 +3,18 @@ import { ref } from 'vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/meshBuilder'
 import { Profiler } from '../utils/profiler'
+import { constrainConfig } from '../utils/configConstraints'
+import { logoOutline } from '../utils/svgToShapes'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
   let logoGroupRef: THREE.Group | null = null
   // Survives rebuilds so a hidden logo stays hidden when the config changes.
   let logoVisible = true
+  // The logo outline is a polygon union — only recomputed for a new SVG, not
+  // on every slider change.
+  let outlineFor: ColorGroup[] | null = null
+  let outline: THREE.Shape[] = []
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
 
   function disposeCurrent() {
@@ -25,31 +31,33 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     logoGroupRef = null
   }
 
-  function build(colorGroups: ColorGroup[], config: KeychainConfig): THREE.Group | null {
+  function build(colorGroups: ColorGroup[], rawConfig: KeychainConfig): THREE.Group | null {
     const profiler = new Profiler('keychain build')
+    const { config } = constrainConfig(rawConfig)
     profiler.measure('disposeCurrent', () => disposeCurrent())
     const scene = getScene()
     if (!scene) return null
 
-    // Tessellate every shape (outer contour + holes) once and reuse the points
-    // for both the bounding box and the cutout shapes below. Low curve
-    // resolution keeps the CSG cutter prisms light — this is the dominant build
-    // cost. The inlaid logo hides most cutout-wall faceting.
+    // The plate is cut along the logo's outline (the union of all colors), so
+    // cutouts never overlap. Its points are reused for the bounding box and
+    // the cutout shapes below. SVG-parsed shapes are already straight-edged;
+    // 16 divisions only applies to curved shapes passed in directly.
+    if (colorGroups !== outlineFor) {
+      outline = profiler.measure('logo outline', () => logoOutline(colorGroups))
+      outlineFor = colorGroups
+    }
     const shapePoints: { shape: THREE.Vector2[]; holes: THREE.Vector2[][] }[] = []
     const box = new THREE.Box3()
-    let hasSvg = false
     profiler.measure('bounding box', () => {
-      for (const group of colorGroups) {
-        for (const shape of group.shapes) {
-          const pts = shape.extractPoints(16)
-          shapePoints.push(pts)
-          for (const p of pts.shape) {
-            box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
-          }
-          hasSvg = true
+      for (const shape of outline) {
+        const pts = shape.extractPoints(16)
+        shapePoints.push(pts)
+        for (const p of pts.shape) {
+          box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
         }
       }
     })
+    let hasSvg = shapePoints.length > 0
 
     let width = config.targetWidth
     let height = config.targetWidth * (2 / 3)
@@ -76,6 +84,14 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
         scale = (config.targetWidth - config.padding * 2) / size.x
         height = size.y * scale + config.padding * 2
       }
+
+      // A zero-width logo (or padding eating the whole plate) has no usable
+      // scale; build the plain plate instead of NaN/Infinity geometry.
+      if (!(scale > 0 && Number.isFinite(scale) && Number.isFinite(height))) {
+        hasSvg = false
+        scale = 1
+        height = config.targetWidth * (2 / 3)
+      }
     }
 
     if (config.basePlateShape === 'circle') {
@@ -87,9 +103,9 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2
 
-    // Logo cutout shapes (step 5) — tessellated once, reused for CSG subtract
-    // prisms. Each keeps its holes so a logo counter (the middle of an "O")
-    // stays as plate material instead of becoming a through-hole.
+    // Logo cutout shapes (step 5), one per connected outline part. Each keeps
+    // its holes so a logo counter (the middle of an "O") stays as plate
+    // material instead of becoming a through-hole.
     const toPlate = (pts: THREE.Vector2[]) =>
       pts.map(p => new THREE.Vector2((p.x - svgCenter.x) * scale, -(p.y - svgCenter.y) * scale))
     const logoCutouts: THREE.Shape[] = []

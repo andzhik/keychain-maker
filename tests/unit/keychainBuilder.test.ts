@@ -92,3 +92,57 @@ test('logo geometry is Y-flipped without a mirrored node transform', () => {
     expect(face.dot(n)).toBeGreaterThan(0)
   }
 })
+
+for (const basePlateShape of ['square', 'circle'] as const) {
+  test(`out-of-range padding still builds a finite ${basePlateShape} plate`, () => {
+    const { build, dimensions } = useKeychainBuilder(() => new THREE.Scene())
+    const root = build([letterO()], config({ basePlateShape, targetWidth: 20, padding: 20 }))!
+    const basePlate = root.children[0] as THREE.Mesh
+    basePlate.geometry.computeBoundingBox()
+
+    expect(Number.isFinite(dimensions.value.height)).toBe(true)
+    expect(dimensions.value.height).toBeGreaterThan(0)
+    const { min, max } = basePlate.geometry.boundingBox!
+    for (const v of [min.x, min.y, max.x, max.y]) expect(Number.isFinite(v)).toBe(true)
+  })
+}
+
+test('a zero-width logo builds the plain plate instead of Infinity geometry', () => {
+  const line = new THREE.Shape()
+  line.moveTo(0, 0)
+  line.lineTo(0, 10)
+  line.lineTo(0, 20)
+  const group: ColorGroup = { id: '#ff0000', color: '#ff0000', shapes: [line], pathCount: 1 }
+
+  const { build, dimensions } = useKeychainBuilder(() => new THREE.Scene())
+  build([group], config())
+
+  expect(dimensions.value.width).toBe(DEFAULT_CONFIG.targetWidth)
+  expect(Number.isFinite(dimensions.value.height)).toBe(true)
+})
+
+test('several logo parts are all cut out of the beveled plate', () => {
+  const square = (x: number) => {
+    const shape = new THREE.Shape()
+    shape.moveTo(x, 0)
+    shape.lineTo(x + 4, 0)
+    shape.lineTo(x + 4, 4)
+    shape.lineTo(x, 4)
+    return shape
+  }
+  // Two overlapping squares of different colors plus a separate one.
+  const groups: ColorGroup[] = [
+    { id: '#ff0000', color: '#ff0000', shapes: [square(0), square(16)], pathCount: 2 },
+    { id: '#00ff00', color: '#00ff00', shapes: [square(2)], pathCount: 1 },
+  ]
+  const { build } = useKeychainBuilder(() => new THREE.Scene())
+  const root = build(groups, config())!
+  const basePlate = root.children[0] as THREE.Mesh
+
+  // The logo spans x 0..20, scaled ×2 to -20..20 mm: red -20..-12, green
+  // -16..-8 (overlapping it) and red 12..20; x = 0 lies between the parts.
+  expect(hitsFromAbove(basePlate.geometry, -18, 0)).toBe(0)
+  expect(hitsFromAbove(basePlate.geometry, -14, 0)).toBe(0)
+  expect(hitsFromAbove(basePlate.geometry, 18, 0)).toBe(0)
+  expect(hitsFromAbove(basePlate.geometry, 0, 0)).toBeGreaterThan(0)
+})
