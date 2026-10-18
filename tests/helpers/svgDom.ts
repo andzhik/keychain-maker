@@ -1,0 +1,99 @@
+import { XMLParser, XMLValidator } from 'fast-xml-parser'
+
+// SVGLoader needs a DOMParser; bun has none. Just enough of the DOM for it.
+
+type XmlEntry = Record<string, unknown>
+
+class TestElement {
+  nodeType = 1
+  style = new Proxy({}, {
+    get: () => '',
+  })
+  viewportElement: TestElement
+
+  constructor(
+    readonly nodeName: string,
+    private readonly attributes: Record<string, string>,
+    readonly childNodes: TestElement[],
+  ) {
+    this.viewportElement = this
+  }
+
+  getAttribute(name: string): string | null {
+    return this.attributes[name] ?? null
+  }
+
+  getAttributeNS(_namespace: string, name: string): string | null {
+    return this.getAttribute(name) ?? this.getAttribute(`xlink:${name}`)
+  }
+
+  hasAttribute(name: string): boolean {
+    return this.attributes[name] !== undefined
+  }
+
+  getElementById(id: string): TestElement | null {
+    if (this.attributes.id === id) return this
+    for (const child of this.childNodes) {
+      const found = child.getElementById(id)
+      if (found) return found
+    }
+    return null
+  }
+}
+
+class TestDocument {
+  constructor(readonly documentElement: TestElement) {}
+}
+
+export function installDomParserForSvgLoader() {
+  if (globalThis.DOMParser) return
+
+  globalThis.DOMParser = class {
+    parseFromString(text: string): TestDocument {
+      const validation = XMLValidator.validate(text)
+      if (validation !== true) {
+        throw new Error(validation.err.msg)
+      }
+
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '',
+        preserveOrder: true,
+      })
+      const rootEntry = (parser.parse(text) as XmlEntry[])
+        .find(entry => Object.keys(entry)[0] !== ':@')
+
+      if (!rootEntry) throw new Error('SVG has no root element')
+
+      const root = buildElement(rootEntry)
+      setViewportElement(root, root)
+      return new TestDocument(root)
+    }
+  } as typeof DOMParser
+}
+
+function buildElement(entry: XmlEntry): TestElement {
+  const nodeName = getElementName(entry)
+  if (!nodeName) throw new Error('XML entry is not an element')
+  const entries = entry[nodeName] as XmlEntry[] | undefined
+  const rawAttributes = entry[':@'] ?? entries?.find(child => child[':@'])?.[':@'] ?? {}
+  const attributes = Object.fromEntries(
+    Object.entries(rawAttributes as Record<string, string>)
+      .map(([key, value]) => [key.replace(/^@_/, ''), value]),
+  )
+  const childNodes = (entries ?? [])
+    .filter(child => getElementName(child) !== null)
+    .map(child => buildElement(child))
+
+  return new TestElement(nodeName, attributes, childNodes)
+}
+
+function getElementName(entry: XmlEntry): string | null {
+  return Object.keys(entry).find(key => key !== ':@' && key !== '#text') ?? null
+}
+
+function setViewportElement(node: TestElement, root: TestElement) {
+  node.viewportElement = root
+  for (const child of node.childNodes) setViewportElement(child, root)
+}
+

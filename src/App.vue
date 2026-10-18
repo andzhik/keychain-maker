@@ -94,6 +94,7 @@ const dimText = computed(() => {
         :colorGroups="colorGroups"
         :colorSources="refined.sources.value"
         :specksRemoved="refined.specksRemoved.value"
+        :outlinePoints="refined.outlinePoints.value"
         :thinFeatures="refined.thinFeatures.value"
         :minFeatureWidth="refined.minFeatureWidth.value"
         :error="error"

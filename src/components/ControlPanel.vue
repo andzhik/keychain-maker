@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import ColorList from './ColorList.vue'
-import LogoPreview from './LogoPreview.vue'
+import LogoPreview, { type LogoPreviewData } from './LogoPreview.vue'
+import LogoPreviewDialog from './LogoPreviewDialog.vue'
 import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
@@ -18,6 +19,8 @@ const props = defineProps<{
   colorSources: Map<string, string[]>
   refinements: Refinements
   specksRemoved: number
+  /** Outline points before and after simplification. */
+  outlinePoints: { before: number; after: number }
   thinFeatures: ThinFeatures
   minFeatureWidth: number
   error: string | null
@@ -50,7 +53,28 @@ const refined = computed(() => {
   const r = props.refinements
   return r.hiddenShapes.length > 0 || r.hiddenColors.length > 0 || Object.keys(r.recolor).length > 0
     || r.mergeTolerance > 0 || r.maxColors > 0 || r.minSpeckArea > 0
+    || r.simplifyTolerance !== DEFAULT_REFINEMENTS.simplifyTolerance
 })
+
+const pointsNote = computed(() => {
+  const { before, after } = props.outlinePoints
+  if (before === 0) return ''
+  const fmt = (n: number) => n.toLocaleString('en-US')
+  if (after === before) return `${fmt(before)} outline points.`
+  return `${fmt(before)} → ${fmt(after)} outline points (−${Math.round((1 - after / before) * 100)}%).`
+})
+
+const previewOpen = ref(false)
+
+// Shared by the inline preview and the enlarged one.
+const previewProps = computed<LogoPreviewData>(() => ({
+  parsed: props.parsedGroups,
+  groups: props.colorGroups,
+  hiddenColors: props.refinements.hiddenColors,
+  hiddenShapes: props.refinements.hiddenShapes,
+  thinPath: props.thinFeatures.path,
+  plateColor: props.config.baseColor,
+}))
 
 /** Undoes every refinement; the nozzle is a printer setting, so it stays. */
 function resetRefinements() {
@@ -94,15 +118,21 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         <SvgUploader @svgLoaded="(text: string) => emit('svgLoaded', text)" />
 
         <div v-if="parsedGroups.length">
-          <LogoPreview
-            :parsed="parsedGroups"
-            :groups="colorGroups"
-            :hiddenColors="refinements.hiddenColors"
-            :hiddenShapes="refinements.hiddenShapes"
-            :thinPath="thinFeatures.path"
-            :plateColor="config.baseColor"
-            @toggleShape="toggleShape"
-          />
+          <div class="relative">
+            <LogoPreview v-bind="previewProps" class="h-48" @toggleShape="toggleShape" />
+            <button
+              type="button"
+              class="absolute top-1.5 right-1.5 p-1 bg-white/90 border border-gray-300 rounded shadow-sm text-gray-600 hover:bg-white hover:text-gray-900"
+              title="Enlarge preview"
+              aria-label="Enlarge preview"
+              @click="previewOpen = true"
+            >
+              <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M10 2h4v4M6 14H2v-4M14 2 9.5 6.5M2 14l4.5-4.5" />
+              </svg>
+            </button>
+          </div>
+          <LogoPreviewDialog v-model:open="previewOpen" :preview="previewProps" @toggleShape="toggleShape" />
           <p class="mt-1 flex items-center gap-1 text-[11px] text-gray-400">
             <span>Click a shape to remove it.</span>
             <button
@@ -172,6 +202,14 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           <p v-if="refinements.minSpeckArea > 0" class="mt-0.5 text-xs text-gray-500">
             {{ specksRemoved ? `Removed ${specksRemoved} speck${specksRemoved !== 1 ? 's' : ''}.` : 'No specks this small.' }}
           </p>
+        </div>
+        <div>
+          <SliderField
+            label="Simplify" unit="mm" field="simplifyTolerance" labelWidth="w-24"
+            :modelValue="refinements.simplifyTolerance" :min="0" :max="0.2" :step="0.01"
+            @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
+          />
+          <p v-if="pointsNote" class="mt-0.5 text-xs text-gray-500">{{ pointsNote }}</p>
         </div>
         <div>
           <SliderField

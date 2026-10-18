@@ -6,7 +6,8 @@ import { polygonToShape, shapeToPolygon } from './svgToShapes'
 /**
  * Refinements run on the parsed color groups, never on the SVG:
  *
- *   parsed → refineColors (hide shapes/colors, recolor, merge) → removeSpecks → model
+ *   parsed → refineColors (hide shapes/colors, recolor, merge) → removeSpecks
+ *          → simplifyGroups (simplify.ts) → model
  *
  * Each step returns a new groups array when its output changes and the same
  * array when it doesn't, because the viewer and the outline cache compare

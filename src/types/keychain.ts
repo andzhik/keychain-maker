@@ -41,6 +41,8 @@ export interface Refinements {
   maxColors: number
   /** Pieces (and holes) smaller than this, in mm² at the printed size, are dropped; 0 = off. */
   minSpeckArea: number
+  /** Outline points are dropped while the outline moves less than this, in mm at the printed size; 0 = off. */
+  simplifyTolerance: number
   /** Features narrower than two nozzle widths are flagged as unprintable. */
   nozzleDiameter: number
 }
@@ -52,6 +54,9 @@ export const DEFAULT_REFINEMENTS: Refinements = {
   mergeTolerance: 0,
   maxColors: 0,
   minSpeckArea: 0,
+  // Far below what a nozzle can resolve, and drops most of the points curves
+  // are tessellated into (16 per curve, however small).
+  simplifyTolerance: 0.02,
   nozzleDiameter: 0.4,
 }
 

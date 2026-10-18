@@ -81,13 +81,14 @@ export function sanitizeRefinements(raw: unknown): Refinements {
   result.hiddenColors = strings(source.hiddenColors).filter(c => HEX.test(c))
   result.hiddenShapes = strings(source.hiddenShapes)
 
-  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckArea' | 'nozzleDiameter', min: number) => {
+  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckArea' | 'simplifyTolerance' | 'nozzleDiameter', min: number) => {
     const value = source[key]
     if (typeof value === 'number' && Number.isFinite(value) && value >= min) result[key] = value
   }
   number('mergeTolerance', 0)
   number('maxColors', 0)
   number('minSpeckArea', 0)
+  number('simplifyTolerance', 0)
   number('nozzleDiameter', 0.1)
   return result
 }

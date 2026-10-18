@@ -2,6 +2,7 @@ import { computed, onUnmounted, shallowRef, watch, type Ref } from 'vue'
 import type { ColorGroup, KeychainConfig, Refinements } from '../types/keychain'
 import { fitGroups } from '../utils/logoFit'
 import { refineColors, removeSpecks } from '../utils/refine'
+import { simplifyGroups } from '../utils/simplify'
 import { findThinFeatures, type ThinFeatures } from '../utils/thinFeatures'
 
 // The thin-feature raster takes tens of ms; wait for sliders to settle.
@@ -30,9 +31,19 @@ export function useLogoRefinement(
     return hasLogo ? removeSpecks(groups, minArea / (scale * scale)) : { groups, removed: 0 }
   })
 
+  // Last, so it simplifies what's actually printed. Measured at the printed
+  // size like specks; the tolerance is far too small to move the scale.
+  const simplified = computed(() => {
+    const { groups } = specks.value
+    const { hasLogo, scale } = fitGroups(groups, config.value)
+    const tolerance = hasLogo ? refinements.value.simplifyTolerance / scale : 0
+    return simplifyGroups(groups, tolerance)
+  })
+
   // Identity only changes when the geometry does (see refine.ts).
-  const groups = computed(() => specks.value.groups)
+  const groups = computed(() => simplified.value.groups)
   const specksRemoved = computed(() => specks.value.removed)
+  const outlinePoints = computed(() => ({ before: simplified.value.before, after: simplified.value.after }))
 
   const scale = computed(() => {
     const fit = fitGroups(groups.value, config.value)
@@ -58,6 +69,8 @@ export function useLogoRefinement(
     /** Final color → the source colors printed in it. */
     sources: computed(() => colors.value.sources),
     specksRemoved,
+    /** Outline points before and after simplification. */
+    outlinePoints,
     thinFeatures,
     minFeatureWidth,
   }
