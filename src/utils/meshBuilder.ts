@@ -12,6 +12,25 @@ import type { Profiler } from './profiler'
  * 5. CSG subtract logo cutouts from beveled base (`cutoutBasePlateHoles`, caller)
  */
 
+// Segments per full turn when sampling outline arcs. ExtrudeGeometry's default
+// (12 per curve, regardless of sweep) turns a full-circle plate into a 12-gon.
+const ARC_SEGMENTS_PER_TURN = 128
+
+/**
+ * Appends an arc (same angle/direction semantics as `Path.absarc`) as straight
+ * segments, with a count proportional to its sweep so big and small arcs are
+ * equally smooth. Skips the start point if the path is already there.
+ */
+function arcTo(path: THREE.Path, cx: number, cy: number, radius: number, a0: number, a1: number, clockwise: boolean): void {
+  const curve = new THREE.ArcCurve(cx, cy, radius, a0, a1, clockwise)
+  const sweep = radius > 0 ? curve.getLength() / radius : 0
+  const n = Math.max(2, Math.ceil((sweep / (Math.PI * 2)) * ARC_SEGMENTS_PER_TURN))
+  const pts = curve.getPoints(n)
+  if (path.curves.length === 0) path.moveTo(pts[0].x, pts[0].y)
+  else if (pts[0].distanceTo(path.currentPoint) > 1e-6) path.lineTo(pts[0].x, pts[0].y)
+  for (let i = 1; i < pts.length; i++) path.lineTo(pts[i].x, pts[i].y)
+}
+
 /** Step 1: outer base-plate outline (spline path). */
 function buildBasePlateOutline(
   config: KeychainConfig,
@@ -57,7 +76,7 @@ function drawKeyringOutline(
 
   if (fr <= 0.01) {
     shape.lineTo(R, h)
-    shape.absarc(0, h, R, 0, Math.PI, false)
+    arcTo(shape, 0, h, R, 0, Math.PI, false)
     shape.lineTo(-w + r, h)
     return
   }
@@ -67,9 +86,9 @@ function drawKeyringOutline(
   const ringEnd = Math.PI - ringStart
 
   shape.lineTo(fx, h)
-  shape.absarc(fx, h + fr, fr, -Math.PI / 2, Math.atan2(-fr, -fx), true)
-  shape.absarc(0, h, R, ringStart, ringEnd, false)
-  shape.absarc(-fx, h + fr, fr, Math.atan2(-fr, fx), -Math.PI / 2, true)
+  arcTo(shape, fx, h + fr, fr, -Math.PI / 2, Math.atan2(-fr, -fx), true)
+  arcTo(shape, 0, h, R, ringStart, ringEnd, false)
+  arcTo(shape, -fx, h + fr, fr, Math.atan2(-fr, fx), -Math.PI / 2, true)
   shape.lineTo(-w + r, h)
 }
 
@@ -81,7 +100,7 @@ function drawKeyringOutline(
 function buildCirclePlateOutline(config: KeychainConfig, p: number): THREE.Shape {
   const shape = new THREE.Shape()
   if (!config.keyringEnabled) {
-    shape.absarc(0, 0, p, 0, Math.PI * 2, false)
+    arcTo(shape, 0, 0, p, 0, Math.PI * 2, false)
     return shape
   }
 
@@ -104,10 +123,10 @@ function buildCirclePlateOutline(config: KeychainConfig, p: number): THREE.Shape
   const plateAngle = Math.atan2(cy, cx)
   const ringAngle = Math.atan2(cy - p, cx)
 
-  shape.absarc(0, 0, p, Math.PI - plateAngle, plateAngle, false)
-  if (f > 0) shape.absarc(cx, cy, f, Math.atan2(-cy, -cx), Math.atan2(p - cy, -cx), true)
-  shape.absarc(0, p, R, ringAngle, Math.PI - ringAngle, false)
-  if (f > 0) shape.absarc(-cx, cy, f, Math.atan2(p - cy, cx), Math.atan2(-cy, cx), true)
+  arcTo(shape, 0, 0, p, Math.PI - plateAngle, plateAngle, false)
+  if (f > 0) arcTo(shape, cx, cy, f, Math.atan2(-cy, -cx), Math.atan2(p - cy, -cx), true)
+  arcTo(shape, 0, p, R, ringAngle, Math.PI - ringAngle, false)
+  if (f > 0) arcTo(shape, -cx, cy, f, Math.atan2(p - cy, cx), Math.atan2(-cy, cx), true)
 
   return shape
 }
