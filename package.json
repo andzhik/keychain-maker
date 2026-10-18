@@ -7,7 +7,8 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "test": "bun test tests/unit",
-    "render": "node --experimental-strip-types test-render/capture.ts"
+    "render": "node --experimental-strip-types test-render/capture.ts",
+    "measure": "node --experimental-strip-types test-render/measure.ts"
   },
   "dependencies": {
     "polygon-clipping": "0.15.7",
