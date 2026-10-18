@@ -16,7 +16,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
 
 const { init, dispose: disposeScene, getScene, fitCamera, requestRender } = useThreeScene()
-const { build, dispose: disposeBuilder, dimensions, setLogoVisible } = useKeychainBuilder(getScene)
+const { build, dispose: disposeBuilder, dimensions, buildMs, setLogoVisible } = useKeychainBuilder(getScene)
 
 let currentGroup: ReturnType<typeof build> = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -43,7 +43,7 @@ function resetView() {
   if (currentGroup) fitCamera(currentGroup)
 }
 
-defineExpose({ dimensions, resetView, getCurrentGroup: () => currentGroup })
+defineExpose({ dimensions, buildMs, resetView, getCurrentGroup: () => currentGroup })
 
 onMounted(() => {
   if (!containerRef.value) return

@@ -77,6 +77,11 @@ const dimText = computed(() => {
   if (!d || (d.width === 0 && d.height === 0)) return '— × — × — mm'
   return `${d.width.toFixed(1)} × ${d.height.toFixed(1)} × ${d.depth.toFixed(1)} mm`
 })
+
+const buildTimeText = computed(() => {
+  const ms = viewerRef.value?.buildMs
+  return ms == null ? '— ms' : `${Math.round(ms)} ms`
+})
 </script>
 
 <template>
@@ -122,7 +127,10 @@ const dimText = computed(() => {
           </button>
         </div>
         <div class="flex items-center justify-between gap-3 shrink-0">
-          <p class="text-xs text-gray-500 tabular-nums whitespace-nowrap">Dimensions: {{ dimText }}</p>
+          <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
+            <p>Dimensions: {{ dimText }}</p>
+            <p>Render time: {{ buildTimeText }}</p>
+          </div>
           <div class="w-48 shrink-0">
             <ExportButton
               :disabled="parsedGroups.length === 0"

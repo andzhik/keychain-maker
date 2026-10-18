@@ -13,6 +13,8 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   // Survives rebuilds so a hidden logo stays hidden when the config changes.
   let logoVisible = true
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
+  // Wall-clock time of the last mesh build, in ms (null before the first build).
+  const buildMs = ref<number | null>(null)
 
   function disposeCurrent() {
     if (!currentGroup) return
@@ -29,6 +31,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   }
 
   function build(colorGroups: ColorGroup[], rawConfig: KeychainConfig): THREE.Group | null {
+    const startedAt = performance.now()
     const profiler = new Profiler('keychain build')
     const { config } = constrainConfig(rawConfig)
     profiler.measure('disposeCurrent', () => disposeCurrent())
@@ -111,6 +114,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
       height: plateBox.max.y - plateBox.min.y,
       depth: plateBox.max.z - plateBox.min.z,
     }
+    buildMs.value = performance.now() - startedAt
 
     return root
   }
@@ -124,5 +128,5 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     if (logoGroupRef) logoGroupRef.visible = visible
   }
 
-  return { build, dispose, dimensions, setLogoVisible }
+  return { build, dispose, dimensions, buildMs, setLogoVisible }
 }
