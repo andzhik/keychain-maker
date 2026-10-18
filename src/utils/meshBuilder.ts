@@ -31,6 +31,20 @@ function arcTo(path: THREE.Path, cx: number, cy: number, radius: number, a0: num
   for (let i = 1; i < pts.length; i++) path.lineTo(pts[i].x, pts[i].y)
 }
 
+/**
+ * Snaps the end of a path built by `arcTo` exactly onto its start. Arc
+ * endpoints computed from different angles can miss by ~1e-15, and
+ * ExtrudeGeometry only drops a closing point that is *exactly* equal to the
+ * first — otherwise the zero-length edge left behind gets a garbage bevel
+ * vector, which shows up as a notch in the beveled edge.
+ */
+function closeExactly(path: THREE.Path): void {
+  const first = (path.curves[0] as THREE.LineCurve).v1
+  const last = path.curves[path.curves.length - 1] as THREE.LineCurve
+  if (last.v2.distanceTo(first) < 1e-6) last.v2.copy(first)
+  path.currentPoint.copy(last.v2)
+}
+
 /** Step 1: outer base-plate outline (spline path). */
 function buildBasePlateOutline(
   config: KeychainConfig,
@@ -101,6 +115,7 @@ function buildCirclePlateOutline(config: KeychainConfig, p: number): THREE.Shape
   const shape = new THREE.Shape()
   if (!config.keyringEnabled) {
     arcTo(shape, 0, 0, p, 0, Math.PI * 2, false)
+    closeExactly(shape)
     return shape
   }
 
@@ -127,6 +142,7 @@ function buildCirclePlateOutline(config: KeychainConfig, p: number): THREE.Shape
   if (f > 0) arcTo(shape, cx, cy, f, Math.atan2(-cy, -cx), Math.atan2(p - cy, -cx), true)
   arcTo(shape, 0, p, R, ringAngle, Math.PI - ringAngle, false)
   if (f > 0) arcTo(shape, -cx, cy, f, Math.atan2(p - cy, cx), Math.atan2(-cy, cx), true)
+  closeExactly(shape)
 
   return shape
 }
@@ -136,13 +152,13 @@ function buildKeyringHolePath(config: KeychainConfig, h: number): THREE.Path {
   const hr = config.keyringHoleDiameter / 2
   const segs = 48
   const holePath = new THREE.Path()
-  for (let i = 0; i <= segs; i++) {
+  holePath.moveTo(hr, h)
+  for (let i = 1; i < segs; i++) {
     const a = (i / segs) * Math.PI * 2
-    const x = Math.cos(a) * hr
-    const y = h + Math.sin(a) * hr
-    if (i === 0) holePath.moveTo(x, y)
-    else holePath.lineTo(x, y)
+    holePath.lineTo(Math.cos(a) * hr, h + Math.sin(a) * hr)
   }
+  // Close on the exact start point (see closeExactly).
+  holePath.lineTo(hr, h)
   return holePath
 }
 

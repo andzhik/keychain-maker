@@ -120,3 +120,23 @@ test('logo meshes are un-beveled and shifted flush by the base bevel', () => {
   expect(mesh.geometry.boundingBox?.min.z).toBeCloseTo(-0.6, 5)
   expect(mesh.geometry.boundingBox?.max.z).toBeCloseTo(4.4, 5)
 })
+
+test('circle plate and keyring hole outlines close exactly (no zero-length bevel edges)', () => {
+  for (let d = 20; d <= 80; d += 0.5) {
+    for (const keyringEnabled of [true, false]) {
+      const base = buildBasePlate(
+        config({ basePlateShape: 'circle', keyringEnabled, keyringHoleDiameter: 5, keyringRingDiameter: 7 }),
+        d,
+        d,
+      )
+      const { shape, holes } = (base.geometry.parameters.shapes as THREE.Shape).extractPoints(12)
+      for (const contour of [shape, ...holes]) {
+        // ExtrudeGeometry drops a closing point only if it equals the first exactly.
+        const pts = contour[contour.length - 1].equals(contour[0]) ? contour.slice(0, -1) : contour
+        for (let i = 0; i < pts.length; i++) {
+          expect(pts[i].distanceTo(pts[(i + 1) % pts.length])).toBeGreaterThan(1e-6)
+        }
+      }
+    }
+  }
+})
