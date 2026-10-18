@@ -73,26 +73,25 @@ const dimText = computed(() => {
 <template>
   <div class="flex flex-col h-screen bg-gray-50 text-gray-900 overflow-hidden">
     <!-- Header -->
-    <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shrink-0">
-      <h1 class="text-lg font-semibold tracking-tight">Keychain Maker</h1>
+    <header class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 shrink-0">
+      <h1 class="text-base font-semibold tracking-tight">Keychain Maker</h1>
     </header>
 
-    <!-- Main: settings take the space; the preview is a fixed-size card -->
-    <div class="flex flex-1 min-h-0">
-      <main class="flex-1 min-w-0 overflow-y-auto p-6">
-        <ControlPanel
-          :colorGroups="colorGroups"
-          :error="error"
-          v-model:showLogo="showLogo"
-          v-model:config="config"
-          :adjustments="constrained.adjustments"
-          :svgText="svgText"
-          @svgLoaded="handleSvgLoaded"
-        />
-      </main>
+    <!-- Three columns: logo | settings (fixed widths, scroll if needed) | preview (takes the rest) -->
+    <div class="flex flex-1 min-h-0 gap-3 p-3">
+      <ControlPanel
+        class="shrink-0 min-h-0 overflow-y-auto"
+        :colorGroups="colorGroups"
+        :error="error"
+        v-model:showLogo="showLogo"
+        v-model:config="config"
+        :adjustments="constrained.adjustments"
+        :svgText="svgText"
+        @svgLoaded="handleSvgLoaded"
+      />
 
-      <aside class="w-[440px] shrink-0 overflow-y-auto py-6 pr-6 flex flex-col gap-3">
-        <div class="relative aspect-square shrink-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+      <aside class="flex-1 min-w-[320px] flex flex-col gap-2">
+        <div class="relative flex-1 min-h-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
           <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="constrained.config" />
           <button
             class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
@@ -101,14 +100,18 @@ const dimText = computed(() => {
             Reset View
           </button>
         </div>
-        <p class="text-xs text-gray-500 tabular-nums">Dimensions: {{ dimText }}</p>
-        <ExportButton
-          :disabled="colorGroups.length === 0"
-          :exporting="exporting"
-          :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
-          @export="handleExport"
-        />
-        <p v-if="exportError" class="text-xs text-red-500">{{ exportError }}</p>
+        <div class="flex items-center justify-between gap-3 shrink-0">
+          <p class="text-xs text-gray-500 tabular-nums whitespace-nowrap">Dimensions: {{ dimText }}</p>
+          <div class="w-48 shrink-0">
+            <ExportButton
+              :disabled="colorGroups.length === 0"
+              :exporting="exporting"
+              :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
+              @export="handleExport"
+            />
+          </div>
+        </div>
+        <p v-if="exportError" class="text-xs text-red-500 shrink-0">{{ exportError }}</p>
       </aside>
     </div>
   </div>

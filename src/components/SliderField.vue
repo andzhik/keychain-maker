@@ -46,10 +46,21 @@ function onNumber(e: Event) {
 </script>
 
 <template>
+  <!-- One row: label | slider | number box + unit. -->
   <div :class="{ 'opacity-40': disabled }">
-    <div class="flex items-center justify-between gap-3">
-      <span class="text-sm text-gray-700">{{ label }}</span>
-      <label class="flex items-center gap-1 text-xs text-gray-500">
+    <div class="flex items-center gap-2">
+      <span class="w-28 shrink-0 text-sm text-gray-700">{{ label }}</span>
+      <input
+        type="range"
+        :value="modelValue"
+        :min="min" :max="max" :step="step"
+        :disabled="disabled"
+        :data-field="field"
+        :aria-label="label"
+        @input="onSlider"
+        class="flex-1 min-w-0 accent-gray-700 disabled:cursor-not-allowed"
+      />
+      <label class="flex items-center gap-1 shrink-0 text-xs text-gray-500">
         <input
           type="number"
           :value="modelValue.toFixed(decimals)"
@@ -57,22 +68,12 @@ function onNumber(e: Event) {
           :disabled="disabled"
           :aria-label="label"
           @change="onNumber"
-          class="w-16 px-1.5 py-0.5 text-right text-sm text-gray-900 tabular-nums bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500 disabled:cursor-not-allowed"
+          class="w-14 px-1.5 py-0.5 text-right text-sm text-gray-900 tabular-nums bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500 disabled:cursor-not-allowed"
         />
         <!-- Always reserves the unit's width so unitless boxes line up too. -->
         <span class="w-5">{{ unit }}</span>
       </label>
     </div>
-    <input
-      type="range"
-      :value="modelValue"
-      :min="min" :max="max" :step="step"
-      :disabled="disabled"
-      :data-field="field"
-      :aria-label="label"
-      @input="onSlider"
-      class="w-full mt-1 accent-gray-700 disabled:cursor-not-allowed"
-    />
-    <p v-if="note" class="text-xs text-amber-600">{{ note }}</p>
+    <p v-if="note" class="mt-0.5 text-xs text-amber-600">{{ note }}</p>
   </div>
 </template>

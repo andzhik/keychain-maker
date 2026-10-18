@@ -53,10 +53,10 @@ function onFileChange(e: Event) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col gap-2">
     <!-- Drop zone -->
     <div
-      class="border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center gap-2 cursor-pointer select-none transition-colors"
+      class="border-2 border-dashed rounded-lg px-3 py-2.5 flex items-center justify-center gap-2 cursor-pointer select-none transition-colors"
       :class="isDragging
         ? 'border-blue-400 bg-blue-50'
         : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-gray-50'"
@@ -65,14 +65,14 @@ function onFileChange(e: Event) {
       @drop.prevent="onDrop"
       @click="fileInput?.click()"
     >
-      <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg class="w-5 h-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
-      <span class="text-sm font-medium text-gray-600">
-        {{ isDragging ? 'Drop SVG here' : 'Drag & drop SVG' }}
+      <span class="text-sm text-gray-600">
+        <span class="font-medium">{{ isDragging ? 'Drop SVG here' : 'Drop SVG' }}</span>
+        <span v-if="!isDragging" class="text-gray-400"> or click to browse</span>
       </span>
-      <span class="text-xs text-gray-400">or click to browse</span>
       <input
         ref="fileInput"
         type="file"
@@ -86,7 +86,7 @@ function onFileChange(e: Event) {
 
     <!-- 2D inline preview -->
     <div v-if="previewUrl" class="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      <img :src="previewUrl" alt="SVG preview" class="w-full h-48 object-contain p-2" />
+      <img :src="previewUrl" alt="SVG preview" class="w-full h-40 object-contain p-2" />
     </div>
 
     <!-- UI note -->
