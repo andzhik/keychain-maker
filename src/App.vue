@@ -1,23 +1,37 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ExportButton from './components/ExportButton.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
 import { exportTo3MF } from 'three-3mf-exporter'
-import { DEFAULT_CONFIG } from './types/keychain'
 import { constrainConfig } from './utils/configConstraints'
+import { loadState, saveConfig, saveShowLogo, saveSvg } from './utils/persistence'
 import type { KeychainConfig } from './types/keychain'
 import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
-const showLogo = ref(true)
-const config = ref<KeychainConfig>({ ...DEFAULT_CONFIG })
+// Restore the last session so a reload picks up where the user left off.
+const saved = loadState()
+const showLogo = ref(saved.showLogo)
+const config = ref<KeychainConfig>(saved.config)
+const svgText = ref<string | null>(saved.svg)
 // The sliders keep the user's raw values; the model is built from these.
 const constrained = computed(() => constrainConfig(config.value))
 const exporting = ref(false)
 const exportError = ref<string | null>(null)
 const { colorGroups, error, parse } = useSvgParser()
+// Parsed before ThreeViewer mounts, so its first build already has the logo.
+if (svgText.value) parse(svgText.value)
+
+function handleSvgLoaded(text: string) {
+  svgText.value = text
+  parse(text)
+  saveSvg(text)
+}
+
+watch(config, (value) => saveConfig(value), { deep: true })
+watch(showLogo, (value) => saveShowLogo(value))
 
 async function handleExport() {
   const group = viewerRef.value?.getCurrentGroup()
@@ -74,7 +88,8 @@ const dimText = computed(() => {
           v-model:showLogo="showLogo"
           v-model:config="config"
           :adjustments="constrained.adjustments"
-          @svgLoaded="parse"
+          :svgText="svgText"
+          @svgLoaded="handleSvgLoaded"
         />
         <div class="p-4 border-t border-gray-200 shrink-0">
           <ExportButton

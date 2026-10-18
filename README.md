@@ -21,6 +21,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Add or remove the keyring hole
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
+- Remember the last SVG and settings across reloads (browser localStorage)
 
 ## Best SVG Inputs
 

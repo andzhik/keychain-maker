@@ -9,6 +9,7 @@ const props = defineProps<{
   showLogo: boolean
   config: KeychainConfig
   adjustments: ConfigAdjustment[]
+  svgText: string | null
 }>()
 
 const emit = defineEmits<{
@@ -31,7 +32,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
     <!-- Upload -->
     <section>
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">SVG File</h2>
-      <SvgUploader @svgLoaded="(text: string) => emit('svgLoaded', text)" />
+      <SvgUploader :svgText="svgText" @svgLoaded="(text: string) => emit('svgLoaded', text)" />
     </section>
 
     <!-- Color list -->

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
+
+const props = defineProps<{
+  // The current SVG, owned by App so a restored one previews too.
+  svgText: string | null
+}>()
 
 const emit = defineEmits<{
   svgLoaded: [svgString: string]
@@ -15,17 +20,18 @@ function handleFile(file: File) {
   readError.value = null
   const reader = new FileReader()
   reader.onload = (e) => {
-    const text = e.target?.result as string
-    if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-    const blob = new Blob([text], { type: 'image/svg+xml' })
-    previewUrl.value = URL.createObjectURL(blob)
-    emit('svgLoaded', text)
+    emit('svgLoaded', e.target?.result as string)
   }
   reader.onerror = () => {
     readError.value = `Could not read "${file.name}".`
   }
   reader.readAsText(file)
 }
+
+watch(() => props.svgText, (text) => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = text ? URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' })) : null
+}, { immediate: true })
 
 onUnmounted(() => {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
