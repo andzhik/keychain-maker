@@ -88,7 +88,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 <template>
   <!-- Two fixed-width columns: the logo, then the model settings. -->
   <div class="flex gap-3 items-start">
-    <div class="w-[300px] shrink-0 flex flex-col gap-3">
+    <div class="w-[var(--logo-column,300px)] shrink-0 flex flex-col gap-3">
       <!-- Logo: upload, preview, colors -->
       <PanelCard title="Logo">
         <template #action>

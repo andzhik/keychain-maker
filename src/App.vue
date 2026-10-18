@@ -113,8 +113,9 @@ const buildTimeText = computed(() => {
       <h1 class="text-base font-semibold tracking-tight">Keychain Maker</h1>
     </header>
 
-    <!-- Three columns: logo | settings (fixed widths, scroll if needed) | preview (takes the rest) -->
-    <div class="flex flex-1 min-h-0 gap-3 p-3">
+    <!-- Three columns: logo | settings (fixed widths, scroll if needed) | preview (takes the rest).
+         --logo-column is the first column's width; the enlarged preview starts right after it. -->
+    <div class="relative flex flex-1 min-h-0 gap-3 p-3" style="--logo-column: 300px">
       <ControlPanel
         class="shrink-0 min-h-0 overflow-y-auto"
         :parsedGroups="parsedGroups"
@@ -135,31 +136,21 @@ const buildTimeText = computed(() => {
         @toggleShape="toggleShape"
       />
 
-      <aside class="flex-1 flex flex-col gap-2" :class="showPreviewPanel ? 'min-w-[560px]' : 'min-w-[320px]'">
-        <div class="flex-1 min-h-0 flex gap-3">
-          <!-- The enlarged logo preview shares the space with the 3D view. -->
-          <LogoPreviewPanel
-            v-if="showPreviewPanel"
-            class="flex-1 min-w-0"
-            :preview="previewData"
-            @close="previewExpanded = false"
-            @toggleShape="toggleShape"
+      <aside class="flex-1 min-w-[320px] flex flex-col gap-2">
+        <div class="relative flex-1 min-h-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+          <ThreeViewer
+            ref="viewerRef"
+            :colorGroups="colorGroups"
+            :fitKey="parsedGroups"
+            :showLogo="showLogo"
+            :config="constrained.config"
           />
-          <div class="relative flex-1 min-w-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-            <ThreeViewer
-              ref="viewerRef"
-              :colorGroups="colorGroups"
-              :fitKey="parsedGroups"
-              :showLogo="showLogo"
-              :config="constrained.config"
-            />
-            <button
-              class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
-              @click="viewerRef?.resetView()"
-            >
-              Reset View
-            </button>
-          </div>
+          <button
+            class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
+            @click="viewerRef?.resetView()"
+          >
+            Reset View
+          </button>
         </div>
         <div class="flex items-center justify-between gap-3 shrink-0">
           <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
@@ -177,6 +168,16 @@ const buildTimeText = computed(() => {
         </div>
         <p v-if="exportError" class="text-xs text-red-500 shrink-0">{{ exportError }}</p>
       </aside>
+
+      <!-- The enlarged logo preview covers the settings and the 3D view, leaving
+           the logo and refine controls next to it usable. -->
+      <LogoPreviewPanel
+        v-if="showPreviewPanel"
+        class="absolute inset-y-3 right-3 left-[calc(var(--logo-column)+1.5rem)] z-10 shadow-xl"
+        :preview="previewData"
+        @close="previewExpanded = false"
+        @toggleShape="toggleShape"
+      />
     </div>
   </div>
 </template>

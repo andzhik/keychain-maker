@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import LogoPreview, { type LogoPreviewData } from './LogoPreview.vue'
 
 defineProps<{
@@ -15,10 +15,16 @@ const emit = defineEmits<{
 const previewRef = ref<InstanceType<typeof LogoPreview> | null>(null)
 const showEdges = ref(false)
 const showOriginal = ref(false)
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') emit('close')
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <!-- Not a modal: the settings stay usable, and edits show here as they're made. -->
+  <!-- Not a modal: the controls beside it stay usable, and edits show here as they're made. -->
   <section class="flex flex-col gap-2 p-3 bg-white border border-gray-200 rounded-lg" aria-label="Logo preview">
     <header class="flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0">
       <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Logo preview</h2>
