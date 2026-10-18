@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG } from '../../src/types/keychain'
-import { loadState, sanitizeConfig, saveConfig, saveShowLogo, saveSvg } from '../../src/utils/persistence'
+import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS } from '../../src/types/keychain'
+import { loadState, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
 
 function memoryStorage(quota = Infinity): Storage {
   const data = new Map<string, string>()
@@ -18,11 +18,11 @@ function memoryStorage(quota = Infinity): Storage {
 }
 
 test('empty storage loads the defaults', () => {
-  expect(loadState(memoryStorage())).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null })
+  expect(loadState(memoryStorage())).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null, refinements: DEFAULT_REFINEMENTS })
 })
 
 test('no storage at all loads the defaults', () => {
-  expect(loadState(null)).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null })
+  expect(loadState(null)).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null, refinements: DEFAULT_REFINEMENTS })
 })
 
 test('saved state round-trips', () => {
@@ -31,8 +31,17 @@ test('saved state round-trips', () => {
   saveConfig(config, storage)
   saveShowLogo(false, storage)
   saveSvg('<svg/>', storage)
+  const refinements = {
+    ...DEFAULT_REFINEMENTS,
+    recolor: { '#fe0101': '#ff0000' },
+    hiddenColors: ['#ffffff'],
+    hiddenShapes: ['#000000:3'],
+    maxColors: 4,
+    minSpeckArea: 0.5,
+  }
+  saveRefinements(refinements, storage)
 
-  expect(loadState(storage)).toEqual({ config, showLogo: false, svg: '<svg/>' })
+  expect(loadState(storage)).toEqual({ config, showLogo: false, svg: '<svg/>', refinements })
 })
 
 test('an SVG over the quota is dropped without losing the config', () => {
@@ -63,4 +72,22 @@ test('unknown, mistyped and missing fields are ignored', () => {
   })
 
   expect(config).toEqual({ ...DEFAULT_CONFIG, cornerRadius: 2 })
+})
+
+test('malformed refinements are ignored field by field', () => {
+  const refinements = sanitizeRefinements({
+    recolor: { '#ff0000': 'red', '#00ff00': '#0000ff', bad: '#000000' },
+    hiddenColors: ['#ffffff', 3, 'white'],
+    hiddenShapes: 'all',
+    maxColors: -1,
+    minSpeckArea: 1.5,
+    nozzleDiameter: Infinity,
+  })
+
+  expect(refinements).toEqual({
+    ...DEFAULT_REFINEMENTS,
+    recolor: { '#00ff00': '#0000ff' },
+    hiddenColors: ['#ffffff'],
+    minSpeckArea: 1.5,
+  })
 })

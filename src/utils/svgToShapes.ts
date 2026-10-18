@@ -54,15 +54,24 @@ export function svgToShapes(svgString: string): ColorGroup[] {
   return groups
 }
 
+// Keyed by array identity (groups are replaced, never mutated), so the app's
+// logo sizing and the mesh builder share one union per logo.
+const outlineCache = new WeakMap<ColorGroup[], THREE.Shape[]>()
+
 /**
  * The logo's footprint: the union of every color region, with its counters as
  * holes. Adjacent colors merge into one outline, so the plate gets one cutout
  * per connected logo part rather than overlapping or edge-sharing ones.
+ * Cached per array; callers must not modify the returned shapes.
  */
 export function logoOutline(groups: ColorGroup[]): THREE.Shape[] {
-  const polygons = groups.flatMap(group => group.shapes.map(shapeToPolygon)).filter(p => p.length > 0)
-  if (polygons.length === 0) return []
-  return polygonClipping.union(polygons).map(polygonToShape)
+  let outline = outlineCache.get(groups)
+  if (!outline) {
+    const polygons = groups.flatMap(group => group.shapes.map(shapeToPolygon)).filter(p => p.length > 0)
+    outline = polygons.length === 0 ? [] : polygonClipping.union(polygons).map(polygonToShape)
+    outlineCache.set(groups, outline)
+  }
+  return outline
 }
 
 export function normalizeColor(color: THREE.Color): string {
@@ -70,7 +79,7 @@ export function normalizeColor(color: THREE.Color): string {
 }
 
 /** Shape → polygon (outer ring, then holes); empty if the outer ring is degenerate. */
-function shapeToPolygon(shape: THREE.Shape): Polygon {
+export function shapeToPolygon(shape: THREE.Shape): Polygon {
   const { shape: outer, holes } = shape.extractPoints(CURVE_DIVISIONS)
   if (outer.length < 3) return []
   return [outer, ...holes.filter(h => h.length >= 3)].map(toRing)
@@ -80,7 +89,7 @@ function toRing(points: THREE.Vector2[]): Ring {
   return points.map(p => [p.x, p.y])
 }
 
-function polygonToShape(polygon: Polygon): THREE.Shape {
+export function polygonToShape(polygon: Polygon): THREE.Shape {
   const [outer, ...holes] = polygon.map(ringToPoints)
   const shape = new THREE.Shape(outer)
   for (const hole of holes) shape.holes.push(new THREE.Path(hole))

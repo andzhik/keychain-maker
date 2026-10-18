@@ -5,16 +5,13 @@ import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/
 import { Profiler } from '../utils/profiler'
 import { constrainConfig } from '../utils/configConstraints'
 import { logoOutline } from '../utils/svgToShapes'
+import { fitLogo } from '../utils/logoFit'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
   let logoGroupRef: THREE.Group | null = null
   // Survives rebuilds so a hidden logo stays hidden when the config changes.
   let logoVisible = true
-  // The logo outline is a polygon union — only recomputed for a new SVG, not
-  // on every slider change.
-  let outlineFor: ColorGroup[] | null = null
-  let outline: THREE.Shape[] = []
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
 
   function disposeCurrent() {
@@ -39,65 +36,14 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     if (!scene) return null
 
     // The plate is cut along the logo's outline (the union of all colors), so
-    // cutouts never overlap. Its points are reused for the bounding box and
-    // the cutout shapes below. SVG-parsed shapes are already straight-edged;
-    // 16 divisions only applies to curved shapes passed in directly.
-    if (colorGroups !== outlineFor) {
-      outline = profiler.measure('logo outline', () => logoOutline(colorGroups))
-      outlineFor = colorGroups
-    }
-    const shapePoints: { shape: THREE.Vector2[]; holes: THREE.Vector2[][] }[] = []
-    const box = new THREE.Box3()
-    profiler.measure('bounding box', () => {
-      for (const shape of outline) {
-        const pts = shape.extractPoints(16)
-        shapePoints.push(pts)
-        for (const p of pts.shape) {
-          box.expandByPoint(new THREE.Vector3(p.x, p.y, 0))
-        }
-      }
-    })
-    let hasSvg = shapePoints.length > 0
-
-    let width = config.targetWidth
-    let height = config.targetWidth * (2 / 3)
-    let scale = 1
-    const svgCenter = new THREE.Vector2(0, 0)
-
-    if (hasSvg) {
-      const center = new THREE.Vector3()
-      box.getCenter(center)
-      svgCenter.set(center.x, center.y)
-
-      if (config.basePlateShape === 'circle') {
-        // Fit the logo's farthest point inside the padded circle. Fitting the
-        // bounding box instead lets its corners (at half the diagonal) poke out.
-        let maxRadius = 0
-        for (const pts of shapePoints) {
-          for (const p of pts.shape) maxRadius = Math.max(maxRadius, p.distanceTo(svgCenter))
-        }
-        scale = (config.targetWidth / 2 - config.padding) / maxRadius
-      }
-      else {
-        const size = new THREE.Vector3()
-        box.getSize(size)
-        scale = (config.targetWidth - config.padding * 2) / size.x
-        height = size.y * scale + config.padding * 2
-      }
-
-      // A zero-width logo (or padding eating the whole plate) has no usable
-      // scale; build the plain plate instead of NaN/Infinity geometry.
-      if (!(scale > 0 && Number.isFinite(scale) && Number.isFinite(height))) {
-        hasSvg = false
-        scale = 1
-        height = config.targetWidth * (2 / 3)
-      }
-    }
-
-    if (config.basePlateShape === 'circle') {
-      width = config.targetWidth
-      height = config.targetWidth
-    }
+    // cutouts never overlap. Its points are reused for sizing and the cutout
+    // shapes below. The union is cached per groups array, so slider changes
+    // don't recompute it. SVG-parsed shapes are already straight-edged; 16
+    // divisions only applies to curved shapes passed in directly.
+    const outline = profiler.measure('logo outline', () => logoOutline(colorGroups))
+    const shapePoints = outline.map(shape => shape.extractPoints(16))
+    const { hasLogo: hasSvg, scale, center: svgCenter, width, height } =
+      fitLogo(shapePoints.map(pts => pts.shape), config)
 
     // Parent group — rotation applied once to lay everything flat on XZ
     const root = new THREE.Group()

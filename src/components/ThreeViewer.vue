@@ -6,6 +6,8 @@ import type { ColorGroup, KeychainConfig } from '../types/keychain'
 
 const props = defineProps<{
   colorGroups: ColorGroup[]
+  /** The camera refits when this changes (a new SVG), not on every logo edit. */
+  fitKey?: unknown
   showLogo: boolean
   config: KeychainConfig
 }>()
@@ -54,9 +56,11 @@ onMounted(() => {
   rebuild()
 })
 
-// Not deep: a new SVG replaces the whole array, and walking every THREE.Shape
-// curve and vector on each change would be wasted work.
-watch(() => props.colorGroups, () => scheduleRebuild(true))
+// Not deep: a new SVG or refinement replaces the whole array, and walking
+// every THREE.Shape curve and vector on each change would be wasted work.
+// Both watchers fire for a new SVG; the refit request is sticky.
+watch(() => props.colorGroups, () => scheduleRebuild(false))
+watch(() => props.fitKey, () => scheduleRebuild(true))
 
 watch(() => props.config, () => scheduleRebuild(false), { deep: true })
 

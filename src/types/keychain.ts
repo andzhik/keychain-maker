@@ -23,6 +23,38 @@ export interface KeychainConfig {
   baseColor: string
 }
 
+/**
+ * Print-oriented edits applied to the parsed logo before the model is built.
+ * The uploaded SVG itself is never changed, so every edit can be undone.
+ * Colors are the parser's normalized `#rrggbb` source colors.
+ */
+export interface Refinements {
+  /** Source color → color to print it in. Sources mapped to the same color merge. */
+  recolor: Record<string, string>
+  /** Source colors left out of the model (the plate shows through). */
+  hiddenColors: string[]
+  /** Individual parsed shapes left out, by `shapeId()`. */
+  hiddenShapes: string[]
+  /** Colors closer than this CIE76 ΔE are merged; 0 = off. */
+  mergeTolerance: number
+  /** Merge the closest colors until at most this many remain; 0 = no limit. */
+  maxColors: number
+  /** Pieces (and holes) smaller than this, in mm² at the printed size, are dropped; 0 = off. */
+  minSpeckArea: number
+  /** Features narrower than two nozzle widths are flagged as unprintable. */
+  nozzleDiameter: number
+}
+
+export const DEFAULT_REFINEMENTS: Refinements = {
+  recolor: {},
+  hiddenColors: [],
+  hiddenShapes: [],
+  mergeTolerance: 0,
+  maxColors: 0,
+  minSpeckArea: 0,
+  nozzleDiameter: 0.4,
+}
+
 export const DEFAULT_CONFIG: KeychainConfig = {
   basePlateShape: 'square',
   baseThickness: 5,

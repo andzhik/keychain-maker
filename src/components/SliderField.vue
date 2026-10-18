@@ -13,9 +13,12 @@ const props = withDefaults(defineProps<{
   note?: string
   /** Stable hook for test-render/measure.ts, which drives sliders by field. */
   field?: string
+  /** Tailwind width class for the label, narrower in tight columns. */
+  labelWidth?: string
 }>(), {
   unit: '',
   disabled: false,
+  labelWidth: 'w-28',
 })
 
 const emit = defineEmits<{
@@ -49,7 +52,7 @@ function onNumber(e: Event) {
   <!-- One row: label | slider | number box + unit. -->
   <div :class="{ 'opacity-40': disabled }">
     <div class="flex items-center gap-2">
-      <span class="w-28 shrink-0 text-sm text-gray-700">{{ label }}</span>
+      <span class="shrink-0 text-sm text-gray-700" :class="labelWidth">{{ label }}</span>
       <input
         type="range"
         :value="modelValue"
@@ -71,7 +74,7 @@ function onNumber(e: Event) {
           class="w-14 px-1.5 py-0.5 text-right text-sm text-gray-900 tabular-nums bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500 disabled:cursor-not-allowed"
         />
         <!-- Always reserves the unit's width so unitless boxes line up too. -->
-        <span class="w-5">{{ unit }}</span>
+        <span class="w-6">{{ unit }}</span>
       </label>
     </div>
     <p v-if="note" class="mt-0.5 text-xs text-amber-600">{{ note }}</p>

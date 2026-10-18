@@ -1,17 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
-
-const props = defineProps<{
-  // The current SVG, owned by App so a restored one previews too.
-  svgText: string | null
-}>()
+import { ref } from 'vue'
 
 const emit = defineEmits<{
   svgLoaded: [svgString: string]
 }>()
 
 const isDragging = ref(false)
-const previewUrl = ref<string | null>(null)
 const readError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -27,15 +21,6 @@ function handleFile(file: File) {
   }
   reader.readAsText(file)
 }
-
-watch(() => props.svgText, (text) => {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = text ? URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' })) : null
-}, { immediate: true })
-
-onUnmounted(() => {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-})
 
 function onDrop(e: DragEvent) {
   isDragging.value = false
@@ -83,11 +68,6 @@ function onFileChange(e: Event) {
     </div>
 
     <p v-if="readError" class="text-xs text-red-500">{{ readError }}</p>
-
-    <!-- 2D inline preview -->
-    <div v-if="previewUrl" class="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      <img :src="previewUrl" alt="SVG preview" class="w-full h-40 object-contain p-2" />
-    </div>
 
     <!-- UI note -->
     <p class="text-[11px] text-gray-400 leading-snug">

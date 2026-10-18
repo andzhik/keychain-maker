@@ -4,10 +4,11 @@ import ControlPanel from './components/ControlPanel.vue'
 import ExportButton from './components/ExportButton.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
+import { useLogoRefinement } from './composables/useLogoRefinement'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
-import { loadState, saveConfig, saveShowLogo, saveSvg } from './utils/persistence'
-import type { KeychainConfig } from './types/keychain'
+import { loadState, saveConfig, saveRefinements, saveShowLogo, saveSvg } from './utils/persistence'
+import type { KeychainConfig, Refinements } from './types/keychain'
 import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
@@ -16,22 +17,30 @@ const saved = loadState()
 const showLogo = ref(saved.showLogo)
 const config = ref<KeychainConfig>(saved.config)
 const svgText = ref<string | null>(saved.svg)
+// Edits to the parsed logo; the SVG itself is never changed.
+const refinements = ref<Refinements>(saved.refinements)
 // The sliders keep the user's raw values; the model is built from these.
 const constrained = computed(() => constrainConfig(config.value))
 const exporting = ref(false)
 const exportError = ref<string | null>(null)
-const { colorGroups, error, parse } = useSvgParser()
+const { colorGroups: parsedGroups, error, parse } = useSvgParser()
 // Parsed before ThreeViewer mounts, so its first build already has the logo.
 if (svgText.value) parse(svgText.value)
+const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.config))
+const colorGroups = refined.groups
 
 function handleSvgLoaded(text: string) {
   svgText.value = text
+  // Recolors and hidden shapes refer to the old logo's colors and shapes; the
+  // cleanup settings (tolerance, color limit, specks, nozzle) carry over.
+  refinements.value = { ...refinements.value, recolor: {}, hiddenColors: [], hiddenShapes: [] }
   parse(text)
   saveSvg(text)
 }
 
 watch(config, (value) => saveConfig(value), { deep: true })
 watch(showLogo, (value) => saveShowLogo(value))
+watch(refinements, (value) => saveRefinements(value), { deep: true })
 
 async function handleExport() {
   const group = viewerRef.value?.getCurrentGroup()
@@ -81,18 +90,29 @@ const dimText = computed(() => {
     <div class="flex flex-1 min-h-0 gap-3 p-3">
       <ControlPanel
         class="shrink-0 min-h-0 overflow-y-auto"
+        :parsedGroups="parsedGroups"
         :colorGroups="colorGroups"
+        :colorSources="refined.sources.value"
+        :specksRemoved="refined.specksRemoved.value"
+        :thinFeatures="refined.thinFeatures.value"
+        :minFeatureWidth="refined.minFeatureWidth.value"
         :error="error"
         v-model:showLogo="showLogo"
         v-model:config="config"
+        v-model:refinements="refinements"
         :adjustments="constrained.adjustments"
-        :svgText="svgText"
         @svgLoaded="handleSvgLoaded"
       />
 
       <aside class="flex-1 min-w-[320px] flex flex-col gap-2">
         <div class="relative flex-1 min-h-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-          <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="constrained.config" />
+          <ThreeViewer
+            ref="viewerRef"
+            :colorGroups="colorGroups"
+            :fitKey="parsedGroups"
+            :showLogo="showLogo"
+            :config="constrained.config"
+          />
           <button
             class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
             @click="viewerRef?.resetView()"
@@ -104,7 +124,7 @@ const dimText = computed(() => {
           <p class="text-xs text-gray-500 tabular-nums whitespace-nowrap">Dimensions: {{ dimText }}</p>
           <div class="w-48 shrink-0">
             <ExportButton
-              :disabled="colorGroups.length === 0"
+              :disabled="parsedGroups.length === 0"
               :exporting="exporting"
               :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
               @export="handleExport"

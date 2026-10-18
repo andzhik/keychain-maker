@@ -1,15 +1,17 @@
-import { DEFAULT_CONFIG, type KeychainConfig } from '../types/keychain'
+import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, type KeychainConfig, type Refinements } from '../types/keychain'
 
 // Separate keys so an SVG too big for the storage quota doesn't take the
 // (tiny) config down with it.
 const CONFIG_KEY = 'keychain-maker:config:v1'
 const SHOW_LOGO_KEY = 'keychain-maker:showLogo:v1'
 const SVG_KEY = 'keychain-maker:svg:v1'
+const REFINEMENTS_KEY = 'keychain-maker:refinements:v1'
 
 export interface PersistedState {
   config: KeychainConfig
   showLogo: boolean
   svg: string | null
+  refinements: Refinements
 }
 
 /** localStorage, or null where it's missing or throws (private mode, blocked site data). */
@@ -62,20 +64,50 @@ export function sanitizeConfig(raw: unknown): KeychainConfig {
   return config
 }
 
-export function loadState(storage: Storage | null = defaultStorage()): PersistedState {
-  let config = { ...DEFAULT_CONFIG }
-  const configText = read(storage, CONFIG_KEY)
-  if (configText) {
-    try {
-      config = sanitizeConfig(JSON.parse(configText))
-    } catch {
-      // Corrupt JSON: start from the defaults.
+const HEX = /^#[0-9a-f]{6}$/
+
+/** Like `sanitizeConfig`: keeps well-formed fields, defaults the rest. */
+export function sanitizeRefinements(raw: unknown): Refinements {
+  const result: Refinements = { ...DEFAULT_REFINEMENTS, recolor: {}, hiddenColors: [], hiddenShapes: [] }
+  if (!raw || typeof raw !== 'object') return result
+  const source = raw as Record<string, unknown>
+
+  if (source.recolor && typeof source.recolor === 'object') {
+    for (const [from, to] of Object.entries(source.recolor)) {
+      if (HEX.test(from) && typeof to === 'string' && HEX.test(to)) result.recolor[from] = to
     }
   }
+  const strings = (value: unknown) => (Array.isArray(value) ? value.filter(v => typeof v === 'string') : [])
+  result.hiddenColors = strings(source.hiddenColors).filter(c => HEX.test(c))
+  result.hiddenShapes = strings(source.hiddenShapes)
+
+  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckArea' | 'nozzleDiameter', min: number) => {
+    const value = source[key]
+    if (typeof value === 'number' && Number.isFinite(value) && value >= min) result[key] = value
+  }
+  number('mergeTolerance', 0)
+  number('maxColors', 0)
+  number('minSpeckArea', 0)
+  number('nozzleDiameter', 0.1)
+  return result
+}
+
+/** Parsed JSON, or null when missing or corrupt (the sanitizers then use the defaults). */
+function parseJson(text: string | null): unknown {
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+export function loadState(storage: Storage | null = defaultStorage()): PersistedState {
   return {
-    config,
+    config: sanitizeConfig(parseJson(read(storage, CONFIG_KEY))),
     showLogo: read(storage, SHOW_LOGO_KEY) !== 'false',
     svg: read(storage, SVG_KEY),
+    refinements: sanitizeRefinements(parseJson(read(storage, REFINEMENTS_KEY))),
   }
 }
 
@@ -89,4 +121,8 @@ export function saveShowLogo(showLogo: boolean, storage: Storage | null = defaul
 
 export function saveSvg(svg: string | null, storage: Storage | null = defaultStorage()) {
   write(storage, SVG_KEY, svg)
+}
+
+export function saveRefinements(refinements: Refinements, storage: Storage | null = defaultStorage()) {
+  write(storage, REFINEMENTS_KEY, JSON.stringify(refinements))
 }

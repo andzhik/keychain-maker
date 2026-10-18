@@ -1,24 +1,63 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import ColorList from './ColorList.vue'
+import LogoPreview from './LogoPreview.vue'
 import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
-import type { BasePlateShape, ColorGroup, KeychainConfig } from '../types/keychain'
+import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
 import type { ConfigAdjustment } from '../utils/configConstraints'
+import type { ThinFeatures } from '../utils/thinFeatures'
 
 const props = defineProps<{
+  /** The logo as parsed from the SVG. */
+  parsedGroups: ColorGroup[]
+  /** The logo after refinements: what gets printed. */
   colorGroups: ColorGroup[]
+  /** Printed color → the source colors in it. */
+  colorSources: Map<string, string[]>
+  refinements: Refinements
+  specksRemoved: number
+  thinFeatures: ThinFeatures
+  minFeatureWidth: number
   error: string | null
   showLogo: boolean
   config: KeychainConfig
   adjustments: ConfigAdjustment[]
-  svgText: string | null
 }>()
 
 const emit = defineEmits<{
   svgLoaded: [svgText: string]
   'update:showLogo': [value: boolean]
   'update:config': [value: KeychainConfig]
+  'update:refinements': [value: Refinements]
 }>()
+
+const MAX_COLOR_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]
+
+function updateRefinement<K extends keyof Refinements>(field: K, value: Refinements[K]) {
+  emit('update:refinements', { ...props.refinements, [field]: value })
+}
+
+function toggleShape(id: string) {
+  const hidden = props.refinements.hiddenShapes
+  updateRefinement('hiddenShapes', hidden.includes(id) ? hidden.filter(h => h !== id) : [...hidden, id])
+}
+
+const hiddenShapeCount = computed(() => props.refinements.hiddenShapes.length)
+
+const refined = computed(() => {
+  const r = props.refinements
+  return r.hiddenShapes.length > 0 || r.hiddenColors.length > 0 || Object.keys(r.recolor).length > 0
+    || r.mergeTolerance > 0 || r.maxColors > 0 || r.minSpeckArea > 0
+})
+
+/** Undoes every refinement; the nozzle is a printer setting, so it stays. */
+function resetRefinements() {
+  emit('update:refinements', { ...DEFAULT_REFINEMENTS, nozzleDiameter: props.refinements.nozzleDiameter })
+}
+
+const fmtMm = (mm: number) => mm.toFixed(2).replace(/0$/, '')
 
 const SHAPES: { value: BasePlateShape; label: string }[] = [
   { value: 'square', label: 'Square' },
@@ -37,42 +76,119 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 <template>
   <!-- Two fixed-width columns: the logo, then the model settings. -->
   <div class="flex gap-3 items-start">
-    <!-- Logo: upload, preview, colors -->
-    <PanelCard title="Logo" class="w-[280px] shrink-0">
-      <template #action>
-        <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            :checked="showLogo"
-            @change="emit('update:showLogo', ($event.target as HTMLInputElement).checked)"
-            class="accent-gray-700"
-          />
-          Show logo
-        </label>
-      </template>
-
-      <SvgUploader :svgText="svgText" @svgLoaded="(text: string) => emit('svgLoaded', text)" />
-
-      <div>
-        <h3 class="text-sm text-gray-700 mb-1">Colors</h3>
-        <p v-if="error" class="text-xs text-red-500">{{ error }}</p>
-        <p v-else-if="colorGroups.length === 0" class="text-sm text-gray-400">—</p>
-        <ul v-else class="space-y-1">
-          <li
-            v-for="group in colorGroups"
-            :key="group.id"
-            class="flex items-center gap-2 text-xs text-gray-700"
-          >
-            <span
-              class="w-4 h-4 rounded-sm shrink-0 border border-gray-300"
-              :style="{ backgroundColor: group.color }"
+    <div class="w-[300px] shrink-0 flex flex-col gap-3">
+      <!-- Logo: upload, preview, colors -->
+      <PanelCard title="Logo">
+        <template #action>
+          <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              :checked="showLogo"
+              @change="emit('update:showLogo', ($event.target as HTMLInputElement).checked)"
+              class="accent-gray-700"
             />
-            <span class="font-mono">{{ group.color }}</span>
-            <span class="text-gray-400 ml-auto">{{ group.pathCount }} path{{ group.pathCount !== 1 ? 's' : '' }}</span>
-          </li>
-        </ul>
-      </div>
-    </PanelCard>
+            Show logo
+          </label>
+        </template>
+
+        <SvgUploader @svgLoaded="(text: string) => emit('svgLoaded', text)" />
+
+        <div v-if="parsedGroups.length">
+          <LogoPreview
+            :parsed="parsedGroups"
+            :groups="colorGroups"
+            :hiddenColors="refinements.hiddenColors"
+            :hiddenShapes="refinements.hiddenShapes"
+            :thinPath="thinFeatures.path"
+            :plateColor="config.baseColor"
+            @toggleShape="toggleShape"
+          />
+          <p class="mt-1 flex items-center gap-1 text-[11px] text-gray-400">
+            <span>Click a shape to remove it.</span>
+            <button
+              v-if="hiddenShapeCount"
+              type="button"
+              class="ml-auto text-gray-500 underline hover:text-gray-800"
+              @click="updateRefinement('hiddenShapes', [])"
+            >
+              Restore {{ hiddenShapeCount }} shape{{ hiddenShapeCount !== 1 ? 's' : '' }}
+            </button>
+          </p>
+        </div>
+
+        <div>
+          <h3 class="text-sm text-gray-700 mb-1">
+            Colors
+            <span v-if="colorGroups.length" class="text-gray-400">({{ colorGroups.length }})</span>
+          </h3>
+          <p v-if="error" class="text-xs text-red-500">{{ error }}</p>
+          <p v-else-if="parsedGroups.length === 0" class="text-sm text-gray-400">—</p>
+          <ColorList
+            v-else
+            :parsed="parsedGroups"
+            :groups="colorGroups"
+            :sources="colorSources"
+            :refinements="refinements"
+            @update:refinements="(value: Refinements) => emit('update:refinements', value)"
+          />
+        </div>
+      </PanelCard>
+
+      <!-- Refine: print-oriented cleanup of the logo -->
+      <PanelCard title="Refine">
+        <template #action>
+          <button
+            v-if="refined"
+            type="button"
+            class="text-xs text-gray-500 underline hover:text-gray-800"
+            @click="resetRefinements"
+          >
+            Reset
+          </button>
+        </template>
+
+        <SliderField
+          label="Merge similar" unit="ΔE" field="mergeTolerance" labelWidth="w-24"
+          :modelValue="refinements.mergeTolerance" :min="0" :max="50" :step="1"
+          @update:modelValue="v => updateRefinement('mergeTolerance', v)"
+        />
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-sm text-gray-700">Max colors</span>
+          <select
+            :value="refinements.maxColors"
+            aria-label="Max colors"
+            class="px-1.5 py-0.5 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500"
+            @change="updateRefinement('maxColors', Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="n in MAX_COLOR_OPTIONS" :key="n" :value="n">{{ n === 0 ? 'No limit' : n }}</option>
+          </select>
+        </div>
+        <div>
+          <SliderField
+            label="Min speck" unit="mm²" field="minSpeckArea" labelWidth="w-24"
+            :modelValue="refinements.minSpeckArea" :min="0" :max="5" :step="0.1"
+            @update:modelValue="v => updateRefinement('minSpeckArea', v)"
+          />
+          <p v-if="refinements.minSpeckArea > 0" class="mt-0.5 text-xs text-gray-500">
+            {{ specksRemoved ? `Removed ${specksRemoved} speck${specksRemoved !== 1 ? 's' : ''}.` : 'No specks this small.' }}
+          </p>
+        </div>
+        <div>
+          <SliderField
+            label="Nozzle" unit="mm" field="nozzleDiameter" labelWidth="w-24"
+            :modelValue="refinements.nozzleDiameter" :min="0.2" :max="1" :step="0.05"
+            @update:modelValue="v => updateRefinement('nozzleDiameter', v)"
+          />
+          <p v-if="thinFeatures.count" class="mt-0.5 text-xs text-amber-600">
+            {{ thinFeatures.count }} feature{{ thinFeatures.count !== 1 ? 's' : '' }} under {{ fmtMm(minFeatureWidth) }} mm
+            (2 nozzle widths) may not print, shown in red.
+          </p>
+          <p v-else-if="parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
+            No features under {{ fmtMm(minFeatureWidth) }} mm (2 nozzle widths).
+          </p>
+        </div>
+      </PanelCard>
+    </div>
 
     <div class="w-[380px] shrink-0 flex flex-col gap-3">
       <!-- Plate: shape, size, thickness, color -->
