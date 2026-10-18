@@ -36,7 +36,7 @@ function rebuild() {
 function scheduleRebuild(refit: boolean) {
   refitPending ||= refit
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(rebuild, 150)
+  debounceTimer = setTimeout(rebuild, 60)
 }
 
 function resetView() {
