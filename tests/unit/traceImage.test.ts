@@ -94,12 +94,52 @@ test('traceImage smooths staircases without opening gaps between colors', () => 
   expect(union).toHaveLength(1)
   expect(union[0].holes).toHaveLength(0)
   expect(shapeArea(union[0])).toBeCloseTo(shapes.reduce((s, sh) => s + shapeArea(sh), 0), 6)
-  // ...and the shared border is a few straight edges, not ~2 points per pixel.
+  // ...and the shared border is a few edges and curves, not ~2 points per pixel.
   const points = shapes.reduce((n, s) => n + s.extractPoints(1).shape.length, 0)
-  expect(points).toBeLessThan(20)
+  expect(points).toBeLessThan(40)
 })
 
 test('traceImage returns an empty SVG for a fully transparent image', () => {
   const svg = traceImage(image(10, 10, () => CLEAR), { colors: 4, removeBackground: true })
   expect(svgToShapes(svg)).toEqual([])
+})
+
+test('traceImage follows a curve, not the pixel staircase', () => {
+  // A disk of radius 20; its pixel outline strays up to ~0.7 px from the circle,
+  // and which pixels are in already decides its edge only to half a pixel.
+  const [cx, cy, r] = [30, 30, 20]
+  const svg = traceImage(image(60, 60, (x, y) => ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 < r * r ? RED : CLEAR)))
+  const [shape] = svgToShapes(svg)[0].shapes
+  const points = shape.extractPoints(1).shape
+  // Rounded off with curves rather than cut into a few straight edges...
+  expect(points.length).toBeGreaterThan(40)
+  // ...that stay close to the circle all the way round.
+  for (const p of points) expect(Math.abs(Math.hypot(p.x - cx, p.y - cy) - r)).toBeLessThan(0.45)
+  expect(Math.abs(shapeArea(shape) / (Math.PI * r * r) - 1)).toBeLessThan(0.02)
+})
+
+test('traceImage keeps curved borders between colors sealed', () => {
+  // A red disk on a blue square: the border between them is smoothed and rounded once, for both.
+  const svg = traceImage(image(50, 50, (x, y) => ((x - 25) ** 2 + (y - 25) ** 2 < 15 * 15 ? RED : BLUE)), { colors: 4, removeBackground: false })
+  const groups = svgToShapes(svg)
+  expect(groups).toHaveLength(2)
+  const union = logoOutline(groups)
+  expect(union).toHaveLength(1)
+  expect(union[0].holes).toHaveLength(0)
+  expect(shapeArea(union[0])).toBeCloseTo(50 * 50, 6)
+  const total = groups.flatMap(g => g.shapes).reduce((s, sh) => s + shapeArea(sh), 0)
+  expect(total).toBeCloseTo(50 * 50, 6)
+})
+
+test('traceImage straightens an edge that leans by a pixel, when asked', () => {
+  // A bar whose top edge steps down one pixel halfway along: traced, a slight slope.
+  const bar = image(60, 30, (x, y) => (x >= 10 && x < 50 && y >= (x < 30 ? 10 : 11) && y < 20 ? RED : CLEAR))
+  const topYs = (straighten: boolean) => {
+    const [shape] = svgToShapes(traceImage(bar, { straighten }))[0].shapes
+    return shape.extractPoints(1).shape.filter(p => p.y < 15).map(p => p.y)
+  }
+  const straight = topYs(true)
+  expect(new Set(straight).size).toBe(1)
+  expect(straight[0]).toBeCloseTo(10.5, 1)
+  expect(new Set(topYs(false)).size).toBeGreaterThan(1)
 })

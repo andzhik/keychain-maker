@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, shallowRef } from 'vue'
+import { onBeforeUnmount, ref, shallowRef } from 'vue'
+import SliderField from './SliderField.vue'
 import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
 
 const emit = defineEmits<{
@@ -14,6 +15,11 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const raster = shallowRef<{ name: string; image: RasterImage } | null>(null)
 const traceOptions = ref<TraceOptions>({ ...DEFAULT_TRACE_OPTIONS })
 const COLOR_OPTIONS = [2, 3, 4, 5, 6, 7, 8]
+// Slider changes re-trace once the slider rests: a trace takes ~0.2 s, and the
+// model rebuild after it longer.
+const RETRACE_DELAY = 150
+let retraceTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(retraceTimer))
 
 const isSvg = (file: File) => file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml'
 const isRaster = (file: File) => /^image\/(png|jpeg|webp)$/.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name)
@@ -65,6 +71,7 @@ async function decodeImage(file: File): Promise<RasterImage> {
 }
 
 function retrace() {
+  clearTimeout(retraceTimer)
   if (!raster.value) return
   try {
     emit('svgLoaded', traceImage(raster.value.image, traceOptions.value))
@@ -74,9 +81,11 @@ function retrace() {
   }
 }
 
-function setTraceOption<K extends keyof TraceOptions>(field: K, value: TraceOptions[K]) {
+function setTraceOption<K extends keyof TraceOptions>(field: K, value: TraceOptions[K], debounce = false) {
   traceOptions.value = { ...traceOptions.value, [field]: value }
-  retrace()
+  clearTimeout(retraceTimer)
+  if (debounce) retraceTimer = setTimeout(retrace, RETRACE_DELAY)
+  else retrace()
 }
 
 function onDrop(e: DragEvent) {
@@ -149,6 +158,27 @@ function onFileChange(e: Event) {
           Remove background
         </label>
       </div>
+      <SliderField
+        label="Smoothing" unit="px" labelWidth="w-24"
+        :modelValue="traceOptions.smoothing" :min="0.5" :max="3" :step="0.25"
+        @update:modelValue="(v: number) => setTraceOption('smoothing', v, true)"
+      />
+      <SliderField
+        label="Round corners" labelWidth="w-24"
+        :modelValue="traceOptions.roundness" :min="1" :max="10" :step="0.5"
+        @update:modelValue="(v: number) => setTraceOption('roundness', v, true)"
+      />
+      <label class="flex items-center gap-1.5 cursor-pointer">
+        <input
+          type="checkbox"
+          :checked="traceOptions.straighten"
+          @change="setTraceOption('straighten', ($event.target as HTMLInputElement).checked)"
+        />
+        Straighten nearly level and upright edges
+      </label>
+      <p class="text-[11px] text-gray-400 leading-snug">
+        More smoothing evens out wobbly edges; more corner rounding turns more corners into curves.
+      </p>
     </div>
 
     <!-- UI note -->
