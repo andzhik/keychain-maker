@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
+import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
 
 const emit = defineEmits<{
   svgLoaded: [svgString: string]
@@ -9,17 +10,73 @@ const isDragging = ref(false)
 const readError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
+// The last raster upload, kept so changing the trace options can re-trace it.
+const raster = shallowRef<{ name: string; image: RasterImage } | null>(null)
+const traceOptions = ref<TraceOptions>({ ...DEFAULT_TRACE_OPTIONS })
+const COLOR_OPTIONS = [2, 3, 4, 5, 6, 7, 8]
+
+const isSvg = (file: File) => file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml'
+const isRaster = (file: File) => /^image\/(png|jpeg|webp)$/.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name)
+
 function handleFile(file: File) {
-  if (!file.name.toLowerCase().endsWith('.svg') && file.type !== 'image/svg+xml') return
   readError.value = null
+  if (isSvg(file)) readSvg(file)
+  else if (isRaster(file)) void readRaster(file)
+}
+
+function readSvg(file: File) {
   const reader = new FileReader()
   reader.onload = (e) => {
+    raster.value = null
     emit('svgLoaded', e.target?.result as string)
   }
   reader.onerror = () => {
     readError.value = `Could not read "${file.name}".`
   }
   reader.readAsText(file)
+}
+
+async function readRaster(file: File) {
+  try {
+    raster.value = { name: file.name, image: await decodeImage(file) }
+  } catch (e) {
+    console.error('Failed to decode image:', e)
+    readError.value = `Could not read "${file.name}".`
+    return
+  }
+  retrace()
+}
+
+/** The image's pixels, scaled so its longer side is TRACE_SIZE (small images are smoothed up). */
+async function decodeImage(file: File): Promise<RasterImage> {
+  const bitmap = await createImageBitmap(file)
+  const scale = TRACE_SIZE / Math.max(bitmap.width, bitmap.height)
+  const width = Math.max(1, Math.round(bitmap.width * scale))
+  const height = Math.max(1, Math.round(bitmap.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) throw new Error('No 2D canvas')
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(bitmap, 0, 0, width, height)
+  bitmap.close()
+  return ctx.getImageData(0, 0, width, height)
+}
+
+function retrace() {
+  if (!raster.value) return
+  try {
+    emit('svgLoaded', traceImage(raster.value.image, traceOptions.value))
+  } catch (e) {
+    console.error('Failed to trace image:', e)
+    readError.value = `Could not trace "${raster.value.name}".`
+  }
+}
+
+function setTraceOption<K extends keyof TraceOptions>(field: K, value: TraceOptions[K]) {
+  traceOptions.value = { ...traceOptions.value, [field]: value }
+  retrace()
 }
 
 function onDrop(e: DragEvent) {
@@ -55,13 +112,13 @@ function onFileChange(e: Event) {
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
       <span class="text-sm text-gray-600">
-        <span class="font-medium">{{ isDragging ? 'Drop SVG here' : 'Drop SVG' }}</span>
+        <span class="font-medium">{{ isDragging ? 'Drop SVG or PNG here' : 'Drop SVG or PNG' }}</span>
         <span v-if="!isDragging" class="text-gray-400"> or click to browse</span>
       </span>
       <input
         ref="fileInput"
         type="file"
-        accept=".svg,image/svg+xml"
+        accept=".svg,image/svg+xml,.png,image/png,.jpg,.jpeg,image/jpeg,.webp,image/webp"
         class="hidden"
         @change="onFileChange"
       />
@@ -69,9 +126,35 @@ function onFileChange(e: Event) {
 
     <p v-if="readError" class="text-xs text-red-500">{{ readError }}</p>
 
+    <!-- Trace options, for a raster upload -->
+    <div v-if="raster" class="flex flex-col gap-1.5 text-xs text-gray-600">
+      <p class="truncate text-gray-500" :title="raster.name">Traced from {{ raster.name }}</p>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-1.5">
+          Max colors
+          <select
+            class="border border-gray-300 rounded px-1 py-0.5 bg-white"
+            :value="traceOptions.colors"
+            @change="setTraceOption('colors', Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="n in COLOR_OPTIONS" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            :checked="traceOptions.removeBackground"
+            @change="setTraceOption('removeBackground', ($event.target as HTMLInputElement).checked)"
+          />
+          Remove background
+        </label>
+      </div>
+    </div>
+
     <!-- UI note -->
     <p class="text-[11px] text-gray-400 leading-snug">
       For best results, use flat SVGs without gradients, filters, clip-paths, or text elements.
+      PNGs are traced into flat colors; logos with few, solid colors trace best.
     </p>
   </div>
 </template>
