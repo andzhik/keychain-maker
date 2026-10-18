@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ExportButton from './components/ExportButton.vue'
+import LogoPreviewPanel from './components/LogoPreviewPanel.vue'
+import type { LogoPreviewData } from './components/LogoPreview.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useSvgParser } from './composables/useSvgParser'
 import { useLogoRefinement } from './composables/useLogoRefinement'
@@ -36,6 +38,26 @@ function handleSvgLoaded(text: string) {
   refinements.value = { ...refinements.value, recolor: {}, hiddenColors: [], hiddenShapes: [] }
   parse(text)
   saveSvg(text)
+}
+
+// Shared by the inline logo preview and the enlarged one beside the 3D view.
+const previewData = computed<LogoPreviewData>(() => ({
+  parsed: parsedGroups.value,
+  groups: colorGroups.value,
+  hiddenColors: refinements.value.hiddenColors,
+  hiddenShapes: refinements.value.hiddenShapes,
+  thinPath: refined.thinFeatures.value.path,
+  plateColor: config.value.baseColor,
+}))
+const previewExpanded = ref(false)
+const showPreviewPanel = computed(() => previewExpanded.value && parsedGroups.value.length > 0)
+
+function toggleShape(id: string) {
+  const hidden = refinements.value.hiddenShapes
+  refinements.value = {
+    ...refinements.value,
+    hiddenShapes: hidden.includes(id) ? hidden.filter(h => h !== id) : [...hidden, id],
+  }
 }
 
 watch(config, (value) => saveConfig(value), { deep: true })
@@ -97,6 +119,8 @@ const buildTimeText = computed(() => {
         class="shrink-0 min-h-0 overflow-y-auto"
         :parsedGroups="parsedGroups"
         :colorGroups="colorGroups"
+        :preview="previewData"
+        v-model:previewExpanded="previewExpanded"
         :colorSources="refined.sources.value"
         :specksRemoved="refined.specksRemoved.value"
         :outlinePoints="refined.outlinePoints.value"
@@ -108,23 +132,34 @@ const buildTimeText = computed(() => {
         v-model:refinements="refinements"
         :adjustments="constrained.adjustments"
         @svgLoaded="handleSvgLoaded"
+        @toggleShape="toggleShape"
       />
 
-      <aside class="flex-1 min-w-[320px] flex flex-col gap-2">
-        <div class="relative flex-1 min-h-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-          <ThreeViewer
-            ref="viewerRef"
-            :colorGroups="colorGroups"
-            :fitKey="parsedGroups"
-            :showLogo="showLogo"
-            :config="constrained.config"
+      <aside class="flex-1 flex flex-col gap-2" :class="showPreviewPanel ? 'min-w-[560px]' : 'min-w-[320px]'">
+        <div class="flex-1 min-h-0 flex gap-3">
+          <!-- The enlarged logo preview shares the space with the 3D view. -->
+          <LogoPreviewPanel
+            v-if="showPreviewPanel"
+            class="flex-1 min-w-0"
+            :preview="previewData"
+            @close="previewExpanded = false"
+            @toggleShape="toggleShape"
           />
-          <button
-            class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
-            @click="viewerRef?.resetView()"
-          >
-            Reset View
-          </button>
+          <div class="relative flex-1 min-w-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+            <ThreeViewer
+              ref="viewerRef"
+              :colorGroups="colorGroups"
+              :fitKey="parsedGroups"
+              :showLogo="showLogo"
+              :config="constrained.config"
+            />
+            <button
+              class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
+              @click="viewerRef?.resetView()"
+            >
+              Reset View
+            </button>
+          </div>
         </div>
         <div class="flex items-center justify-between gap-3 shrink-0">
           <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">

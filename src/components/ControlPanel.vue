@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import ColorList from './ColorList.vue'
 import LogoPreview, { type LogoPreviewData } from './LogoPreview.vue'
-import LogoPreviewDialog from './LogoPreviewDialog.vue'
 import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
@@ -15,6 +14,10 @@ const props = defineProps<{
   parsedGroups: ColorGroup[]
   /** The logo after refinements: what gets printed. */
   colorGroups: ColorGroup[]
+  /** What the logo previews draw; shared with the enlarged one. */
+  preview: LogoPreviewData
+  /** The enlarged preview is showing. */
+  previewExpanded: boolean
   /** Printed color → the source colors in it. */
   colorSources: Map<string, string[]>
   refinements: Refinements
@@ -34,17 +37,14 @@ const emit = defineEmits<{
   'update:showLogo': [value: boolean]
   'update:config': [value: KeychainConfig]
   'update:refinements': [value: Refinements]
+  'update:previewExpanded': [value: boolean]
+  toggleShape: [id: string]
 }>()
 
 const MAX_COLOR_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]
 
 function updateRefinement<K extends keyof Refinements>(field: K, value: Refinements[K]) {
   emit('update:refinements', { ...props.refinements, [field]: value })
-}
-
-function toggleShape(id: string) {
-  const hidden = props.refinements.hiddenShapes
-  updateRefinement('hiddenShapes', hidden.includes(id) ? hidden.filter(h => h !== id) : [...hidden, id])
 }
 
 const hiddenShapeCount = computed(() => props.refinements.hiddenShapes.length)
@@ -63,18 +63,6 @@ const pointsNote = computed(() => {
   if (after === before) return `${fmt(before)} outline points.`
   return `${fmt(before)} → ${fmt(after)} outline points (−${Math.round((1 - after / before) * 100)}%).`
 })
-
-const previewOpen = ref(false)
-
-// Shared by the inline preview and the enlarged one.
-const previewProps = computed<LogoPreviewData>(() => ({
-  parsed: props.parsedGroups,
-  groups: props.colorGroups,
-  hiddenColors: props.refinements.hiddenColors,
-  hiddenShapes: props.refinements.hiddenShapes,
-  thinPath: props.thinFeatures.path,
-  plateColor: props.config.baseColor,
-}))
 
 /** Undoes every refinement; the nozzle is a printer setting, so it stays. */
 function resetRefinements() {
@@ -119,20 +107,21 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 
         <div v-if="parsedGroups.length">
           <div class="relative">
-            <LogoPreview v-bind="previewProps" class="h-48" @toggleShape="toggleShape" />
+            <LogoPreview v-bind="preview" class="h-48" @toggleShape="(id: string) => emit('toggleShape', id)" />
             <button
               type="button"
               class="absolute top-1.5 right-1.5 p-1 bg-white/90 border border-gray-300 rounded shadow-sm text-gray-600 hover:bg-white hover:text-gray-900"
-              title="Enlarge preview"
-              aria-label="Enlarge preview"
-              @click="previewOpen = true"
+              :title="previewExpanded ? 'Close enlarged preview' : 'Enlarge preview'"
+              :aria-label="previewExpanded ? 'Close enlarged preview' : 'Enlarge preview'"
+              :aria-pressed="previewExpanded"
+              @click="emit('update:previewExpanded', !previewExpanded)"
             >
               <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                <path d="M10 2h4v4M6 14H2v-4M14 2 9.5 6.5M2 14l4.5-4.5" />
+                <path v-if="previewExpanded" d="M9.5 2.5v4h4M6.5 13.5v-4h-4M9.5 6.5 14 2M6.5 9.5 2 14" />
+                <path v-else d="M10 2h4v4M6 14H2v-4M14 2 9.5 6.5M2 14l4.5-4.5" />
               </svg>
             </button>
           </div>
-          <LogoPreviewDialog v-model:open="previewOpen" :preview="previewProps" @toggleShape="toggleShape" />
           <p class="mt-1 flex items-center gap-1 text-[11px] text-gray-400">
             <span>Click a shape to remove it.</span>
             <button
