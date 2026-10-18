@@ -53,7 +53,7 @@ function onFileChange(e: Event) {
 </script>
 
 <template>
-  <div class="p-3 flex flex-col gap-3">
+  <div class="flex flex-col gap-3">
     <!-- Drop zone -->
     <div
       class="border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center gap-2 cursor-pointer select-none transition-colors"
@@ -86,7 +86,7 @@ function onFileChange(e: Event) {
 
     <!-- 2D inline preview -->
     <div v-if="previewUrl" class="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      <img :src="previewUrl" alt="SVG preview" class="w-full max-h-40 object-contain p-2" />
+      <img :src="previewUrl" alt="SVG preview" class="w-full h-48 object-contain p-2" />
     </div>
 
     <!-- UI note -->

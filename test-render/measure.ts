@@ -109,14 +109,14 @@ try {
   console.log(`canvas: ${canvasSize}, svg: ${svgPath || '(none)'}\n`)
 
   // Sets a range input the way a user drag does and returns the event time.
-  async function setSlider(index: number, value: number): Promise<number> {
-    return page.evaluate(([i, v]) => {
-      const el = document.querySelectorAll<HTMLInputElement>('input[type="range"]')[i]
+  async function setSlider(field: string, value: number): Promise<number> {
+    return page.evaluate(([f, v]) => {
+      const el = document.querySelector<HTMLInputElement>(`input[type="range"][data-field="${f}"]`)!
       el.value = String(v)
       const t = performance.now()
       el.dispatchEvent(new Event('input', { bubbles: true }))
       return t
-    }, [index, value] as const)
+    }, [field, value] as const)
   }
 
   // After a change, wait for the build and the first frame drawn after it.
@@ -142,16 +142,16 @@ try {
   }
 
   const sliders = [
-    { name: 'baseThickness', i: 0, values: [4, 6, 3, 5] },
-    { name: 'edgeBevel', i: 1, values: [1, 0.3, 0.8, 0.6] },
-    { name: 'bevelSegments', i: 2, values: [4, 1, 3, 2] },
-    { name: 'padding', i: 4, values: [3, 7, 4, 5] },
+    { name: 'baseThickness', values: [4, 6, 3, 5] },
+    { name: 'edgeBevel', values: [1, 0.3, 0.8, 0.6] },
+    { name: 'bevelSegments', values: [4, 1, 3, 2] },
+    { name: 'padding', values: [3, 7, 4, 5] },
   ]
 
   const rows: Row[] = []
   for (const s of sliders) {
     for (const v of s.values) {
-      const t = await setSlider(s.i, v)
+      const t = await setSlider(s.name, v)
       const r = await collect(t)
       rows.push({ change: `${s.name}=${v}`, ...Object.fromEntries(Object.entries(r).map(([k, n]) => [k, fmt(n as number)])) })
       await page.waitForTimeout(300)
@@ -166,7 +166,7 @@ try {
   const dragStart = await page.evaluate(() => performance.now())
   let lastT = 0
   for (let k = 0; k < 60; k++) {
-    lastT = await setSlider(0, 3 + (k % 30) * 0.1)
+    lastT = await setSlider('baseThickness', 3 + (k % 30) * 0.1)
     await page.waitForTimeout(16)
   }
   const drag = await collect(lastT)

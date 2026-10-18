@@ -71,18 +71,16 @@ const dimText = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-white text-gray-900 overflow-hidden">
+  <div class="flex flex-col h-screen bg-gray-50 text-gray-900 overflow-hidden">
     <!-- Header -->
-    <header class="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shrink-0">
+    <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shrink-0">
       <h1 class="text-lg font-semibold tracking-tight">Keychain Maker</h1>
     </header>
 
-    <!-- Main: sidebar + viewport -->
-    <div class="flex flex-1 overflow-hidden">
-      <!-- Left sidebar: fixed 300px -->
-      <aside class="w-[300px] shrink-0 flex flex-col bg-gray-50 border-r border-gray-200 overflow-hidden">
+    <!-- Main: settings take the space; the preview is a fixed-size card -->
+    <div class="flex flex-1 min-h-0">
+      <main class="flex-1 min-w-0 overflow-y-auto p-6">
         <ControlPanel
-          class="flex-1 min-h-0 overflow-y-auto"
           :colorGroups="colorGroups"
           :error="error"
           v-model:showLogo="showLogo"
@@ -91,34 +89,27 @@ const dimText = computed(() => {
           :svgText="svgText"
           @svgLoaded="handleSvgLoaded"
         />
-        <div class="p-4 border-t border-gray-200 shrink-0">
-          <ExportButton
-            :disabled="colorGroups.length === 0"
-            :exporting="exporting"
-            :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
-            @export="handleExport"
-          />
-          <p v-if="exportError" class="mt-2 text-xs text-red-500">{{ exportError }}</p>
-        </div>
-      </aside>
+      </main>
 
-      <!-- 3D viewport: fills remaining space -->
-      <main class="flex-1 relative bg-gray-100">
-        <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="constrained.config" />
-        <div class="absolute top-2 right-2">
+      <aside class="w-[440px] shrink-0 overflow-y-auto py-6 pr-6 flex flex-col gap-3">
+        <div class="relative aspect-square shrink-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+          <ThreeViewer ref="viewerRef" :colorGroups="colorGroups" :showLogo="showLogo" :config="constrained.config" />
           <button
-            class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
+            class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
             @click="viewerRef?.resetView()"
           >
             Reset View
           </button>
         </div>
-      </main>
+        <p class="text-xs text-gray-500 tabular-nums">Dimensions: {{ dimText }}</p>
+        <ExportButton
+          :disabled="colorGroups.length === 0"
+          :exporting="exporting"
+          :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
+          @export="handleExport"
+        />
+        <p v-if="exportError" class="text-xs text-red-500">{{ exportError }}</p>
+      </aside>
     </div>
-
-    <!-- Footer: dimensions bar -->
-    <footer class="px-4 py-2 bg-white border-t border-gray-200 text-xs text-gray-500 shrink-0">
-      Dimensions: {{ dimText }}
-    </footer>
   </div>
 </template>
