@@ -3,6 +3,8 @@ import type { ColorGroup } from '../types/keychain'
 
 /** What to draw; the inline and the enlarged preview share it. */
 export interface LogoPreviewData {
+  /** Changes on a new upload, not when retracing the current raster. */
+  sourceKey: number
   /** The parsed logo: one clickable region per shape. */
   parsed: ColorGroup[]
   /** What will be printed. */
@@ -106,7 +108,7 @@ const zoom = ref<ViewBox | null>(null)
 const view = computed(() => zoom.value ?? viewBox.value)
 const MAX_ZOOM = 200
 
-watch(() => props.parsed, () => { zoom.value = null })
+watch(() => props.sourceKey, () => { zoom.value = null })
 
 function resetZoom() {
   zoom.value = null

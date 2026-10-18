@@ -33,7 +33,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  svgLoaded: [svgText: string]
+  svgLoaded: [svgText: string, retraced?: boolean]
   'update:showLogo': [value: boolean]
   'update:config': [value: KeychainConfig]
   'update:refinements': [value: Refinements]
@@ -103,7 +103,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           </label>
         </template>
 
-        <SvgUploader @svgLoaded="(text: string) => emit('svgLoaded', text)" />
+        <SvgUploader @svgLoaded="(text: string, retraced?: boolean) => emit('svgLoaded', text, retraced)" />
 
         <div v-if="parsedGroups.length">
           <div class="relative">

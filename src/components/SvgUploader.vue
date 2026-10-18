@@ -4,7 +4,7 @@ import SliderField from './SliderField.vue'
 import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
 
 const emit = defineEmits<{
-  svgLoaded: [svgString: string]
+  svgLoaded: [svgString: string, retraced?: boolean]
 }>()
 
 const isDragging = ref(false)
@@ -70,11 +70,11 @@ async function decodeImage(file: File): Promise<RasterImage> {
   return ctx.getImageData(0, 0, width, height)
 }
 
-function retrace() {
+function retrace(retraced = false) {
   clearTimeout(retraceTimer)
   if (!raster.value) return
   try {
-    emit('svgLoaded', traceImage(raster.value.image, traceOptions.value))
+    emit('svgLoaded', traceImage(raster.value.image, traceOptions.value), retraced)
   } catch (e) {
     console.error('Failed to trace image:', e)
     readError.value = `Could not trace "${raster.value.name}".`
@@ -84,8 +84,8 @@ function retrace() {
 function setTraceOption<K extends keyof TraceOptions>(field: K, value: TraceOptions[K], debounce = false) {
   traceOptions.value = { ...traceOptions.value, [field]: value }
   clearTimeout(retraceTimer)
-  if (debounce) retraceTimer = setTimeout(retrace, RETRACE_DELAY)
-  else retrace()
+  if (debounce) retraceTimer = setTimeout(() => retrace(true), RETRACE_DELAY)
+  else retrace(true)
 }
 
 function onDrop(e: DragEvent) {

@@ -19,6 +19,8 @@ const saved = loadState()
 const showLogo = ref(saved.showLogo)
 const config = ref<KeychainConfig>(saved.config)
 const svgText = ref<string | null>(saved.svg)
+// Retracing edits the current logo; only a new upload resets the preview view.
+const logoSourceKey = ref(0)
 // Edits to the parsed logo; the SVG itself is never changed.
 const refinements = ref<Refinements>(saved.refinements)
 // The sliders keep the user's raw values; the model is built from these.
@@ -31,8 +33,9 @@ if (svgText.value) parse(svgText.value)
 const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.config))
 const colorGroups = refined.groups
 
-function handleSvgLoaded(text: string) {
+function handleSvgLoaded(text: string, retraced = false) {
   svgText.value = text
+  if (!retraced) logoSourceKey.value++
   // Recolors and hidden shapes refer to the old logo's colors and shapes; the
   // cleanup settings (tolerance, color limit, specks, nozzle) carry over.
   refinements.value = { ...refinements.value, recolor: {}, hiddenColors: [], hiddenShapes: [] }
@@ -42,6 +45,7 @@ function handleSvgLoaded(text: string) {
 
 // Shared by the inline logo preview and the enlarged one beside the 3D view.
 const previewData = computed<LogoPreviewData>(() => ({
+  sourceKey: logoSourceKey.value,
   parsed: parsedGroups.value,
   groups: colorGroups.value,
   hiddenColors: refinements.value.hiddenColors,

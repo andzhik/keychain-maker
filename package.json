@@ -7,6 +7,7 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "test": "bun test tests/unit",
+    "test:browser": "node --experimental-strip-types --test tests/browser/*.test.ts",
     "render": "node --experimental-strip-types test-render/capture.ts",
     "measure": "node --experimental-strip-types test-render/measure.ts",
     "rasterize": "node --experimental-strip-types test-render/rasterize.ts"

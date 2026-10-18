@@ -60,6 +60,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | --- | --- |
 | `bun run dev` | Start the Vite dev server |
 | `bun run test` | Run focused unit tests for geometry and SVG parsing |
+| `bun run test:browser` | Check logo preview zoom behavior in headless Chromium |
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
