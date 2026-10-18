@@ -15,7 +15,8 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 ## Highlights
 
 - Upload an SVG logo and preview it immediately in 3D
-- Preserve logo colors as separate printable materials
+- Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
+- Choose a square or circle base plate
 - Tune base thickness, bevel, corner radius, padding, logo height, and target size
 - Add or remove the keyring hole
 - Inspect the model with an interactive Three.js viewport
@@ -34,6 +35,7 @@ For the cleanest geometry, use simple SVG artwork made from filled paths.
 - Vue 3 with `<script setup>` and TypeScript
 - Three.js for geometry, lighting, camera controls, and viewport rendering
 - `three-bvh-csg` for logo cutouts in beveled bases
+- `polygon-clipping` for resolving overlapping SVG shapes
 - `three-3mf-exporter` for multi-color `.3mf` export
 - Tailwind CSS v4
 - Vite 6 and Bun
@@ -71,6 +73,9 @@ The render harness lives in `test-render/` and runs under Node because Playwrigh
 
 ## Deployment
 
-The production app is deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `master`. In GitHub, set **Settings -> Pages -> Build and deployment -> Source** to **GitHub Actions** so the workflow artifact is published as the Pages site.
+GitHub Pages is served from the `gh-pages` branch. In GitHub, set **Settings -> Pages -> Build and deployment -> Source** to **Deploy from a branch**, `gh-pages`, `/ (root)`.
 
-The Vite base path is controlled by `VITE_BASE_PATH`, so the same build can target local preview or the published Pages path.
+- `.github/workflows/deploy.yml` runs on every push to `master`: it tests, builds, and publishes production to the branch root, keeping any existing previews.
+- `.github/workflows/preview.yml` is manual (**Actions -> Deploy Branch Preview -> Run workflow**): it publishes the selected branch under `preview/<branch-slug>/`.
+
+The Vite base path is controlled by `VITE_BASE_PATH`, so the same build can target local preview, production, or a branch preview path.
