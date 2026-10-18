@@ -64,6 +64,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
 | `bun run measure [svg] [gpu\|swiftshader]` | Measure slider-change → rendered-frame latency |
+| `bun run rasterize [svg format size bg]` | Regenerate PNG/JPEG/WebP tracer fixtures in `test-images/` |
 
 ## Render Snapshots
 
@@ -76,6 +77,10 @@ bun run render test-svg/c1.svg '{"edgeBevel":0}'
 ```
 
 The render harness lives in `test-render/` and runs under Node because Playwright's browser pipe transport hangs under Bun.
+
+## Raster Test Images
+
+`test-images/` holds PNG, JPEG and WebP renders of the SVGs in `test-svg/` (same file names), for checking the image tracer against the original vector. The set covers transparent backgrounds, a solid white background, lossy JPEG/WebP noise, and sizes above and below the tracer's 512 px. `bun run rasterize` regenerates them; `bun run rasterize test-svg/logo.svg webp 512 none` renders a single file.
 
 ## Latency Probe
 
