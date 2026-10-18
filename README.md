@@ -58,6 +58,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
+| `bun run measure [svg] [gpu\|swiftshader]` | Measure slider-change → rendered-frame latency |
 
 ## Render Snapshots
 
@@ -70,6 +71,31 @@ bun run render test-svg/c1.svg '{"edgeBevel":0}'
 ```
 
 The render harness lives in `test-render/` and runs under Node because Playwright's browser pipe transport hangs under Bun.
+
+## Latency Probe
+
+`bun run measure` drives the real app in headless Chromium, moves sliders, and reports per change: debounce wait, mesh build, wait for the next frame, GPU render, and total. It also prints the dev profiler's build-phase breakdown and simulates a 1 s slider drag.
+
+```bash
+bun run measure test-svg/c1.svg gpu          # real GPU via ANGLE/D3D11
+bun run measure test-svg/c1.svg swiftshader  # CPU-emulated WebGL; render times are inflated
+```
+
+Baseline (c1.svg, RTX 3070, 1100×814 canvas): ~155 ms debounce + ~435 ms build + ~13 ms render ≈ **600 ms** per change. Almost all of the build is the CSG subtraction (see Gotchas).
+
+## Design Decisions & Gotchas
+
+Things that look wrong or slow but are deliberate. Read before "fixing" them.
+
+- **Logo cutouts are cut with CSG, not `shape.holes`.** Putting the cutouts into the plate shape before extruding would be ~200× faster, but `ExtrudeGeometry` bevels every contour, including holes, so the logo cutouts would get beveled edges and the inlaid logo wouldn't sit flush. The plate is extruded with only the outer edge and keyring hole beveled, then the cutouts are subtracted with `three-bvh-csg` (`cutoutBasePlateHoles` in `src/utils/meshBuilder.ts`). This one step is ~95% of the rebuild time (~440 ms for c1.svg). Exception: when the bevel is ≤ 0.01 mm there is nothing to protect, so the cutouts go straight into `shape.holes` and CSG is skipped.
+- **The keyring hole *is* beveled on purpose.** It's added to `shape.holes` before extruding so its inner edge gets the bevel. Only the logo cutouts go through CSG.
+- **Config changes are debounced, not throttled.** `ThreeViewer.vue` waits for 150 ms with no input before rebuilding. While a slider is being dragged nothing rebuilds; the model updates after you pause. Because the build itself takes ~400 ms, rebuilding mid-drag would stall the UI.
+- **Rendering is on demand.** `useThreeScene` only draws when `requestRender()` is called (or while orbit damping settles). Any code that changes the scene must call `requestRender()` or `fitCamera()`, or the change won't appear until the next mouse move.
+- **`colorGroups` is compared by identity.** The viewer's watcher isn't deep, and the logo outline union is cached per array instance. A new SVG must produce a new array; changing the old one in place won't trigger a rebuild or a new outline.
+- **The logo's mirror and scale are baked into the geometry.** The SVG's Y flip is a negative scale. Putting it on a group transform would export to 3MF as a mirrored node, which slicers handle inconsistently, so it's applied to the vertices instead.
+- **The model is built from clamped config, not the slider values.** `constrainConfig()` clamps combinations that break the geometry (e.g. a keyring hole bigger than its ring, or padding that would eat the whole logo). The UI keeps your raw values.
+- **`ThreeViewer.vue` edits force a full page reload in dev.** It owns a WebGL context that can't be hot-swapped safely; swapping it in place would leak a context on every save.
+- **The build profiler only runs in dev.** `src/utils/profiler.ts` logs a collapsed `[keychain build]` table to the console on every rebuild in `bun run dev`, and does nothing in production builds.
 
 ## Deployment
 

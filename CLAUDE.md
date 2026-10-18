@@ -1,1 +1,2 @@
 - commit the work when you are done
+- before changing geometry, rebuild timing, or rendering, read "Design Decisions & Gotchas" in README.md
