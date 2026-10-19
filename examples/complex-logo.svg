@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <title>Four-color orbital badge</title>
+  <circle cx="60" cy="60" r="54" fill="#173F56"/>
+  <path fill="#E9A13B" fill-rule="evenodd" d="M60 16A44 44 0 1 1 60 104A44 44 0 1 1 60 16Z M60 28A32 32 0 1 0 60 92A32 32 0 1 0 60 28Z"/>
+  <path d="M24 71L50 40L72 65L86 50L102 74L88 87H36Z" fill="#38A6A0"/>
+  <path d="M50 40L39 53L50 50L58 57Z M86 50L77 60L87 58L94 64Z" fill="#F5EAD7"/>
+  <circle cx="78" cy="37" r="5" fill="#F5EAD7"/>
+</svg>

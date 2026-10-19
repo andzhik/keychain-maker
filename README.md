@@ -30,6 +30,9 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 
 ## Best SVG Inputs
 
+Try the [curated example gallery](docs/examples.md) for four small, reusable SVGs
+with 3D screenshots, recommended settings, and manual regression checks.
+
 For the cleanest geometry, use simple SVG artwork made from filled paths.
 
 - Convert text to paths before uploading
