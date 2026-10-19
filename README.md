@@ -92,6 +92,13 @@ and is also enforced for direct builder calls.
 - Tailwind CSS v4
 - Vite 6 and Bun
 
+Model construction lives in `src/domain/keychainModel.ts`: it returns a detached
+model and measured dimensions without Vue or a scene. `logoCutouts.ts` maps
+outlines and counters to plate coordinates; shared layout remains in
+`src/utils/logoFit.ts`. `src/three/sceneLifecycle.ts` owns attachment, visibility
+and resource disposal. `useKeychainBuilder` connects these modules to Vue state.
+The base, logo and CSG build order is unchanged.
+
 ## Local Development
 
 ```bash

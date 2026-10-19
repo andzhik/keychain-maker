@@ -1,144 +1,40 @@
-import * as THREE from 'three'
 import { ref, shallowRef } from 'vue'
+import type { Scene } from 'three'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
-import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/meshBuilder'
+import { buildKeychainModel, type ModelBuildError } from '../domain/keychainModel'
+import { createSceneLifecycle } from '../three/sceneLifecycle'
 import { Profiler } from '../utils/profiler'
-import { validateConfig } from '../utils/configConstraints'
-import { logoOutline } from '../utils/svgToShapes'
-import { fitLogo } from '../utils/logoFit'
-import { validateGroupComplexity } from '../utils/svgValidation'
 
-export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
-  let currentGroup: THREE.Group | null = null
-  let logoGroupRef: THREE.Group | null = null
-  // Survives rebuilds so a hidden logo stays hidden when the config changes.
-  let logoVisible = true
+/** Vue state around detached model construction and owned scene lifecycle. */
+export function useKeychainBuilder(getScene: () => Scene | null) {
+  const lifecycle = createSceneLifecycle(getScene)
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
-  // Wall-clock time of the last mesh build, in ms (null before the first build).
   const buildMs = ref<number | null>(null)
-  const buildError = shallowRef<{ code: string; message: string } | null>(null)
-
-  function disposeCurrent() {
-    if (!currentGroup) return
-    const scene = getScene()
-    if (scene) scene.remove(currentGroup)
-    currentGroup.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose()
-          ; (child.material as THREE.Material).dispose()
-      }
-    })
-    currentGroup = null
-    logoGroupRef = null
-  }
-
-  function build(colorGroups: ColorGroup[], rawConfig: KeychainConfig): THREE.Group | null {
-    const startedAt = performance.now()
-    const profiler = new Profiler('keychain build')
-    const validation = validateConfig(rawConfig)
-    let config = validation.config
-    profiler.measure('disposeCurrent', () => disposeCurrent())
-    dimensions.value = { width: 0, height: 0, depth: 0 }
-    buildMs.value = null
-    buildError.value = validation.messages.find(m => m.severity === 'error') ?? validateGroupComplexity(colorGroups)
-    if (buildError.value) return null
-    const scene = getScene()
-    if (!scene) return null
-
-    // The plate is cut along the logo's outline (the union of all colors), so
-    // cutouts never overlap. Its points are reused for sizing and the cutout
-    // shapes below. The union is cached per groups array, so slider changes
-    // don't recompute it. SVG-parsed shapes are already straight-edged; 16
-    // divisions only applies to curved shapes passed in directly.
-    const outline = profiler.measure('logo outline', () => logoOutline(colorGroups))
-    const shapePoints = outline.map(shape => shape.extractPoints(16))
-    const { hasLogo: hasSvg, scale, center: svgCenter, width, height } =
-      fitLogo(shapePoints.map(pts => pts.shape), config)
-    config = validateConfig(rawConfig, { width, height }).config
-
-    // Parent group — rotation applied once to lay everything flat on XZ
-    const root = new THREE.Group()
-    root.rotation.x = -Math.PI / 2
-    // Keep partial geometry reachable for disposal if a later build step fails.
-    currentGroup = root
-
-    // Logo cutout shapes (step 5), one per connected outline part. Each keeps
-    // its holes so a logo counter (the middle of an "O") stays as plate
-    // material instead of becoming a through-hole.
-    const toPlate = (pts: THREE.Vector2[]) =>
-      pts.map(p => new THREE.Vector2((p.x - svgCenter.x) * scale, -(p.y - svgCenter.y) * scale))
-    const logoCutouts: THREE.Shape[] = []
-    profiler.measure('cutout shapes', () => {
-      if (hasSvg) {
-        for (const pts of shapePoints) {
-          const cutout = new THREE.Shape(toPlate(pts.shape))
-          for (const hole of pts.holes) cutout.holes.push(new THREE.Path(toPlate(hole)))
-          logoCutouts.push(cutout)
-        }
-      }
-    })
-
-    // Steps 1–3: base-plate spline, optional keyring, bevel extrude
-    const basePlate = profiler.measure('buildBasePlate', () =>
-      buildBasePlate(config, width, height, logoCutouts, profiler),
-    )
-    root.add(basePlate)
-
-    // Step 4: logo meshes — un-beveled extrude, flush with base faces
-    if (hasSvg) {
-      // Center SVG on origin, flip Y, and apply uniform scale. Baked into the
-      // geometry rather than set on the group: a mirrored (negative-determinant)
-      // node transform is exported as-is to 3MF, and slicers handle it unevenly.
-      const logoTransform = new THREE.Matrix4()
-        .makeScale(scale, -scale, 1)
-        .setPosition(-svgCenter.x * scale, svgCenter.y * scale, 0)
-      const logoMeshes = profiler.measure('buildLogoMeshes', () =>
-        buildLogoMeshes(colorGroups, config, logoTransform),
-      )
-      const logoGroup = new THREE.Group()
-
-      for (const mesh of logoMeshes) {
-        logoGroup.add(mesh)
-      }
-      logoGroup.visible = logoVisible
-      root.add(logoGroup)
-      logoGroupRef = logoGroup
-    }
-
-    // Step 5: CSG subtract logo cutouts from beveled base (keyring hole is in step 3 extrude)
-    profiler.measure('cutoutBasePlateHoles', () =>
-      cutoutBasePlateHoles(basePlate, logoCutouts, config, profiler),
-    )
-
-    scene.add(root)
-    currentGroup = root
-
-    profiler.flush()
-
-    // Measured from the finished plate: the bevel bulges the outline outward
-    // (bevelOffset 0), and the keyring loop extends past the nominal height.
-    basePlate.geometry.computeBoundingBox()
-    const plateBox = basePlate.geometry.boundingBox!
-    dimensions.value = {
-      width: plateBox.max.x - plateBox.min.x,
-      height: plateBox.max.y - plateBox.min.y,
-      depth: plateBox.max.z - plateBox.min.z,
-    }
-    buildMs.value = performance.now() - startedAt
-
-    return root
-  }
+  const buildError = shallowRef<ModelBuildError | null>(null)
 
   function dispose() {
-    disposeCurrent()
+    lifecycle.clear()
     dimensions.value = { width: 0, height: 0, depth: 0 }
     buildMs.value = null
   }
 
-  function setLogoVisible(visible: boolean) {
-    logoVisible = visible
-    if (logoGroupRef) logoGroupRef.visible = visible
+  function build(colorGroups: ColorGroup[], config: KeychainConfig) {
+    const startedAt = performance.now()
+    const profiler = new Profiler('keychain build')
+    profiler.measure('disposeCurrent', dispose)
+    buildError.value = null
+    if (!getScene()) return null
+    const result = buildKeychainModel(colorGroups, config, profiler)
+    if (!result.ok) {
+      buildError.value = result.error
+      return null
+    }
+    const { model } = result
+    if (!lifecycle.attach(model.root, model.logoGroup)) return null
+    dimensions.value = model.dimensions
+    buildMs.value = performance.now() - startedAt
+    return model.root
   }
 
-  return { build, dispose, dimensions, buildMs, buildError, setLogoVisible }
+  return { build, dispose, dimensions, buildMs, buildError, setLogoVisible: lifecycle.setLogoVisible }
 }
