@@ -32,7 +32,7 @@ const importing = ref(false)
 const importError = ref<string | null>(null)
 const buildStatus = ref<BuildStatus>('pending')
 const modelError = ref<string | null>(null)
-const { colorGroups: parsedGroups, error, parse, clear } = useSvgParser()
+const { colorGroups: parsedGroups, error, report: importReport, parse, clear } = useSvgParser()
 // Parsed before ThreeViewer mounts, so its first build already has the logo.
 if (svgText.value && !parse(svgText.value).ok) {
   svgText.value = null
@@ -185,6 +185,7 @@ const buildTimeText = computed(() => {
         :thinFeatures="refined.thinFeatures.value"
         :minFeatureWidth="refined.minFeatureWidth.value"
         :error="artworkError"
+        :importReport="importReport"
         v-model:showLogo="showLogo"
         v-model:config="config"
         v-model:refinements="refinements"

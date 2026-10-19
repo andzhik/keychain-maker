@@ -1,4 +1,5 @@
 import type { ColorGroup } from '../types/keychain'
+import type { SvgImportReport } from './svgImport'
 
 export type SvgParseErrorCode =
   | 'EMPTY_SVG' | 'NO_FILLED_PATHS' | 'TEXT_NOT_CONVERTED'
@@ -13,7 +14,7 @@ export interface SvgParseError {
 }
 
 export type SvgParseResult =
-  | { ok: true; groups: ColorGroup[] }
+  | { ok: true; groups: ColorGroup[]; report?: SvgImportReport }
   | { ok: false; error: SvgParseError }
 
 // Budgets bound input parsing, polygon clipping, and the eventual CSG build.

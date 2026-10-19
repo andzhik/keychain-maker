@@ -155,6 +155,28 @@ test('invalid restored artwork is reported and removed from persistence', async 
   }
 })
 
+test('the SVG import report shows safe cleanup and reports unsupported replacement artwork', async () => {
+  const page = await browser.newPage()
+  try {
+    await page.goto(url)
+    const input = page.locator('input[type="file"]')
+    const source = '<svg xmlns="http://www.w3.org/2000/svg"><metadata>Editor data</metadata><path fill="black" style="fill:#ffffff;fill-rule:evenodd" d="M0 0H20V20H0Z M5 5H15V15H5Z"/></svg>'
+    await input.setInputFiles({ name: 'prepared.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(source) })
+    const report = page.getByRole('region', { name: 'SVG import report', exact: true })
+    await report.getByText('Ready: 1 colors, 1 filled shapes.', { exact: true }).waitFor()
+    await report.getByText('Removed 1 non-rendering metadata elements.', { exact: true }).waitFor()
+    await report.getByText('Normalized inline fills/styles on 1 elements.', { exact: true }).waitFor()
+    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    assert.equal(await page.locator('svg.logo-preview path[fill="#ffffff"]').count(), 1)
+    assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:svg:v1')), source)
+    await input.setInputFiles({ name: 'text.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><text>Convert me</text></svg>') })
+    await report.getByRole('alert').filter({ hasText: 'Convert text to paths' }).waitFor()
+    assert.equal(await report.getByText(/Normalized inline/).count(), 0)
+  } finally {
+    await page.close()
+  }
+})
+
 test('printability advice appears near settings and does not block a valid export', async () => {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   try {

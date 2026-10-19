@@ -9,6 +9,7 @@ import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type Keychai
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
 import { printabilityWarnings } from '../utils/printability'
+import type { SvgImportReport } from '../utils/svgImport'
 
 const props = defineProps<{
   /** The logo as parsed from the SVG. */
@@ -28,6 +29,7 @@ const props = defineProps<{
   thinFeatures: ThinFeatures
   minFeatureWidth: number
   error: string | null
+  importReport: SvgImportReport | null
   showLogo: boolean
   config: KeychainConfig
   effectiveConfig: KeychainConfig
@@ -114,7 +116,15 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           @importStarted="(retraced: boolean) => emit('importStarted', retraced)"
           @importFailed="(message: string) => emit('importFailed', message)"
         />
-        <p v-if="error" role="alert" class="text-xs text-red-600">{{ error }}</p>
+        <div v-if="error || importReport" role="region" aria-label="SVG import report" class="text-xs text-gray-500 space-y-1">
+          <p class="font-medium text-gray-700">SVG import report</p>
+          <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
+          <template v-else-if="importReport">
+            <p>Ready: {{ parsedGroups.length }} colors, {{ parsedGroups.reduce((n, group) => n + group.shapes.length, 0) }} filled shapes.</p>
+            <p v-if="importReport.removedMetadata">Removed {{ importReport.removedMetadata }} non-rendering metadata elements.</p>
+            <p v-if="importReport.normalizedStyles">Normalized inline fills/styles on {{ importReport.normalizedStyles }} elements.</p>
+          </template>
+        </div>
 
         <div v-if="parsedGroups.length">
           <div class="relative">

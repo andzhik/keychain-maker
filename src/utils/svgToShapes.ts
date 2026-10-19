@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js'
 import polygonClipping, { type MultiPolygon, type Polygon, type Ring } from 'polygon-clipping'
 import type { ColorGroup } from '../types/keychain'
-import { SVG_LIMITS, complexityError, svgError, validateGroupComplexity, validateSvgSource, type SvgParseError, type SvgParseResult } from './svgValidation'
+import { prepareSvg } from './svgImport'
+import { SVG_LIMITS, complexityError, svgError, validateGroupComplexity, type SvgParseError, type SvgParseResult } from './svgValidation'
 
 // Curves are tessellated once, here. Every later consumer (logo extrude, plate
 // cutouts) then sees the same straight-edged outlines, so the inlaid logo walls
@@ -17,10 +18,11 @@ const CURVE_DIVISIONS = 16
  * overlap, so the logo volumes neither z-fight nor intersect in the 3MF.
  */
 export function svgToShapes(svgString: string): SvgParseResult {
-  const error = validateSvgSource(svgString)
-  if (error) return { ok: false, error }
   try {
-    return parseFilledShapes(svgString)
+    const prepared = prepareSvg(svgString)
+    if (!prepared.ok) return prepared
+    const result = parseFilledShapes(prepared.svg)
+    return result.ok ? { ...result, report: prepared.report } : result
   } catch {
     return { ok: false, error: svgError('INVALID_SVG') }
   }

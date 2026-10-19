@@ -45,6 +45,13 @@ linked copies produce visible instructions instead of silently losing artwork.
 Inline fills/styles, transforms, holes, white fills, and bounded local `xlink:href`
 copies of paths or groups remain supported. Unused paint definitions are ignored.
 
+The SVG import report shows parsed color/shape counts and conservative cleanup:
+non-rendering metadata, titles and descriptions are removed from the parsing
+copy, and simple inline fills, fill rules and opacity are normalized to attributes.
+CSS priorities and mixed duplicate declarations stay intact. Unsupported artwork
+is rejected with repair instructions before cleanup. The uploaded SVG stays
+unchanged in the saved session; cleanup never flattens or discards visible artwork.
+
 The shared budgets in `src/utils/svgValidation.ts` apply to uploads, raster-generated
 SVGs, and restored sessions:
 

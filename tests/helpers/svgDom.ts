@@ -35,6 +35,15 @@ class TestElement {
     return this.attributes[name] !== undefined
   }
 
+  setAttribute(name: string, value: string) { this.attributes[name] = value }
+  removeAttribute(name: string) { delete this.attributes[name] }
+  removeChild(child: TestElement) { this.childNodes.splice(this.childNodes.indexOf(child), 1); return child }
+  serialize(): string {
+    const escape = (value: string) => String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')
+    const attributes = Object.entries(this.attributes).map(([name, value]) => ` ${name}="${escape(value)}"`).join('')
+    return `<${this.nodeName}${attributes}>${this.childNodes.map(child => child.serialize()).join('')}</${this.nodeName}>`
+  }
+
   getElementById(id: string): TestElement | null {
     if (this.attributes.id === id) return this
     for (const child of this.childNodes) {
@@ -52,6 +61,10 @@ class TestDocument {
 
 export function installDomParserForSvgLoader() {
   if (globalThis.DOMParser) return
+
+  globalThis.XMLSerializer = class {
+    serializeToString(node: TestElement) { return node.serialize() }
+  } as typeof XMLSerializer
 
   globalThis.DOMParser = class {
     parseFromString(text: string): TestDocument {
