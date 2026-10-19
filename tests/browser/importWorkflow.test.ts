@@ -60,6 +60,7 @@ test('SVG errors are actionable, clear persisted artwork, and allow recovery', a
     await page.getByText('Ready to export.', { exact: true }).waitFor()
     for (const [name, buffer, message] of [
       ['text.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><text>Logo</text></svg>'), 'Convert text to paths'],
+      ['stroke.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/><path fill="none" stroke="red" d="M20 0H30"/></svg>'), 'Convert strokes to filled outlines'],
       ['huge.svg', Buffer.from(' '.repeat(2 * 1024 * 1024 + 1)), '2 MiB'],
       ['broken.svg', Buffer.from('<svg'), 'not a valid SVG'],
     ] as const) {

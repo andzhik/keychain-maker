@@ -27,10 +27,10 @@ test('svgToShapes groups multiple filled paths by normalized color', () => {
   expect(groups.find(group => group.color === '#00ff00')?.pathCount).toBe(1)
 })
 
-test('svgToShapes skips paths with no fill', () => {
+test('svgToShapes skips paths with neither fill nor stroke', () => {
   const groups = svgToShapes(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10">
-      <path fill="none" stroke="#ff0000" d="M0 0H4V4H0Z" />
+      <path fill="none" d="M0 0H4V4H0Z" />
       <path fill="#0000ff" d="M8 0H12V4H8Z" />
     </svg>
   `)
@@ -94,7 +94,7 @@ test('svgToShapes drops a color painted over entirely', () => {
   expect(groups.map(group => group.color)).toEqual(['#00ff00'])
 })
 
-test('useSvgParser reports when an SVG has no filled paths', () => {
+test('useSvgParser asks for stroke conversion when an SVG has only strokes', () => {
   const parser = useSvgParser()
 
   parser.parse(`
@@ -103,8 +103,8 @@ test('useSvgParser reports when an SVG has no filled paths', () => {
     </svg>
   `)
 
-  expect(parser.error.value).toContain('No filled paths found')
-  expect(parser.diagnostic.value?.code).toBe('NO_FILLED_PATHS')
+  expect(parser.error.value).toContain('Convert strokes to filled outlines')
+  expect(parser.diagnostic.value?.code).toBe('UNSUPPORTED_STROKE')
   expect(parser.colorGroups.value).toEqual([])
 })
 

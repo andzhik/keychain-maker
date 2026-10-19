@@ -40,7 +40,17 @@ function parseFilledShapes(svgString: string): SvgParseResult {
   const prepared: { color: string; polygons: Polygon[] }[] = []
   const inputGroups: ColorGroup[] = []
   for (const path of svgData.paths) {
-    if (path.userData?.style?.fill === 'none') continue
+    // SVGLoader resolves inherited and inline styles, including local copies.
+    // The solid-fill pipeline cannot reproduce strokes, even on filled paths.
+    // Reject them before skipping fill=none or starting polygon operations.
+    const style = path.userData?.style
+    if (style?.stroke && !['none', 'transparent'].includes(style.stroke)
+      && style.strokeWidth > 0 && style.strokeOpacity > 0 && style.opacity !== 0
+      && !['hidden', 'collapse'].includes(style.visibility)
+      && path.subPaths.some(subpath => subpath.curves.length > 0)) {
+      return { ok: false, error: svgError('UNSUPPORTED_STROKE') }
+    }
+    if (style?.fill === 'none') continue
     for (const subpath of path.subPaths) {
       for (const curve of subpath.curves) pointBudget += curve.type === 'LineCurve' ? 1 : curve.type === 'EllipseCurve' ? 32 : 16
       pointBudget++

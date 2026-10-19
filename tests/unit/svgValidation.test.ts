@@ -11,11 +11,43 @@ installDomParserForSvgLoader()
 const svg = (content: string) => `<svg xmlns="http://www.w3.org/2000/svg">${content}</svg>`
 const square = '<path fill="#ffffff" d="M0 0H10V10H0Z"/>'
 
+test('mixed filled and stroked artwork fails visibly instead of losing its strokes', () => {
+  const result = svgToShapes(svg(`${square}<path fill="none" stroke="red" d="M20 0H30"/>`))
+  expect(result).toMatchObject({ ok: false, error: { code: 'UNSUPPORTED_STROKE' } })
+})
+
+test('strokes on filled shapes and inherited, inline, and linked strokes are rejected before clipping', () => {
+  const union = spyOn(polygonClipping, 'union')
+  try {
+    for (const content of [
+      '<rect width="10" height="10" fill="white" stroke="red"/>',
+      '<g stroke="red"><path fill="none" d="M20 0H30"/></g>',
+      '<path fill="none" style="stroke:red;stroke-width:2" d="M20 0H30"/>',
+      '<defs><path id="line" fill="none" d="M20 0H30"/></defs><use xlink:href="#line" stroke="red"/>',
+    ]) {
+      expect(svgToShapes(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${square}${content}</svg>`))
+        .toMatchObject({ ok: false, error: { code: 'UNSUPPORTED_STROKE' } })
+    }
+    expect(union).not.toHaveBeenCalled()
+  } finally {
+    union.mockRestore()
+  }
+})
+
+test('non-painted strokes and unused stroke definitions preserve valid filled artwork', () => {
+  for (const attributes of ['stroke="none"', 'stroke="transparent"', 'stroke="red" stroke-width="0"',
+    'stroke="red" style="stroke-opacity:0"', 'stroke="red" style="stroke:none"']) {
+    expect(svgToShapes(svg(`<rect width="10" height="10" fill="white" ${attributes}/>`))).toMatchObject({ ok: true })
+  }
+  expect(svgToShapes(svg(`<defs><path stroke="red" d="M20 0H30"/></defs>${square}`))).toMatchObject({ ok: true })
+})
+
 for (const [code, input] of [
   ['EMPTY_SVG', '   '],
   ['INVALID_SVG', '<svg'],
   ['INVALID_SVG', '<html/>'],
-  ['NO_FILLED_PATHS', svg('<path fill="none" stroke="red" d="M0 0H10V10Z"/>')],
+  ['NO_FILLED_PATHS', svg('<path fill="none" d="M0 0H10V10Z"/>')],
+  ['UNSUPPORTED_STROKE', svg('<path fill="none" stroke="red" d="M0 0H10V10Z"/>')],
   ['TEXT_NOT_CONVERTED', svg(`${square}<text>Logo</text>`)],
   ['UNSUPPORTED_EXTERNAL_IMAGE', svg(`${square}<image href="logo.png"/>`)],
   ['UNSUPPORTED_GRADIENT', svg('<defs><linearGradient id="g"/></defs><path fill="url(#g)" d="M0 0H10V10Z"/>')],

@@ -33,6 +33,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 For the cleanest geometry, use simple SVG artwork made from filled paths.
 
 - Convert text to paths before uploading
+- Convert visible strokes to filled outlines; mixed fills and strokes are rejected to avoid losing artwork
 - Avoid gradients, filters, clip paths, masks, and embedded images
 - Prefer logos with clear color regions and moderate path complexity
 - A traced PNG works best for flat logos with a few solid colors; photos and gradients come out posterized. With an opaque background, white details touching the background are removed with it

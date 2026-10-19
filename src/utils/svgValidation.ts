@@ -6,6 +6,7 @@ export type SvgParseErrorCode =
   | 'UNSUPPORTED_EXTERNAL_IMAGE' | 'UNSUPPORTED_GRADIENT' | 'UNSUPPORTED_PATTERN'
   | 'UNSUPPORTED_CSS_STYLING' | 'UNSUPPORTED_CLIP_PATH' | 'UNSUPPORTED_MASK'
   | 'UNSUPPORTED_FILTER' | 'UNSUPPORTED_USE' | 'UNSUPPORTED_ELEMENT'
+  | 'UNSUPPORTED_STROKE'
   | 'TOO_COMPLEX' | 'ZERO_BOUNDS' | 'INVALID_SVG'
 
 export interface SvgParseError {
@@ -32,6 +33,7 @@ export const SVG_LIMITS = {
 const MESSAGES: Record<SvgParseErrorCode, string> = {
   EMPTY_SVG: 'This SVG is empty. Choose an SVG containing filled paths.',
   NO_FILLED_PATHS: 'No filled paths found. Convert strokes to filled outlines before uploading.',
+  UNSUPPORTED_STROKE: 'This SVG contains visible strokes. Convert strokes to filled outlines in your vector editor, then upload it again.',
   TEXT_NOT_CONVERTED: 'This SVG contains text. Convert text to paths in your vector editor, then upload it again.',
   UNSUPPORTED_EXTERNAL_IMAGE: 'This SVG contains an image. Upload the PNG, JPEG or WebP directly to trace it, or replace images with paths.',
   UNSUPPORTED_GRADIENT: 'Gradient fills cannot become solid print colors. Replace gradients with flat fills before uploading.',
