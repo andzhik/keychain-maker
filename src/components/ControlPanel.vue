@@ -6,7 +6,7 @@ import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
 import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
-import type { ConfigAdjustment } from '../utils/configConstraints'
+import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
 import { printabilityWarnings } from '../utils/printability'
 
@@ -32,6 +32,7 @@ const props = defineProps<{
   config: KeychainConfig
   effectiveConfig: KeychainConfig
   adjustments: ConfigAdjustment[]
+  configMessages: ConfigMessage[]
 }>()
 
 const emit = defineEmits<{
@@ -229,6 +230,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
     <div class="control-column flex flex-col gap-3">
       <!-- Plate: shape, size, thickness, color -->
       <PanelCard title="Plate">
+        <p v-for="message in configMessages.filter(m => m.severity === 'error')" :key="message.field + message.code" role="alert" class="text-xs text-red-600">{{ message.message }}</p>
         <div class="flex items-center justify-between gap-3">
           <span class="text-sm text-gray-700">Shape</span>
           <div class="inline-flex rounded border border-gray-300 overflow-hidden" role="radiogroup" aria-label="Plate shape">
@@ -270,6 +272,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           label="Corner radius" unit="mm" field="cornerRadius"
           :modelValue="config.cornerRadius" :min="0" :max="20" :step="0.5"
           :disabled="config.basePlateShape !== 'square'"
+          :note="adjustment('cornerRadius')"
           @update:modelValue="v => updateField('cornerRadius', v)"
         />
 
@@ -293,12 +296,14 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         <SliderField
           label="Bevel" unit="mm" field="edgeBevel"
           :modelValue="config.edgeBevel" :min="0" :max="2" :step="0.1"
+          :note="adjustment('edgeBevel')"
           @update:modelValue="v => updateField('edgeBevel', v)"
         />
         <SliderField
           label="Bevel segments" field="bevelSegments"
           :modelValue="config.bevelSegments" :min="1" :max="8" :step="1"
           :disabled="config.edgeBevel <= 0"
+          :note="adjustment('bevelSegments')"
           @update:modelValue="v => updateField('bevelSegments', v)"
         />
       </PanelCard>

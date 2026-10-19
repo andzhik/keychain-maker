@@ -193,6 +193,26 @@ test('WebGL unavailability prevents export even when artwork parses', async () =
   }
 })
 
+test('invalid restored settings block model generation and recover when corrected', async () => {
+  const page = await browser.newPage()
+  try {
+    await page.addInitScript(() => localStorage.setItem('keychain-maker:config:v1', JSON.stringify({ baseThickness: -1 })))
+    await page.goto(url)
+    await page.locator('input[type="file"]').setInputFiles('test-svg/c1.svg')
+    await page.getByRole('alert').filter({ hasText: 'baseThickness must be greater than zero' }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
+    await page.waitForFunction(() => !(document.querySelector('canvas')?.parentElement as any)?.__vueParentComponent?.exposed?.getCurrentGroup())
+    const thickness = page.getByRole('spinbutton', { name: 'Thickness', exact: true })
+    await thickness.fill('0.4')
+    await thickness.press('Tab')
+    await page.getByText('Limited to 0.15 mm to fit the base thickness.', { exact: true }).waitFor()
+    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('alert').count(), 0)
+  } finally {
+    await page.close()
+  }
+})
+
 for (const width of [390, 768, 1400]) {
   test(`preview and export are reachable at ${width}px`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 900 } })

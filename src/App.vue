@@ -9,8 +9,9 @@ import { useSvgParser } from './composables/useSvgParser'
 import { useLogoRefinement } from './composables/useLogoRefinement'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
+import { fitGroups } from './utils/logoFit'
 import { loadState, saveConfig, saveRefinements, saveShowLogo, saveSvg } from './utils/persistence'
-import type { BuildStatus, KeychainConfig, Refinements } from './types/keychain'
+import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Refinements } from './types/keychain'
 import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
@@ -37,8 +38,12 @@ if (svgText.value && !parse(svgText.value).ok) {
   svgText.value = null
   saveSvg(null)
 }
-const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.config))
+const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.valid ? constrained.value.config : DEFAULT_CONFIG))
 const colorGroups = refined.groups
+const validation = computed(() => constrained.value.valid
+  ? constrainConfig(config.value, fitGroups(colorGroups.value, constrained.value.config))
+  : constrained.value)
+const configError = computed(() => validation.value.messages.find(m => m.severity === 'error')?.message ?? null)
 
 function handleSvgLoaded(text: string, retraced = false) {
   importing.value = false
@@ -78,13 +83,14 @@ function handleBuildStatus(status: BuildStatus, message?: string) {
 
 const artworkError = computed(() => importError.value ?? error.value)
 const canExport = computed(() => parsedGroups.value.length > 0 && !artworkError.value
-  && !importing.value && buildStatus.value === 'ready' && !exporting.value)
+  && validation.value.valid && !importing.value && buildStatus.value === 'ready' && !exporting.value)
 const hasPrintedLogo = computed(() => showLogo.value && colorGroups.value.length > 0)
 const exportLabel = computed(() => parsedGroups.value.length === 0 || hasPrintedLogo.value
   ? 'Download .3mf' : 'Download .3mf (base only)')
 const readiness = computed(() => {
   if (importing.value) return 'Importing artwork…'
   if (artworkError.value) return 'Fix the artwork import before exporting.'
+  if (configError.value) return configError.value
   if (modelError.value) return modelError.value
   if (parsedGroups.value.length === 0) return 'Upload artwork to create a keychain.'
   if (buildStatus.value === 'pending') return 'Updating model…'
@@ -182,8 +188,9 @@ const buildTimeText = computed(() => {
         v-model:showLogo="showLogo"
         v-model:config="config"
         v-model:refinements="refinements"
-        :adjustments="constrained.adjustments"
-        :effectiveConfig="constrained.config"
+        :adjustments="validation.adjustments"
+        :configMessages="validation.messages"
+        :effectiveConfig="validation.config"
         @svgLoaded="handleSvgLoaded"
         @importStarted="handleImportStarted"
         @importFailed="handleImportFailed"
@@ -197,7 +204,8 @@ const buildTimeText = computed(() => {
             :colorGroups="colorGroups"
             :fitKey="parsedGroups"
             :showLogo="showLogo"
-            :config="constrained.config"
+            :config="validation.config"
+            :configError="configError"
             @buildStatus="handleBuildStatus"
           />
           <button

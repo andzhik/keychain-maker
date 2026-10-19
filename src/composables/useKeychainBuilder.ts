@@ -3,10 +3,10 @@ import { ref, shallowRef } from 'vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/meshBuilder'
 import { Profiler } from '../utils/profiler'
-import { constrainConfig } from '../utils/configConstraints'
+import { validateConfig } from '../utils/configConstraints'
 import { logoOutline } from '../utils/svgToShapes'
 import { fitLogo } from '../utils/logoFit'
-import { validateGroupComplexity, type SvgParseError } from '../utils/svgValidation'
+import { validateGroupComplexity } from '../utils/svgValidation'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
@@ -16,7 +16,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
   // Wall-clock time of the last mesh build, in ms (null before the first build).
   const buildMs = ref<number | null>(null)
-  const buildError = shallowRef<SvgParseError | null>(null)
+  const buildError = shallowRef<{ code: string; message: string } | null>(null)
 
   function disposeCurrent() {
     if (!currentGroup) return
@@ -35,11 +35,12 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   function build(colorGroups: ColorGroup[], rawConfig: KeychainConfig): THREE.Group | null {
     const startedAt = performance.now()
     const profiler = new Profiler('keychain build')
-    const { config } = constrainConfig(rawConfig)
+    const validation = validateConfig(rawConfig)
+    let config = validation.config
     profiler.measure('disposeCurrent', () => disposeCurrent())
     dimensions.value = { width: 0, height: 0, depth: 0 }
     buildMs.value = null
-    buildError.value = validateGroupComplexity(colorGroups)
+    buildError.value = validation.messages.find(m => m.severity === 'error') ?? validateGroupComplexity(colorGroups)
     if (buildError.value) return null
     const scene = getScene()
     if (!scene) return null
@@ -53,6 +54,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const shapePoints = outline.map(shape => shape.extractPoints(16))
     const { hasLogo: hasSvg, scale, center: svgCenter, width, height } =
       fitLogo(shapePoints.map(pts => pts.shape), config)
+    config = validateConfig(rawConfig, { width, height }).config
 
     // Parent group — rotation applied once to lay everything flat on XZ
     const root = new THREE.Group()

@@ -10,6 +10,7 @@ const props = defineProps<{
   fitKey?: unknown
   showLogo: boolean
   config: KeychainConfig
+  configError?: string | null
 }>()
 
 const emit = defineEmits<{ buildStatus: [status: BuildStatus, message?: string] }>()
@@ -28,6 +29,13 @@ let refitPending = false
 
 function rebuild() {
   debounceTimer = null
+  if (props.configError) {
+    currentGroup = null
+    disposeBuilder()
+    requestRender()
+    emit('buildStatus', 'error', props.configError)
+    return
+  }
   try {
     currentGroup = build(props.colorGroups, props.config)
     if (currentGroup) {
@@ -89,6 +97,7 @@ watch(() => props.colorGroups, () => scheduleRebuild(false))
 watch(() => props.fitKey, () => scheduleRebuild(true))
 
 watch(() => props.config, () => scheduleRebuild(false), { deep: true })
+watch(() => props.configError, () => scheduleRebuild(false))
 
 watch(() => props.showLogo, (visible) => {
   setLogoVisible(visible)

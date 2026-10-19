@@ -41,6 +41,16 @@ test('over-budget direct builder calls clear the previous model before any outli
   }
 })
 
+test('invalid direct builder settings remove stale geometry before generating meshes', () => {
+  const scene = new THREE.Scene()
+  const builder = useKeychainBuilder(() => scene)
+  builder.build([letterO()], config())
+  expect(builder.build([letterO()], config({ baseThickness: -1 }))).toBeNull()
+  expect(builder.buildError.value?.code).toBe('OUT_OF_RANGE')
+  expect(scene.children).toHaveLength(0)
+  expect(builder.dimensions.value.width).toBe(0)
+})
+
 test('a beveled build does not emit dependency deprecation warnings', () => {
   const warn = spyOn(console, 'warn').mockImplementation(() => {})
   try {

@@ -68,6 +68,13 @@ The base-thickness and keyring-wall messages are advisory: the base recommendati
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
 is 2 mm. These strength guidelines do not block export of valid geometry.
 
+Configuration validation also runs independently of slider limits. Nonfinite,
+negative, or impossible dimensions block model generation and export. Safe
+padding, hole, bevel, and corner-radius adjustments keep the entered values in
+the controls and show the effective values beside them; corner limits use the
+actual fitted plate height. `validateConfig` returns structured field messages
+and is also enforced for direct builder calls.
+
 ## Tech Stack
 
 - Vue 3 with `<script setup>` and TypeScript

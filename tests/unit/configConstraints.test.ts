@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, type KeychainConfig } from '../../src/types/keychain'
-import { MIN_KEYRING_WALL, MIN_LOGO_SIZE, constrainConfig } from '../../src/utils/configConstraints'
+import { MIN_KEYRING_WALL, MIN_LOGO_SIZE, constrainConfig, validateConfig } from '../../src/utils/configConstraints'
 
 function config(overrides: Partial<KeychainConfig> = {}): KeychainConfig {
   return { ...DEFAULT_CONFIG, ...overrides }
@@ -57,4 +57,35 @@ test('every slider combination stays consistent within the slider ranges', () =>
       }
     }
   }
+})
+
+test('invalid numeric settings return structured errors without modifying the input', () => {
+  for (const overrides of [
+    { padding: -1 }, { baseThickness: 0 }, { baseThickness: -1 },
+    { targetWidth: 0 }, { edgeBevel: NaN }, { cornerRadius: Infinity },
+    { keyringHoleDiameter: 0 }, { keyringRingDiameter: 2 }, { bevelSegments: 1000000 },
+  ]) {
+    const input = config(overrides)
+    const snapshot = { ...input }
+    const result = validateConfig(input)
+    expect(result.valid).toBe(false)
+    expect(result.messages.some(m => m.severity === 'error' && !!m.code && !!m.field)).toBe(true)
+    expect(input).toEqual(snapshot)
+  }
+})
+
+test('impossible hole clearance blocks generation instead of reversing the padding correction', () => {
+  const result = validateConfig(config({ targetWidth: 5, padding: 0 }))
+  expect(result.valid).toBe(false)
+  expect(result.messages.some(m => m.code === 'NO_ROOM_FOR_KEYRING')).toBe(true)
+})
+
+test('bevel and corner limits use the actual plate size and report effective values', () => {
+  const result = validateConfig(config({ baseThickness: 0.4, edgeBevel: 2, cornerRadius: 20 }), { width: 50, height: 12 })
+  expect(result.valid).toBe(true)
+  expect(result.config.edgeBevel).toBeCloseTo(0.15)
+  expect(result.config.cornerRadius).toBe(6)
+  expect(result.adjustments.map(a => a.field)).toEqual(['edgeBevel', 'cornerRadius'])
+  expect(result.messages.every(m => m.severity === 'warning')).toBe(true)
+  expect(validateConfig(result.config, { width: 50, height: 12 }).adjustments).toEqual([])
 })

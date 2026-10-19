@@ -15,6 +15,15 @@ export interface ConfigAdjustment {
 export interface ConstrainedConfig {
   config: KeychainConfig
   adjustments: ConfigAdjustment[]
+  messages: ConfigMessage[]
+  valid: boolean
+}
+
+export interface ConfigMessage {
+  field: keyof KeychainConfig
+  severity: 'error' | 'warning'
+  code: string
+  message: string
 }
 
 /**
@@ -23,10 +32,33 @@ export interface ConstrainedConfig {
  * raw values are kept in the UI and the model is built from the clamped ones.
  * Idempotent: constraining an already-constrained config changes nothing.
  */
-export function constrainConfig(input: KeychainConfig): ConstrainedConfig {
+export function validateConfig(input: KeychainConfig, plate?: { width: number; height: number }): ConstrainedConfig {
   const config = { ...input }
   const adjustments: ConfigAdjustment[] = []
-  const adjust = (field: 'keyringHoleDiameter' | 'padding', value: number, message: string) => {
+  const messages: ConfigMessage[] = []
+  const error = (field: keyof KeychainConfig, code: string, message: string) =>
+    messages.push({ field, code, message, severity: 'error' })
+  const nonnegative = ['padding', 'cornerRadius', 'edgeBevel'] as const
+  const positive = ['targetWidth', 'baseThickness', 'bevelSegments',
+    ...(config.keyringEnabled ? ['keyringHoleDiameter', 'keyringRingDiameter'] as const : [])] as const
+  for (const field of [...nonnegative, ...positive]) {
+    const value = config[field]
+    if (!Number.isFinite(value)) error(field, 'NONFINITE_VALUE', `${field} must be a finite number.`)
+    else if (value < 0 || (!(nonnegative as readonly string[]).includes(field) && value === 0)) {
+      error(field, 'OUT_OF_RANGE', `${field} must be ${nonnegative.includes(field as typeof nonnegative[number]) ? 'zero or greater' : 'greater than zero'}.`)
+    }
+  }
+  if (config.bevelSegments > 64) error('bevelSegments', 'TOO_MANY_SEGMENTS', 'Use at most 64 bevel segments.')
+  if (config.basePlateShape !== 'square' && config.basePlateShape !== 'circle') {
+    error('basePlateShape', 'INVALID_SHAPE', 'Choose a square or circle plate.')
+  }
+  if (!/^#[\da-f]{6}$/i.test(config.baseColor)) error('baseColor', 'INVALID_COLOR', 'Choose a six-digit hex plate color.')
+  if (config.keyringEnabled && config.keyringRingDiameter <= 2 * MIN_KEYRING_WALL) {
+    error('keyringRingDiameter', 'RING_TOO_SMALL', 'Increase the ring diameter above 2 mm to leave room for its hole and walls.')
+  }
+  if (messages.length) return { config, adjustments, messages, valid: false }
+
+  const adjust = (field: 'keyringHoleDiameter' | 'padding' | 'edgeBevel' | 'cornerRadius' | 'bevelSegments', value: number, message: string) => {
     config[field] = value
     // A later rule wins over an earlier one for the same field.
     const i = adjustments.findIndex(a => a.field === field)
@@ -60,9 +92,25 @@ export function constrainConfig(input: KeychainConfig): ConstrainedConfig {
       `Limited to ${fmt(maxPadding)} mm to leave room for the logo at this width.`)
   }
 
-  return { config, adjustments }
+  if (config.keyringEnabled && config.padding < config.keyringHoleDiameter / 2 + MIN_KEYRING_WALL) {
+    error('targetWidth', 'NO_ROOM_FOR_KEYRING', 'Increase the plate width or reduce the keyring hole to leave room for the logo and keyring wall.')
+  }
+  const bevel = Math.max(0, Math.min(config.edgeBevel, config.baseThickness / 2 - 0.05))
+  if (bevel !== config.edgeBevel) adjust('edgeBevel', bevel, `Limited to ${fmt(bevel)} mm to fit the base thickness.`)
+  const segments = Math.max(1, Math.round(config.bevelSegments))
+  if (segments !== config.bevelSegments) adjust('bevelSegments', segments, `Rounded to ${segments} bevel segments.`)
+  // The artwork determines square-plate height; callers with a logo supply its fitted size.
+  if (plate && config.basePlateShape === 'square') {
+    const radius = Math.min(config.cornerRadius, plate.width / 2, plate.height / 2)
+    if (radius !== config.cornerRadius) adjust('cornerRadius', radius, `Limited to ${fmt(radius)} mm to fit the plate dimensions.`)
+  }
+  for (const adjustment of adjustments) messages.push({ ...adjustment, severity: 'warning', code: 'CONFIG_ADJUSTED' })
+  return { config, adjustments, messages, valid: !messages.some(m => m.severity === 'error') }
 }
 
+/** Backward-compatible name for callers that also need normalized values. */
+export const constrainConfig = validateConfig
+
 function fmt(mm: number): string {
-  return mm.toFixed(1)
+  return mm.toFixed(2).replace(/0$/, '')
 }
