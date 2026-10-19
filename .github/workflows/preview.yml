@@ -1,5 +1,7 @@
 name: Deploy Branch Preview
 
+# publish-pages.yml deploys the complete gh-pages branch after this succeeds.
+
 on:
   # Manual only: pick the branch to preview in the Actions tab "Run workflow"
   # dropdown. github.ref_name resolves to whatever branch you select.
@@ -57,5 +59,6 @@ jobs:
 
       - name: Preview URL
         run: |
-          echo "### Preview deployed 🚀" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Preview build ready" >> "$GITHUB_STEP_SUMMARY"
+          echo "The Publish GitHub Pages workflow will deploy this build after this workflow succeeds." >> "$GITHUB_STEP_SUMMARY"
           echo "https://andzhik.github.io/keychain-maker/preview/${{ steps.slug.outputs.slug }}/" >> "$GITHUB_STEP_SUMMARY"

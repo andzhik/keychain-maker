@@ -1,8 +1,8 @@
 name: Deploy GitHub Pages
 
-# Pages is served from the gh-pages branch (Settings → Pages → Source: "Deploy
-# from a branch", gh-pages, /). Production lives at the branch root; branch
-# previews (preview.yml) live under preview/<slug>/.
+# Production is stored at the gh-pages branch root; branch previews (preview.yml)
+# live under preview/<slug>/. publish-pages.yml deploys the complete branch using
+# the Pages API after this workflow succeeds (Settings → Pages → GitHub Actions).
 
 on:
   push:
