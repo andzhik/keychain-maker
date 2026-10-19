@@ -198,6 +198,43 @@ test('printability advice appears near settings and does not block a valid expor
   }
 })
 
+test('outline complexity advice starts above 500 refined points, including holes, without blocking export', async () => {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  try {
+    await page.goto(url)
+    const simplify = page.getByRole('slider', { name: 'Simplify', exact: true })
+    await simplify.fill('0')
+    const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
+    const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
+    const ring = (count: number, radius: number) => Array.from({ length: count }, (_, i) => {
+      const angle = i / count * Math.PI * 2
+      return `${i ? 'L' : 'M'}${(Math.cos(angle) * radius).toFixed(8)} ${(Math.sin(angle) * radius).toFixed(8)}`
+    }).join('') + 'Z'
+
+    for (const points of [500, 501]) {
+      await page.locator('input[type="file"]').setInputFiles({ name: `outline-${points}.svg`, mimeType: 'image/svg+xml',
+        buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="${ring(250, 50)}${ring(points - 250, 25)}"/></svg>`) })
+      await page.getByText(`${points} outline points.`, { exact: true }).waitFor()
+      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      assert.equal(await advice.count(), points > 500 ? 1 : 0)
+      assert.equal(await download.isEnabled(), true, 'complexity advice must allow valid exports')
+    }
+    assert.match(await advice.innerText(), /Increase Simplify/)
+
+    await simplify.fill('0.02')
+    await advice.waitFor({ state: 'hidden' })
+    await simplify.fill('0')
+    await advice.waitFor()
+    await page.locator('input[type="file"]').setInputFiles({ name: 'simple.svg', mimeType: 'image/svg+xml',
+      buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/></svg>') })
+    await advice.waitFor({ state: 'hidden' })
+    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    assert.equal(await download.isEnabled(), true)
+  } finally {
+    await page.close()
+  }
+})
+
 test('tiny-island advice follows print size, nozzle, and cleanup without blocking export', async () => {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   try {

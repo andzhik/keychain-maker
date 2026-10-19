@@ -50,6 +50,7 @@ const emit = defineEmits<{
 }>()
 
 const MAX_COLOR_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]
+const OUTLINE_POINT_WARNING_THRESHOLD = 500
 
 function updateRefinement<K extends keyof Refinements>(field: K, value: Refinements[K]) {
   emit('update:refinements', { ...props.refinements, [field]: value })
@@ -220,6 +221,10 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
           />
           <p v-if="pointsNote" class="mt-0.5 text-xs text-gray-500">{{ pointsNote }}</p>
+          <p v-if="outlinePoints.after > OUTLINE_POINT_WARNING_THRESHOLD" role="status" class="mt-0.5 text-xs text-amber-600">
+            Over {{ OUTLINE_POINT_WARNING_THRESHOLD }} outline points remain. Model updates may be slow.
+            Increase Simplify to reduce outline complexity.
+          </p>
         </div>
         <div>
           <SliderField

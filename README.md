@@ -75,6 +75,11 @@ checks its input before outline unions, extrusion, or CSG. Degenerate/nonfinite
 geometry and filled bounds of 0.0000001 SVG units or less are rejected. Simplify
 the source artwork or trace a smaller image with fewer colors when a limit is reached.
 
+Above 500 outline points after refinement (including holes), an advisory beside
+Simplify warns that model updates may be slow and recommends increasing the
+simplification tolerance. The warning follows the final refined geometry and
+does not block building or export; the hard safety budgets above still apply.
+
 The base-thickness and keyring-wall messages are advisory: the base recommendation
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
 is 2 mm. These strength guidelines do not block export of valid geometry.
