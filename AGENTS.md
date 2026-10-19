@@ -1,2 +1,3 @@
 - commit the work when you are done
 - before changing geometry, rebuild timing, or rendering, read "Design Decisions & Gotchas" in README.md
+- when adding comments to github prefix them with "[AI <model>]" if you do not know the currently used model, specify AI provider
