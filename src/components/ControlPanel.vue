@@ -49,6 +49,8 @@ const emit = defineEmits<{
   toggleShape: [id: string]
 }>()
 
+const showThinFeatures = defineModel<boolean>('showThinFeatures', { required: true })
+
 const MAX_COLOR_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]
 const OUTLINE_POINT_WARNING_THRESHOLD = 500
 
@@ -130,7 +132,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 
         <div v-if="parsedGroups.length">
           <div class="relative">
-            <LogoPreview v-bind="preview" class="h-48" @toggleShape="(id: string) => emit('toggleShape', id)" />
+            <LogoPreview v-bind="preview" :showThinFeatures="showThinFeatures" class="h-48" @toggleShape="(id: string) => emit('toggleShape', id)" />
             <button
               type="button"
               class="absolute top-1.5 right-1.5 p-1 bg-white/90 border border-gray-300 rounded shadow-sm text-gray-600 hover:bg-white hover:text-gray-900"
@@ -156,6 +158,10 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
               Restore {{ hiddenShapeCount }} shape{{ hiddenShapeCount !== 1 ? 's' : '' }}
             </button>
           </p>
+          <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+            <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
+            <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
+          </label>
         </div>
 
         <div>
@@ -234,7 +240,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           />
           <p v-if="thinFeatures.count" class="mt-0.5 text-xs text-amber-600">
             {{ thinFeatures.count }} feature{{ thinFeatures.count !== 1 ? 's' : '' }} under {{ fmtMm(minFeatureWidth) }} mm
-            (2 nozzle widths) may not print, shown in red.
+            (2 nozzle widths) may not print. Enable Thin areas in either 2D preview to highlight them in red.
           </p>
           <p v-else-if="parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
             No thin areas detected at {{ fmtMm(minFeatureWidth) }} mm (2 nozzle widths).

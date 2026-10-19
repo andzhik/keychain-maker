@@ -108,6 +108,7 @@ const previewData = computed<LogoPreviewData>(() => ({
   plateColor: config.value.baseColor,
 }))
 const previewExpanded = ref(false)
+const showThinFeatures = ref(true)
 const showPreviewPanel = computed(() => previewExpanded.value && parsedGroups.value.length > 0)
 
 function toggleShape(id: string) {
@@ -179,6 +180,7 @@ const buildTimeText = computed(() => {
         :colorGroups="colorGroups"
         :preview="previewData"
         v-model:previewExpanded="previewExpanded"
+        v-model:showThinFeatures="showThinFeatures"
         :colorSources="refined.sources.value"
         :specksRemoved="refined.specksRemoved.value"
         :outlinePoints="refined.outlinePoints.value"
@@ -241,6 +243,7 @@ const buildTimeText = computed(() => {
         v-if="showPreviewPanel"
         class="expanded-preview z-10 shadow-xl"
         :preview="previewData"
+        v-model:showThinFeatures="showThinFeatures"
         @close="previewExpanded = false"
         @toggleShape="toggleShape"
       />

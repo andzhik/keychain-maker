@@ -272,6 +272,61 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
   }
 })
 
+for (const width of [390, 1400]) {
+  test(`thin-area visibility stays synchronized between 2D previews at ${width}px`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 900 } })
+    try {
+      await page.goto(url)
+      await page.locator('input[type="file"]').setInputFiles({ name: 'thin.svg', mimeType: 'image/svg+xml',
+        buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0H100V49H120V51H100V100H0Z"/></svg>') })
+      const inline = page.locator('svg.logo-preview').first()
+      const inlineToggle = page.locator('.control-panel').getByRole('checkbox', { name: 'Thin areas', exact: true })
+      await inline.locator('path.thin').waitFor()
+      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      assert.equal(await inlineToggle.isChecked(), true)
+
+      await inlineToggle.uncheck()
+      await inline.locator('path.thin').waitFor({ state: 'hidden' })
+      await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+      const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
+      const enlarged = panel.getByRole('img')
+      const panelToggle = panel.getByRole('checkbox', { name: 'Thin areas', exact: true })
+      assert.equal(await panelToggle.isChecked(), false)
+      assert.equal(await enlarged.locator('path.thin').count(), 0)
+
+      await panelToggle.check()
+      assert.equal(await inlineToggle.isChecked(), true)
+      assert.equal(await inline.locator('path.thin').getAttribute('d'), await enlarged.locator('path.thin').getAttribute('d'))
+      await page.screenshot({ path: `test-output/thin-areas-${width}.png` })
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+
+      await enlarged.hover()
+      await page.mouse.wheel(0, -600)
+      await panel.getByRole('button', { name: 'Fit', exact: true }).waitFor()
+      const zoomedView = await enlarged.getAttribute('viewBox')
+      await panel.getByRole('checkbox', { name: 'Edges and points' }).check()
+      await panel.getByRole('checkbox', { name: 'Original outline' }).check()
+      await panelToggle.uncheck()
+      assert.equal(await inlineToggle.isChecked(), false)
+      assert.equal(await page.locator('svg.logo-preview path.thin').count(), 0)
+      assert.equal(await enlarged.getAttribute('viewBox'), zoomedView)
+      assert.equal(await enlarged.locator('path.edges').count(), 1)
+      assert.equal(await enlarged.locator('path.original').count(), 1)
+      await page.getByText(/may not print\. Enable Thin areas/).waitFor()
+
+      await panel.getByRole('button', { name: 'Close', exact: true }).click()
+      await inlineToggle.check()
+      await inline.locator('path.thin').waitFor()
+      await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+      assert.equal(await panelToggle.isChecked(), true, 'reopening must preserve overlay visibility')
+      await enlarged.locator('path.thin').waitFor()
+      assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isEnabled(), true)
+    } finally {
+      await page.close()
+    }
+  })
+}
+
 test('WebGL unavailability prevents export even when artwork parses', async () => {
   const page = await browser.newPage()
   try {

@@ -13,6 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const previewRef = ref<InstanceType<typeof LogoPreview> | null>(null)
+const showThinFeatures = defineModel<boolean>('showThinFeatures', { required: true })
 const showEdges = ref(false)
 const showOriginal = ref(false)
 
@@ -35,6 +36,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
         <input v-model="showOriginal" type="checkbox" class="accent-fuchsia-500" />
         <span>Original outline <span class="inline-block w-3 h-0.5 align-middle bg-fuchsia-500" /></span>
+      </label>
+      <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+        <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
+        <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
       </label>
       <div class="ml-auto flex items-center gap-2">
         <button
@@ -61,6 +66,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       zoomable
       :showEdges="showEdges"
       :showOriginal="showOriginal"
+      :showThinFeatures="showThinFeatures"
       @toggleShape="(id: string) => emit('toggleShape', id)"
     />
     <p class="text-[11px] text-gray-400 shrink-0">Scroll to zoom, drag to pan, double-click to fit. Click a shape to remove it.</p>

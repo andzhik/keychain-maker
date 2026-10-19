@@ -18,6 +18,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (pick the maximum number of colors and whether to drop an opaque background, and tune how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
 - Refine the logo for printing: change, merge or remove colors, limit it to N filaments, drop specks below a size in mm², click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
+- Toggle the red thin-area overlay from either 2D preview; both previews share the setting, while printability warnings stay visible
 - Simplify outlines to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens over the settings and 3D view, so the logo and refine controls stay usable
 - Choose a square or circle base plate
 - Tune base thickness, bevel, corner radius, padding, logo height, and target size

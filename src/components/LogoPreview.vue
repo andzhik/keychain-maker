@@ -24,14 +24,16 @@ import { shapeId } from '../utils/refine'
 
 interface ViewBox { x: number; y: number; w: number; h: number }
 
-const props = defineProps<LogoPreviewData & {
+const props = withDefaults(defineProps<LogoPreviewData & {
   /** Wheel to zoom, drag to pan. Off in the side panel, where the wheel scrolls. */
   zoomable?: boolean
   /** Outline the printed shapes and mark their points. */
   showEdges?: boolean
   /** Outline the parsed shapes, to compare against what's printed. */
   showOriginal?: boolean
-}>()
+  /** Highlight areas narrower than two nozzle widths. */
+  showThinFeatures?: boolean
+}>(), { showThinFeatures: true })
 
 const emit = defineEmits<{
   toggleShape: [id: string]
@@ -224,7 +226,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
       <path v-if="originalPath" :d="originalPath" class="original" pointer-events="none" />
       <path v-if="edgesPath" :d="edgesPath" class="edges" pointer-events="none" />
       <path v-if="pointsPath" :d="pointsPath" class="points" pointer-events="none" />
-      <path v-if="thinPath" :d="thinPath" class="thin" pointer-events="none" />
+      <path v-if="showThinFeatures && thinPath" :d="thinPath" class="thin" pointer-events="none" />
     </svg>
     <div v-else class="h-full flex items-center justify-center text-sm text-gray-400">No logo</div>
   </div>
