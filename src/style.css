@@ -10,8 +10,25 @@
   min-width: 0;
 }
 
+.workspace {
+  width: 100%;
+  max-width: 1416px;
+  margin-inline: auto;
+  justify-items: center;
+}
+
+.control-panel {
+  width: 100%;
+  max-width: 660px;
+}
+
 .control-column {
   min-width: 0;
+}
+
+.model-preview {
+  width: 100%;
+  max-width: 720px;
 }
 
 .three-frame {
@@ -32,13 +49,13 @@
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1024px) {
   .app-shell {
     height: 100dvh;
     overflow: hidden;
   }
   .workspace {
-    grid-template-columns: 692px minmax(0, 1fr);
+    grid-template-columns: 660px minmax(0, 1fr);
     flex: 1;
     min-height: 0;
   }
