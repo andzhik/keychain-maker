@@ -29,11 +29,12 @@ using these settings for **each** example:
 | Merge similar / max colors / min speck | 0 / No limit / 0 mm² |
 | Simplify | 0 mm for an exact render-harness comparison; the app's usual 0.02 mm is also suitable |
 
-Settings and refinements persist between uploads. Set these values explicitly
-when comparing screenshots; use **Reset** in Refine to clear old edits, then
-set Simplify to 0. The width is the nominal plate width: the measured dimensions
-also include the bevel and keyring. Preview lighting can make the white base
-appear gray, and the 3D view is rotated relative to the SVG.
+Plate and cleanup settings carry over between uploads; recolors and hidden
+colors/shapes reset for a new upload. For screenshot comparisons, set the values
+above, use **Reset** in Refine, then set Simplify to 0. Reset keeps the current
+Nozzle value, so check that it is 0.4 mm too. The width is the nominal plate width:
+the measured dimensions also include the bevel and keyring. Preview lighting can
+make the white base appear gray, and the 3D view is rotated relative to the SVG.
 
 ## Rounded plus
 
