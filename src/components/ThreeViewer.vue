@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useThreeScene } from '../composables/useThreeScene'
 import { useKeychainBuilder } from '../composables/useKeychainBuilder'
-import type { ColorGroup, KeychainConfig } from '../types/keychain'
+import type { BuildStatus, ColorGroup, KeychainConfig } from '../types/keychain'
 
 const props = defineProps<{
   colorGroups: ColorGroup[]
@@ -12,11 +12,13 @@ const props = defineProps<{
   config: KeychainConfig
 }>()
 
+const emit = defineEmits<{ buildStatus: [status: BuildStatus, message?: string] }>()
+
 const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
 
 const { init, dispose: disposeScene, getScene, fitCamera, requestRender } = useThreeScene()
-const { build, dispose: disposeBuilder, dimensions, buildMs, setLogoVisible } = useKeychainBuilder(getScene)
+const { build, dispose: disposeBuilder, dimensions, buildMs, buildError, setLogoVisible } = useKeychainBuilder(getScene)
 
 let currentGroup: ReturnType<typeof build> = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -26,14 +28,35 @@ let refitPending = false
 
 function rebuild() {
   debounceTimer = null
-  currentGroup = build(props.colorGroups, props.config)
-  if (!currentGroup) return
-  if (refitPending) fitCamera(currentGroup)
-  else requestRender()
-  refitPending = false
+  try {
+    currentGroup = build(props.colorGroups, props.config)
+    if (currentGroup) {
+      if (refitPending) fitCamera(currentGroup)
+      else requestRender()
+      emit('buildStatus', 'ready')
+    } else {
+      requestRender()
+      emit('buildStatus', 'error', buildError.value?.message ?? 'Could not build the model. Try simplifying the artwork.')
+    }
+  } catch {
+    currentGroup = null
+    disposeBuilder()
+    requestRender()
+    emit('buildStatus', 'error', 'Could not build the model. Try simplifying the artwork or reducing the bevel.')
+  } finally {
+    refitPending = false
+  }
 }
 
 function scheduleRebuild(refit: boolean) {
+  if (webglUnavailable.value) return
+  // Export may only read the group built from the current inputs.
+  currentGroup = null
+  emit('buildStatus', 'pending')
+  if (props.colorGroups.length === 0) {
+    disposeBuilder()
+    requestRender()
+  }
   refitPending ||= refit
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(rebuild, 60)
@@ -49,7 +72,10 @@ onMounted(() => {
   if (!containerRef.value) return
   const result = init(containerRef.value)
   webglUnavailable.value = result.webglUnavailable
-  if (result.webglUnavailable) return
+  if (result.webglUnavailable) {
+    emit('buildStatus', 'unavailable', 'WebGL is unavailable. Open this page in a browser with WebGL to build and export.')
+    return
+  }
 
   setLogoVisible(props.showLogo)
   refitPending = true

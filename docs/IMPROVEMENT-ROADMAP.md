@@ -1,5 +1,12 @@
 # Improvement Roadmap
 
+This is the original proposal list, not a current implementation checklist.
+See [the issue audit and follow-up](ISSUE-AUDIT.md) for verified status. Raster
+tracing, the parameters-first layout, structured SVG validation, input complexity
+budgets, debounced rebuilds, and much of the printability feedback now exist.
+The current rebuild debounce is 60 ms; preserve the CSG and rendering decisions
+in README when continuing this roadmap.
+
 This document organizes proposed improvements into issue-sized work items. The highest-value path is to create GitHub issues for each item, then group them in a GitHub Project board with columns such as `Backlog`, `Ready`, `In Progress`, and `Done`.
 
 ## Recommended GitHub Organization

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
+import { MeshBVH } from 'three-mesh-bvh'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import type { Profiler } from './profiler'
 
@@ -313,9 +314,31 @@ function subtractCutoutHoles(
       bevelEnabled: false,
     })
     prisms.translate(0, 0, -bevel - 1)
-    const result = new Evaluator().evaluate(new Brush(baseGeometry), new Brush(prisms), SUBTRACTION)
-    prisms.dispose()
-    return result.geometry
+    try {
+      // CSG 0.0.17 still requests the deprecated maxLeafTris option. Supply
+      // equivalent trees with the current spelling before Brush prepares them.
+      for (const geometry of [baseGeometry, prisms]) {
+        const useSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined'
+        // CSG needs an explicit index even though an indirect BVH does not.
+        if (!geometry.index) {
+          const count = geometry.getAttribute('position').count
+          const IndexArray = count > 65535 ? Uint32Array : Uint16Array
+          const Buffer = useSharedArrayBuffer ? SharedArrayBuffer : ArrayBuffer
+          const index = new IndexArray(new Buffer(count * IndexArray.BYTES_PER_ELEMENT) as ArrayBuffer)
+          for (let i = 0; i < count; i++) index[i] = i
+          geometry.setIndex(new THREE.BufferAttribute(index, 1))
+        }
+        geometry.boundsTree = new MeshBVH(geometry, {
+          maxLeafSize: 3,
+          indirect: true,
+          useSharedArrayBuffer,
+        })
+      }
+      const result = new Evaluator().evaluate(new Brush(baseGeometry), new Brush(prisms), SUBTRACTION)
+      return result.geometry
+    } finally {
+      prisms.dispose()
+    }
   }
   return profiler
     ? profiler.measure(`  CSG subtract (${cutouts.length} cutouts)`, cut)

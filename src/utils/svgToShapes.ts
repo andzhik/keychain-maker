@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js'
 import polygonClipping, { type MultiPolygon, type Polygon, type Ring } from 'polygon-clipping'
 import type { ColorGroup } from '../types/keychain'
+import { SVG_LIMITS, complexityError, svgError, validateGroupComplexity, validateSvgSource, type SvgParseError, type SvgParseResult } from './svgValidation'
 
 // Curves are tessellated once, here. Every later consumer (logo extrude, plate
 // cutouts) then sees the same straight-edged outlines, so the inlaid logo walls
@@ -15,22 +16,58 @@ const CURVE_DIVISIONS = 16
  * visible part), and same-color paths are merged. The resulting regions never
  * overlap, so the logo volumes neither z-fight nor intersect in the 3MF.
  */
-export function svgToShapes(svgString: string): ColorGroup[] {
+export function svgToShapes(svgString: string): SvgParseResult {
+  const error = validateSvgSource(svgString)
+  if (error) return { ok: false, error }
+  try {
+    return parseFilledShapes(svgString)
+  } catch {
+    return { ok: false, error: svgError('INVALID_SVG') }
+  }
+}
+
+function parseFilledShapes(svgString: string): SvgParseResult {
   const loader = new SVGLoader()
   const svgData = loader.parse(svgString)
+  if (svgData.paths.length > SVG_LIMITS.paths) {
+    return { ok: false, error: complexityError(`Use at most ${SVG_LIMITS.paths} paths.`) }
+  }
+
+  let pointBudget = 0
+  const bounds = new THREE.Box2()
+  const prepared: { color: string; polygons: Polygon[] }[] = []
+  const inputGroups: ColorGroup[] = []
+  for (const path of svgData.paths) {
+    if (path.userData?.style?.fill === 'none') continue
+    for (const subpath of path.subPaths) {
+      for (const curve of subpath.curves) pointBudget += curve.type === 'LineCurve' ? 1 : curve.type === 'EllipseCurve' ? 32 : 16
+      pointBudget++
+      if (pointBudget > SVG_LIMITS.points) {
+        return { ok: false, error: complexityError(`Use at most ${SVG_LIMITS.points} outline points.`) }
+      }
+      for (const point of subpath.getPoints(CURVE_DIVISIONS)) {
+        if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return { ok: false, error: svgError('INVALID_SVG') }
+        bounds.expandByPoint(point)
+      }
+    }
+    const shapes = SVGLoader.createShapes(path)
+    const color = normalizeColor(path.color)
+    inputGroups.push({ id: color, color, shapes, pathCount: 1 })
+    const error = validateGroupComplexity(inputGroups)
+    if (error) return { ok: false, error }
+    prepared.push({ color, polygons: shapes.map(shapeToPolygon).filter(p => p.length > 0) })
+  }
+  if (!bounds.isEmpty()) {
+    const size = bounds.getSize(new THREE.Vector2())
+    if (Math.min(size.x, size.y) <= 1e-7) return { ok: false, error: svgError('ZERO_BOUNDS') }
+  }
 
   const regions = new Map<string, { geom: MultiPolygon; pathCount: number }>()
 
-  for (const path of svgData.paths) {
-    const fill = path.userData?.style?.fill
-    if (fill === 'none') continue
-
-    const polygons = SVGLoader.createShapes(path).map(shapeToPolygon).filter(p => p.length > 0)
+  for (const { color, polygons } of prepared) {
     if (polygons.length === 0) continue
     const painted = polygonClipping.union(polygons)
     if (painted.length === 0) continue
-
-    const color = normalizeColor(path.color)
 
     for (const [other, region] of regions) {
       if (other !== color) region.geom = polygonClipping.difference(region.geom, painted)
@@ -43,6 +80,8 @@ export function svgToShapes(svgString: string): ColorGroup[] {
     } else {
       regions.set(color, { geom: painted, pathCount: 1 })
     }
+    const error = validatePolygonComplexity([...regions.values()].map(r => r.geom))
+    if (error) return { ok: false, error }
   }
 
   const groups: ColorGroup[] = []
@@ -51,7 +90,22 @@ export function svgToShapes(svgString: string): ColorGroup[] {
     if (geom.length === 0) continue
     groups.push({ id: color, color, shapes: geom.map(polygonToShape), pathCount })
   }
-  return groups
+  if (groups.length === 0) return { ok: false, error: svgError('NO_FILLED_PATHS') }
+  const error = validateGroupComplexity(groups)
+  return error ? { ok: false, error } : { ok: true, groups }
+}
+
+function validatePolygonComplexity(regions: MultiPolygon[]): SvgParseError | null {
+  let shapes = 0
+  let points = 0
+  for (const region of regions) {
+    shapes += region.length
+    for (const polygon of region) for (const ring of polygon) points += ring.length
+    if (shapes > SVG_LIMITS.shapes || points > SVG_LIMITS.points) {
+      return complexityError(`Resolved artwork must fit within ${SVG_LIMITS.shapes} shapes and ${SVG_LIMITS.points} outline points.`)
+    }
+  }
+  return null
 }
 
 // Keyed by array identity (groups are replaced, never mutated), so the app's

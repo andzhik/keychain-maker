@@ -8,6 +8,7 @@ import SvgUploader from './SvgUploader.vue'
 import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
 import type { ConfigAdjustment } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
+import { printabilityWarnings } from '../utils/printability'
 
 const props = defineProps<{
   /** The logo as parsed from the SVG. */
@@ -29,11 +30,14 @@ const props = defineProps<{
   error: string | null
   showLogo: boolean
   config: KeychainConfig
+  effectiveConfig: KeychainConfig
   adjustments: ConfigAdjustment[]
 }>()
 
 const emit = defineEmits<{
   svgLoaded: [svgText: string, retraced?: boolean]
+  importStarted: [retraced: boolean]
+  importFailed: [message: string]
   'update:showLogo': [value: boolean]
   'update:config': [value: KeychainConfig]
   'update:refinements': [value: Refinements]
@@ -48,6 +52,8 @@ function updateRefinement<K extends keyof Refinements>(field: K, value: Refineme
 }
 
 const hiddenShapeCount = computed(() => props.refinements.hiddenShapes.length)
+const warnings = computed(() => printabilityWarnings(props.effectiveConfig, props.refinements.nozzleDiameter))
+const warning = (field: keyof KeychainConfig) => warnings.value.find(w => w.field === field)?.message
 
 const refined = computed(() => {
   const r = props.refinements
@@ -86,9 +92,8 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 </script>
 
 <template>
-  <!-- Two fixed-width columns: the logo, then the model settings. -->
-  <div class="flex gap-3 items-start">
-    <div class="w-[var(--logo-column,300px)] shrink-0 flex flex-col gap-3">
+  <div class="control-panel gap-3 items-start">
+    <div class="control-column flex flex-col gap-3">
       <!-- Logo: upload, preview, colors -->
       <PanelCard title="Logo">
         <template #action>
@@ -103,7 +108,12 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           </label>
         </template>
 
-        <SvgUploader @svgLoaded="(text: string, retraced?: boolean) => emit('svgLoaded', text, retraced)" />
+        <SvgUploader
+          @svgLoaded="(text: string, retraced?: boolean) => emit('svgLoaded', text, retraced)"
+          @importStarted="(retraced: boolean) => emit('importStarted', retraced)"
+          @importFailed="(message: string) => emit('importFailed', message)"
+        />
+        <p v-if="error" role="alert" class="text-xs text-red-600">{{ error }}</p>
 
         <div v-if="parsedGroups.length">
           <div class="relative">
@@ -140,8 +150,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             Colors
             <span v-if="colorGroups.length" class="text-gray-400">({{ colorGroups.length }})</span>
           </h3>
-          <p v-if="error" class="text-xs text-red-500">{{ error }}</p>
-          <p v-else-if="parsedGroups.length === 0" class="text-sm text-gray-400">—</p>
+          <p v-if="parsedGroups.length === 0" class="text-sm text-gray-400">—</p>
           <ColorList
             v-else
             :parsed="parsedGroups"
@@ -217,7 +226,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       </PanelCard>
     </div>
 
-    <div class="w-[380px] shrink-0 flex flex-col gap-3">
+    <div class="control-column flex flex-col gap-3">
       <!-- Plate: shape, size, thickness, color -->
       <PanelCard title="Plate">
         <div class="flex items-center justify-between gap-3">
@@ -248,6 +257,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         <SliderField
           label="Thickness" unit="mm" field="baseThickness"
           :modelValue="config.baseThickness" :min="0.4" :max="10" :step="0.1"
+          :note="warning('baseThickness')"
           @update:modelValue="v => updateField('baseThickness', v)"
         />
         <SliderField
@@ -311,7 +321,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           label="Hole diameter" unit="mm" field="keyringHoleDiameter"
           :modelValue="config.keyringHoleDiameter" :min="2" :max="10" :step="0.5"
           :disabled="!config.keyringEnabled"
-          :note="config.keyringEnabled ? adjustment('keyringHoleDiameter') : undefined"
+          :note="config.keyringEnabled ? [adjustment('keyringHoleDiameter'), warning('keyringHoleDiameter')].filter(Boolean).join(' ') : undefined"
           @update:modelValue="v => updateField('keyringHoleDiameter', v)"
         />
         <SliderField

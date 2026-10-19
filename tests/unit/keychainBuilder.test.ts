@@ -1,7 +1,8 @@
-import { expect, test } from 'bun:test'
+import { expect, spyOn, test } from 'bun:test'
 import * as THREE from 'three'
 import { useKeychainBuilder } from '../../src/composables/useKeychainBuilder'
 import { DEFAULT_CONFIG, type ColorGroup, type KeychainConfig } from '../../src/types/keychain'
+import { SVG_LIMITS } from '../../src/utils/svgValidation'
 
 function config(overrides: Partial<KeychainConfig> = {}): KeychainConfig {
   return { ...DEFAULT_CONFIG, keyringEnabled: false, ...overrides }
@@ -14,6 +15,41 @@ function letterO(): ColorGroup {
   shape.holes.push(new THREE.Path().absarc(0, 0, 5, 0, Math.PI * 2, true))
   return { id: '#ff0000', color: '#ff0000', shapes: [shape], pathCount: 1 }
 }
+
+test('over-budget direct builder calls clear the previous model before any outline or CSG work', () => {
+  const scene = new THREE.Scene()
+  const builder = useKeychainBuilder(() => scene)
+  builder.build([letterO()], config({ edgeBevel: 0 }))
+  const shape = new THREE.Shape()
+  shape.moveTo(0, 0)
+  for (let i = 0; i <= SVG_LIMITS.points; i++) shape.lineTo(i, i % 2)
+  const extract = spyOn(shape, 'extractPoints').mockImplementation(() => { throw new Error('must reject before tessellation') })
+  try {
+    for (const group of [
+      { ...letterO(), pathCount: SVG_LIMITS.paths + 1 },
+      { ...letterO(), shapes: Array.from({ length: SVG_LIMITS.shapes + 1 }, () => shape) },
+      { ...letterO(), shapes: [shape] },
+    ]) {
+      expect(builder.build([group], config())).toBeNull()
+      expect(builder.buildError.value?.code).toBe('TOO_COMPLEX')
+      expect(scene.children).toHaveLength(0)
+      expect(builder.dimensions.value.width).toBe(0)
+    }
+    expect(extract).not.toHaveBeenCalled()
+  } finally {
+    extract.mockRestore()
+  }
+})
+
+test('a beveled build does not emit dependency deprecation warnings', () => {
+  const warn = spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    useKeychainBuilder(() => new THREE.Scene()).build([letterO()], config())
+    expect(warn).not.toHaveBeenCalled()
+  } finally {
+    warn.mockRestore()
+  }
+})
 
 function hitsFromAbove(geometry: THREE.BufferGeometry, x: number, y: number): number {
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }))

@@ -1,7 +1,8 @@
-import { expect, spyOn, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { Color } from 'three'
 import { useSvgParser } from '../../src/composables/useSvgParser'
-import { logoOutline, normalizeColor, svgToShapes } from '../../src/utils/svgToShapes'
+import { logoOutline, normalizeColor } from '../../src/utils/svgToShapes'
+import { parseGroups as svgToShapes } from '../helpers/parseGroups'
 import { ShapeUtils, type Shape } from 'three'
 import { installDomParserForSvgLoader } from '../helpers/svgDom'
 
@@ -102,12 +103,12 @@ test('useSvgParser reports when an SVG has no filled paths', () => {
     </svg>
   `)
 
-  expect(parser.error.value).toBe('No filled paths found')
+  expect(parser.error.value).toContain('No filled paths found')
+  expect(parser.diagnostic.value?.code).toBe('NO_FILLED_PATHS')
   expect(parser.colorGroups.value).toEqual([])
 })
 
 test('useSvgParser exposes a friendly error and clears stale groups on parse failure', () => {
-  const consoleError = spyOn(console, 'error').mockImplementation(() => {})
   const parser = useSvgParser()
 
   parser.colorGroups.value = [{
@@ -117,13 +118,9 @@ test('useSvgParser exposes a friendly error and clears stale groups on parse fai
     pathCount: 1,
   }]
 
-  try {
-    parser.parse('<svg')
-
-    expect(parser.error.value).toBe('Failed to parse SVG')
-    expect(parser.colorGroups.value).toEqual([])
-    expect(consoleError).toHaveBeenCalled()
-  } finally {
-    consoleError.mockRestore()
-  }
+  const result = parser.parse('<svg')
+  expect(result.ok).toBe(false)
+  expect(parser.error.value).toContain('not a valid SVG')
+  expect(parser.diagnostic.value?.code).toBe('INVALID_SVG')
+  expect(parser.colorGroups.value).toEqual([])
 })

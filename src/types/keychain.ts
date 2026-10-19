@@ -9,6 +9,8 @@ export interface ColorGroup {
 
 export type BasePlateShape = 'square' | 'circle'
 
+export type BuildStatus = 'pending' | 'ready' | 'error' | 'unavailable'
+
 export interface KeychainConfig {
   basePlateShape: BasePlateShape
   baseThickness: number

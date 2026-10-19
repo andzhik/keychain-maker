@@ -57,7 +57,9 @@ async function renderKeychain(
   addLights(scene)
 
   const builder = useKeychainBuilder(() => scene)
-  const groups = svgString.trim() ? svgToShapes(svgString) : []
+  const parsed = svgString.trim() ? svgToShapes(svgString) : { ok: true as const, groups: [] }
+  if (!parsed.ok) throw new Error(parsed.error.message)
+  const groups = parsed.groups
   const root = builder.build(groups, config)
   if (!root) throw new Error('Keychain build returned null')
 

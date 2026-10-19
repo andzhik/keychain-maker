@@ -54,7 +54,7 @@ test('changing smoothing preserves the logo preview zoom and pan', async () => {
       'Fit must frame the current smoothed geometry')
 
     // A fresh upload, including the same raster file, should still reset the view.
-    for (const file of ['test-images/logo-white.png', 'test-svg/logo.svg']) {
+    for (const file of ['test-images/logo-white.png', 'test-svg/c1.svg']) {
       await preview.hover()
       await page.mouse.wheel(0, -600)
       await panel.getByRole('button', { name: 'Fit', exact: true }).waitFor()

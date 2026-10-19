@@ -1,5 +1,52 @@
 # GitHub issue audit — 2026-10-18
 
+## Follow-up implementation
+
+The audit below is a historical snapshot at `18ad387`. The follow-up started from
+`0afe229` after confirming local and remote `master` matched. GitHub #2 is now
+closed; nine issues were open at the recheck. That status change did not add a
+dedicated CI workflow to this checkout.
+
+Revalidated and addressed #10, #11, #3, and #5:
+
+- **#10:** tracing already existed. Upload attempts now invalidate old artwork;
+  read/decode/trace/validation failures clear parsed and persisted artwork and
+  prevent stale exports. Generation checks discard late successes and failures.
+- **#11:** desktop retains the parameter columns, tablet stacks the preview below
+  two control columns, and phone screens use one scrolling column. Download,
+  dimensions, readiness, and enlarged previews stay reachable. Export waits for
+  the current successful build; thin-base/keyring advice uses a shared utility.
+- **#3:** `svgToShapes` now returns a typed result with actionable unsupported-
+  feature diagnostics. Inline styles, transforms, holes, white fills, local
+  bounded xlink copies, and supported existing fixtures are covered.
+- **#5:** profiling was already dev-only and rebuilds already used a **60 ms**
+  debounce. Added budgets before SVGLoader, polygon clipping, and the builder's
+  outline/CSG stages, including single-path tessellation and fragmentation.
+  Explicit equivalent BVH setup also removes dependency deprecation warnings.
+
+README now documents the actual 60 ms debounce, labels the old latency baseline
+as historical, describes import budgets/readiness, and identifies `logo.svg` as
+an unsupported live-text vector fixture and `broken logo.svg` as malformed XML.
+The rasterized logo fixtures remain valid tracing inputs.
+
+Follow-up verification:
+
+- **99 unit tests** and **12 browser tests** pass; production type-check/build passes.
+- Browser regressions cover stale raster failures, late upload successes/failures,
+  SVG diagnostics and recovery, invalid persistence, current-model downloads,
+  advisory printability, WebGL fallback, responsive/enlarged previews, and zoom.
+- Production screenshots were inspected at 390, 768, and 1400 px, with no browser
+  console messages during import and rebuild at any of those widths.
+- Comparing the previous and current mesh builders across all five supported SVG
+  fixtures, with bevel 0 and 0.6 mm, produced identical geometry attributes and indices.
+- The existing Vite warning about a JavaScript chunk over 500 kB remains.
+
+The work does not implement #9's cleanup/report workflow or #7's builder split.
+Config validation gaps from #4 remain separate; printability advice is not a
+geometry-validity check. Issue states and comments were not changed by this work.
+
+## Original audit
+
 Reviewed all ten GitHub issues (#2–#11) against `master` at
 [`18ad3878a785cb345f7de8649211c393c095be63`](https://github.com/andzhik/keychain-maker/commit/18ad3878a785cb345f7de8649211c393c095be63).
 The remote branch and local checkout matched. The repository's #1 is a closed

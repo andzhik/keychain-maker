@@ -10,7 +10,7 @@ import { useLogoRefinement } from './composables/useLogoRefinement'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
 import { loadState, saveConfig, saveRefinements, saveShowLogo, saveSvg } from './utils/persistence'
-import type { KeychainConfig, Refinements } from './types/keychain'
+import type { BuildStatus, KeychainConfig, Refinements } from './types/keychain'
 import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
@@ -27,21 +27,69 @@ const refinements = ref<Refinements>(saved.refinements)
 const constrained = computed(() => constrainConfig(config.value))
 const exporting = ref(false)
 const exportError = ref<string | null>(null)
-const { colorGroups: parsedGroups, error, parse } = useSvgParser()
+const importing = ref(false)
+const importError = ref<string | null>(null)
+const buildStatus = ref<BuildStatus>('pending')
+const modelError = ref<string | null>(null)
+const { colorGroups: parsedGroups, error, parse, clear } = useSvgParser()
 // Parsed before ThreeViewer mounts, so its first build already has the logo.
-if (svgText.value) parse(svgText.value)
+if (svgText.value && !parse(svgText.value).ok) {
+  svgText.value = null
+  saveSvg(null)
+}
 const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.config))
 const colorGroups = refined.groups
 
 function handleSvgLoaded(text: string, retraced = false) {
-  svgText.value = text
+  importing.value = false
+  importError.value = null
   if (!retraced) logoSourceKey.value++
   // Recolors and hidden shapes refer to the old logo's colors and shapes; the
   // cleanup settings (tolerance, color limit, specks, nozzle) carry over.
   refinements.value = { ...refinements.value, recolor: {}, hiddenColors: [], hiddenShapes: [] }
-  parse(text)
-  saveSvg(text)
+  const result = parse(text)
+  svgText.value = result.ok ? text : null
+  saveSvg(svgText.value)
 }
+
+function handleImportStarted(retraced: boolean) {
+  importing.value = true
+  importError.value = null
+  exportError.value = null
+  if (!retraced) {
+    clear()
+    svgText.value = null
+    saveSvg(null)
+  }
+}
+
+function handleImportFailed(message: string) {
+  importing.value = false
+  importError.value = message
+  clear()
+  svgText.value = null
+  saveSvg(null)
+}
+
+function handleBuildStatus(status: BuildStatus, message?: string) {
+  buildStatus.value = status
+  modelError.value = message ?? null
+}
+
+const artworkError = computed(() => importError.value ?? error.value)
+const canExport = computed(() => parsedGroups.value.length > 0 && !artworkError.value
+  && !importing.value && buildStatus.value === 'ready' && !exporting.value)
+const hasPrintedLogo = computed(() => showLogo.value && colorGroups.value.length > 0)
+const exportLabel = computed(() => parsedGroups.value.length === 0 || hasPrintedLogo.value
+  ? 'Download .3mf' : 'Download .3mf (base only)')
+const readiness = computed(() => {
+  if (importing.value) return 'Importing artwork…'
+  if (artworkError.value) return 'Fix the artwork import before exporting.'
+  if (modelError.value) return modelError.value
+  if (parsedGroups.value.length === 0) return 'Upload artwork to create a keychain.'
+  if (buildStatus.value === 'pending') return 'Updating model…'
+  return hasPrintedLogo.value ? 'Ready to export.' : 'Ready to export the base only.'
+})
 
 // Shared by the inline logo preview and the enlarged one beside the 3D view.
 const previewData = computed<LogoPreviewData>(() => ({
@@ -69,6 +117,7 @@ watch(showLogo, (value) => saveShowLogo(value))
 watch(refinements, (value) => saveRefinements(value), { deep: true })
 
 async function handleExport() {
+  if (!canExport.value) return
   const group = viewerRef.value?.getCurrentGroup()
   if (!group) return
   exporting.value = true
@@ -111,17 +160,15 @@ const buildTimeText = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-gray-50 text-gray-900 overflow-hidden">
+  <div class="app-shell flex flex-col bg-gray-50 text-gray-900">
     <!-- Header -->
     <header class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 shrink-0">
       <h1 class="text-base font-semibold tracking-tight">Keychain Maker</h1>
     </header>
 
-    <!-- Three columns: logo | settings (fixed widths, scroll if needed) | preview (takes the rest).
-         --logo-column is the first column's width; the enlarged preview starts right after it. -->
-    <div class="relative flex flex-1 min-h-0 gap-3 p-3" style="--logo-column: 300px">
+    <!-- Desktop keeps three columns; narrower screens scroll vertically. -->
+    <main class="workspace relative gap-3 p-3">
       <ControlPanel
-        class="shrink-0 min-h-0 overflow-y-auto"
         :parsedGroups="parsedGroups"
         :colorGroups="colorGroups"
         :preview="previewData"
@@ -131,23 +178,27 @@ const buildTimeText = computed(() => {
         :outlinePoints="refined.outlinePoints.value"
         :thinFeatures="refined.thinFeatures.value"
         :minFeatureWidth="refined.minFeatureWidth.value"
-        :error="error"
+        :error="artworkError"
         v-model:showLogo="showLogo"
         v-model:config="config"
         v-model:refinements="refinements"
         :adjustments="constrained.adjustments"
+        :effectiveConfig="constrained.config"
         @svgLoaded="handleSvgLoaded"
+        @importStarted="handleImportStarted"
+        @importFailed="handleImportFailed"
         @toggleShape="toggleShape"
       />
 
-      <aside class="flex-1 min-w-[320px] flex flex-col gap-2">
-        <div class="relative flex-1 min-h-0 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+      <aside class="model-preview min-w-0 flex flex-col gap-2" aria-label="3D preview and export">
+        <div class="three-frame relative bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
           <ThreeViewer
             ref="viewerRef"
             :colorGroups="colorGroups"
             :fitKey="parsedGroups"
             :showLogo="showLogo"
             :config="constrained.config"
+            @buildStatus="handleBuildStatus"
           />
           <button
             class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
@@ -156,20 +207,21 @@ const buildTimeText = computed(() => {
             Reset View
           </button>
         </div>
-        <div class="flex items-center justify-between gap-3 shrink-0">
+        <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
             <p>Dimensions: {{ dimText }}</p>
-            <p>Render time: {{ buildTimeText }}</p>
+            <p>Build time: {{ buildTimeText }}</p>
           </div>
-          <div class="w-48 shrink-0">
+          <div class="w-full sm:w-48 shrink-0">
             <ExportButton
-              :disabled="parsedGroups.length === 0"
+              :disabled="!canExport"
               :exporting="exporting"
-              :label="showLogo ? 'Download .3mf' : 'Download .3mf (base only)'"
+              :label="exportLabel"
               @export="handleExport"
             />
           </div>
         </div>
+        <p role="status" aria-live="polite" class="text-xs shrink-0" :class="modelError ? 'text-red-600' : 'text-gray-500'">{{ readiness }}</p>
         <p v-if="exportError" class="text-xs text-red-500 shrink-0">{{ exportError }}</p>
       </aside>
 
@@ -177,11 +229,11 @@ const buildTimeText = computed(() => {
            the logo and refine controls next to it usable. -->
       <LogoPreviewPanel
         v-if="showPreviewPanel"
-        class="absolute inset-y-3 right-3 left-[calc(var(--logo-column)+1.5rem)] z-10 shadow-xl"
+        class="expanded-preview z-10 shadow-xl"
         :preview="previewData"
         @close="previewExpanded = false"
         @toggleShape="toggleShape"
       />
-    </div>
+    </main>
   </div>
 </template>

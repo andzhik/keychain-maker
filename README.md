@@ -24,6 +24,8 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Add or remove the keyring hole
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
+- See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
+- Use the full controls and export flow on phone and tablet screens with a vertically scrolling layout
 - Remember the last SVG, settings and refinements across reloads (browser localStorage)
 
 ## Best SVG Inputs
@@ -34,6 +36,37 @@ For the cleanest geometry, use simple SVG artwork made from filled paths.
 - Avoid gradients, filters, clip paths, masks, and embedded images
 - Prefer logos with clear color regions and moderate path complexity
 - A traced PNG works best for flat logos with a few solid colors; photos and gradients come out posterized. With an opaque background, white details touching the background are removed with it
+
+## Import Validation and Limits
+
+The SVG parser returns a structured success/error result. Unsupported text,
+images, gradient/pattern fills, stylesheets, clipping, masks, filters, and unsupported
+linked copies produce visible instructions instead of silently losing artwork.
+Inline fills/styles, transforms, holes, white fills, and bounded local `xlink:href`
+copies of paths or groups remain supported. Unused paint definitions are ignored.
+
+The shared budgets in `src/utils/svgValidation.ts` apply to uploads, raster-generated
+SVGs, and restored sessions:
+
+| Budget | Limit |
+| --- | --- |
+| SVG file size | 2 MiB |
+| Elements, including expanded local references | 4,096 |
+| Nesting depth | 64 |
+| Paths or primitive shapes | 512 |
+| Filled shapes after conversion/paint-order resolution | 512 |
+| Tessellated outline points, including holes | 20,000 |
+| Numeric values in path, point, and transform attributes | 40,000 |
+
+Markup limits run before SVGLoader. Tessellation and shape limits run before
+polygon clipping; resolved geometry is checked again, and the builder independently
+checks its input before outline unions, extrusion, or CSG. Degenerate/nonfinite
+geometry and filled bounds of 0.0000001 SVG units or less are rejected. Simplify
+the source artwork or trace a smaller image with fewer colors when a limit is reached.
+
+The base-thickness and keyring-wall messages are advisory: the base recommendation
+is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
+is 2 mm. These strength guidelines do not block export of valid geometry.
 
 ## Tech Stack
 
@@ -60,7 +93,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | --- | --- |
 | `bun run dev` | Start the Vite dev server |
 | `bun run test` | Run focused unit tests for geometry and SVG parsing |
-| `bun run test:browser` | Check logo preview zoom behavior in headless Chromium |
+| `bun run test:browser` | Check import failures/races, export readiness/downloads, responsive layouts, and preview zoom in headless Chromium |
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
@@ -83,6 +116,12 @@ The render harness lives in `test-render/` and runs under Node because Playwrigh
 
 `test-images/` holds PNG, JPEG and WebP renders of the SVGs in `test-svg/` (same file names), for checking the image tracer against the original vector. The set covers transparent backgrounds, a solid white background, lossy JPEG/WebP noise, and sizes above and below the tracer's 512 px. `bun run rasterize` regenerates them; `bun run rasterize test-svg/logo.svg webp 512 none` renders a single file.
 
+Not every SVG fixture is a supported vector import: `logo.svg` contains live text
+and must report `TEXT_NOT_CONVERTED`; `broken logo.svg` has malformed XML and must
+report `INVALID_SVG`. Browser rasterization can render text, so the raster versions
+of `logo.svg` remain useful tracing fixtures. Use `c1.svg`, `coffee-badge.svg`,
+`hills-badge.svg`, `name-tag.svg`, or `smile-heart.svg` for successful vector imports.
+
 ## Latency Probe
 
 `bun run measure` drives the real app in headless Chromium, moves sliders, and reports per change: debounce wait, mesh build, wait for the next frame, GPU render, and total. It also prints the dev profiler's build-phase breakdown and simulates a 1 s slider drag.
@@ -92,7 +131,10 @@ bun run measure test-svg/c1.svg gpu          # real GPU via ANGLE/D3D11
 bun run measure test-svg/c1.svg swiftshader  # CPU-emulated WebGL; render times are inflated
 ```
 
-Baseline (c1.svg, RTX 3070, 1100×814 canvas): ~155 ms debounce + ~435 ms build + ~13 ms render ≈ **600 ms** per change. Almost all of the build is the CSG subtraction (see Gotchas).
+Historical baseline with a 150 ms debounce (c1.svg, RTX 3070, 1100×814 canvas):
+~155 ms debounce + ~435 ms build + ~13 ms render ≈ **600 ms** per change.
+The current debounce is **60 ms**; run the probe for current timings. Almost all
+of the historical build time was CSG subtraction (see Gotchas).
 
 ## Design Decisions & Gotchas
 
@@ -107,13 +149,16 @@ Things that look wrong or slow but are deliberate. Read before "fixing" them.
 - **Thin features are only flagged, not fixed, and the check is raster-based.** Thickening needs a polygon offset, which polygon-clipping can't do (Clipper2 could). `findThinFeatures` rasterizes the colors and the plate gaps and runs a morphological opening with exact distance transforms (~30 ms, debounced). Every acute corner fails by a sliver, so areas under a quarter of the minimum width squared are ignored; tips sharper than ~45° are still flagged, because they really do print blunt.
 - **PNG tracing goes through SVG, and smooths borders, not regions.** `traceImage` (`src/utils/traceImage.ts`) quantizes colors, then treats the borders between colors as one graph on the pixel-corner grid, with junctions (three or more colors meeting) fixed. Each border is smoothed once for the colors on both sides, so neighbors stay sealed without the shared-border simplifier. Per border: Gaussian smoothing and Ramer–Douglas–Peucker take out the pixel staircase (plain RDP keeps its notches; smoothing alone leaves kinks along nearly straight runs), then Potrace's tests split the polygon into corners and curves. A point is a corner when it stands out from the line between its edges' middles by more than the *round corners* setting times the simplification tolerance (which grows with smoothing, so a coarser polygon doesn't turn curves into corners). Corners go back to where lines fitted to the unsmoothed pixels meet, because smoothing rounds them off. A corner that anti-aliasing cut into two close points between long edges is restored the same way, but only between long edges, or the steps of an O would become sharp. Every other point becomes a quadratic curve from edge middle to edge middle, and is first moved to where lines fitted to the smoothed border meet, or curves shrink inward. Anti-aliasing clusters are recognized by color *and* position: a color lying between two bigger ones is dropped only if most of its pixels sit on borders, otherwise a real color (gold between coral and white) is lost. One-pixel hairlines left along borders (blends that matched a real color) are cleared with the lone pixels. The background is the corners' color flood-filled from the border, not every pixel of that color, so white letters on a white page survive. The result is an ordinary SVG, so a traced logo is persisted, refined and exported like any upload.
 - **The camera refits for a new SVG, not for refinements.** `ThreeViewer`'s `fitKey` is the parsed groups array, so hiding a shape or merging colors rebuilds the model without resetting your view.
-- **Config changes are debounced, not throttled.** `ThreeViewer.vue` waits for 150 ms with no input before rebuilding. While a slider is being dragged nothing rebuilds; the model updates after you pause. Because the build itself takes ~400 ms, rebuilding mid-drag would stall the UI.
+- **Config changes are debounced, not throttled.** `ThreeViewer.vue` waits for 60 ms with no input before rebuilding. While inputs keep arriving within that window nothing rebuilds; the model updates after you pause. CSG builds are synchronous, so input complexity is bounded before building and export stays disabled while a rebuild is pending.
+- **Import attempts invalidate old artwork.** A new upload clears the old parsed/persisted SVG immediately. Decode, read, trace, and validation failures leave no stale logo in the scene. Each async read/decode belongs to an upload generation, so a late result cannot overwrite a newer upload. Retracing preserves the mounted 2D preview and its zoom while pending, then invalidates artwork if it fails.
+- **Export readiness follows the current build.** The viewer reports pending, ready, failed, or unavailable states. Its export group is unavailable while inputs are pending; WebGL/build/import failures disable Download. The default plain plate can still appear without uploaded artwork, but export requires a valid import.
 - **Rendering is on demand.** `useThreeScene` only draws when `requestRender()` is called (or while orbit damping settles). Any code that changes the scene must call `requestRender()` or `fitCamera()`, or the change won't appear until the next mouse move.
 - **`colorGroups` is compared by identity.** The viewer's watcher isn't deep, and the logo outline union is cached per array instance (in `logoOutline`). A new SVG or refinement must produce a new array; changing the old one in place won't trigger a rebuild or a new outline.
 - **The logo's mirror and scale are baked into the geometry.** The SVG's Y flip is a negative scale. Putting it on a group transform would export to 3MF as a mirrored node, which slicers handle inconsistently, so it's applied to the vertices instead.
 - **The model is built from clamped config, not the slider values.** `constrainConfig()` clamps combinations that break the geometry (e.g. a keyring hole bigger than its ring, or padding that would eat the whole logo). The UI keeps your raw values.
 - **`ThreeViewer.vue` edits force a full page reload in dev.** It owns a WebGL context that can't be hot-swapped safely; swapping it in place would leak a context on every save.
 - **The build profiler only runs in dev.** `src/utils/profiler.ts` logs a collapsed `[keychain build]` table to the console on every rebuild in `bun run dev`, and does nothing in production builds.
+- **CSG acceleration trees are prepared explicitly.** `three-bvh-csg` 0.0.17 uses the deprecated `maxLeafTris` option with the installed `three-mesh-bvh`. `meshBuilder.ts` supplies the equivalent indexed, indirect trees using `maxLeafSize: 3` so ordinary builds do not emit deprecation warnings. Keep the triangle order and CSG build order unchanged.
 
 ## Deployment
 

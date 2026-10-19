@@ -2,13 +2,16 @@
 import { onBeforeUnmount, ref, shallowRef } from 'vue'
 import SliderField from './SliderField.vue'
 import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
+import { SVG_LIMITS, complexityError } from '../utils/svgValidation'
 
 const emit = defineEmits<{
   svgLoaded: [svgString: string, retraced?: boolean]
+  importStarted: [retraced: boolean]
+  importFailed: [message: string]
 }>()
 
 const isDragging = ref(false)
-const readError = ref<string | null>(null)
+const reading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 // The last raster upload, kept so changing the trace options can re-trace it.
@@ -19,38 +22,39 @@ const COLOR_OPTIONS = [2, 3, 4, 5, 6, 7, 8]
 // model rebuild after it longer.
 const RETRACE_DELAY = 150
 let retraceTimer: ReturnType<typeof setTimeout> | undefined
-onBeforeUnmount(() => clearTimeout(retraceTimer))
+let requestId = 0
+onBeforeUnmount(() => { requestId++; clearTimeout(retraceTimer) })
 
 const isSvg = (file: File) => file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml'
 const isRaster = (file: File) => /^image\/(png|jpeg|webp)$/.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name)
 
-function handleFile(file: File) {
-  readError.value = null
-  if (isSvg(file)) readSvg(file)
-  else if (isRaster(file)) void readRaster(file)
-}
-
-function readSvg(file: File) {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    raster.value = null
-    emit('svgLoaded', e.target?.result as string)
-  }
-  reader.onerror = () => {
-    readError.value = `Could not read "${file.name}".`
-  }
-  reader.readAsText(file)
-}
-
-async function readRaster(file: File) {
+async function handleFile(file: File) {
+  const currentRequest = ++requestId
+  clearTimeout(retraceTimer)
+  raster.value = null
+  reading.value = true
+  emit('importStarted', false)
   try {
-    raster.value = { name: file.name, image: await decodeImage(file) }
-  } catch (e) {
-    console.error('Failed to decode image:', e)
-    readError.value = `Could not read "${file.name}".`
-    return
+    if (isSvg(file)) {
+      if (file.size > SVG_LIMITS.bytes) {
+        emit('importFailed', complexityError('The SVG file limit is 2 MiB.').message)
+        return
+      }
+      const text = await file.text()
+      if (currentRequest === requestId) emit('svgLoaded', text)
+    } else if (isRaster(file)) {
+      const image = await decodeImage(file)
+      if (currentRequest !== requestId) return
+      raster.value = { name: file.name, image }
+      retrace(false)
+    } else {
+      emit('importFailed', 'Choose an SVG, PNG, JPEG or WebP file.')
+    }
+  } catch {
+    if (currentRequest === requestId) emit('importFailed', `Could not read "${file.name}".`)
+  } finally {
+    if (currentRequest === requestId) reading.value = false
   }
-  retrace()
 }
 
 /** The image's pixels, scaled so its longer side is TRACE_SIZE (small images are smoothed up). */
@@ -75,15 +79,16 @@ function retrace(retraced = false) {
   if (!raster.value) return
   try {
     emit('svgLoaded', traceImage(raster.value.image, traceOptions.value), retraced)
-  } catch (e) {
-    console.error('Failed to trace image:', e)
-    readError.value = `Could not trace "${raster.value.name}".`
+  } catch {
+    emit('importFailed', `Could not trace "${raster.value.name}". Try fewer colors or more smoothing.`)
   }
 }
 
 function setTraceOption<K extends keyof TraceOptions>(field: K, value: TraceOptions[K], debounce = false) {
   traceOptions.value = { ...traceOptions.value, [field]: value }
   clearTimeout(retraceTimer)
+  if (!raster.value) return
+  emit('importStarted', true)
   if (debounce) retraceTimer = setTimeout(() => retrace(true), RETRACE_DELAY)
   else retrace(true)
 }
@@ -91,13 +96,13 @@ function setTraceOption<K extends keyof TraceOptions>(field: K, value: TraceOpti
 function onDrop(e: DragEvent) {
   isDragging.value = false
   const file = e.dataTransfer?.files[0]
-  if (file) handleFile(file)
+  if (file) void handleFile(file)
 }
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
-  if (file) handleFile(file)
+  if (file) void handleFile(file)
   // Reset so picking the same file again still fires `change`.
   input.value = ''
 }
@@ -133,7 +138,7 @@ function onFileChange(e: Event) {
       />
     </div>
 
-    <p v-if="readError" class="text-xs text-red-500">{{ readError }}</p>
+    <p v-if="reading" role="status" class="text-xs text-gray-500">Reading artwork…</p>
 
     <!-- Trace options, for a raster upload -->
     <div v-if="raster" class="flex flex-col gap-1.5 text-xs text-gray-600">
@@ -184,7 +189,7 @@ function onFileChange(e: Event) {
     <!-- UI note -->
     <p class="text-[11px] text-gray-400 leading-snug">
       For best results, use flat SVGs without gradients, filters, clip-paths, or text elements.
-      PNGs are traced into flat colors; logos with few, solid colors trace best.
+      PNGs are traced into flat colors; logos with few, solid colors trace best. Traced artwork may need cleanup before printing.
     </p>
   </div>
 </template>

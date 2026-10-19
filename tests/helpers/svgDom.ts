@@ -6,9 +6,13 @@ type XmlEntry = Record<string, unknown>
 
 class TestElement {
   nodeType = 1
-  style = new Proxy({}, {
-    get: () => '',
-  })
+  get style() {
+    const values = Object.fromEntries((this.attributes.style ?? '').split(';').map(part => {
+      const colon = part.indexOf(':')
+      return [part.slice(0, colon).trim(), part.slice(colon + 1).trim()]
+    }))
+    return new Proxy(values, { get: (target, key: string) => target[key] ?? '' })
+  }
   viewportElement: TestElement
 
   constructor(
@@ -43,6 +47,7 @@ class TestElement {
 
 class TestDocument {
   constructor(readonly documentElement: TestElement) {}
+  getElementById(id: string) { return this.documentElement.getElementById(id) }
 }
 
 export function installDomParserForSvgLoader() {
@@ -61,7 +66,7 @@ export function installDomParserForSvgLoader() {
         preserveOrder: true,
       })
       const rootEntry = (parser.parse(text) as XmlEntry[])
-        .find(entry => Object.keys(entry)[0] !== ':@')
+        .find(entry => Object.keys(entry).some(key => key !== ':@' && !key.startsWith('?') && key !== '#text'))
 
       if (!rootEntry) throw new Error('SVG has no root element')
 
@@ -76,7 +81,7 @@ function buildElement(entry: XmlEntry): TestElement {
   const nodeName = getElementName(entry)
   if (!nodeName) throw new Error('XML entry is not an element')
   const entries = entry[nodeName] as XmlEntry[] | undefined
-  const rawAttributes = entry[':@'] ?? entries?.find(child => child[':@'])?.[':@'] ?? {}
+  const rawAttributes = entry[':@'] ?? {}
   const attributes = Object.fromEntries(
     Object.entries(rawAttributes as Record<string, string>)
       .map(([key, value]) => [key.replace(/^@_/, ''), value]),

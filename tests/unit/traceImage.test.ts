@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { ShapeUtils, type Shape } from 'three'
-import { logoOutline, svgToShapes } from '../../src/utils/svgToShapes'
+import { logoOutline, svgToShapes as parseSvg } from '../../src/utils/svgToShapes'
+import { parseGroups as svgToShapes } from '../helpers/parseGroups'
 import { traceImage, type RasterImage } from '../../src/utils/traceImage'
 import { installDomParserForSvgLoader } from '../helpers/svgDom'
 
@@ -101,7 +102,7 @@ test('traceImage smooths staircases without opening gaps between colors', () => 
 
 test('traceImage returns an empty SVG for a fully transparent image', () => {
   const svg = traceImage(image(10, 10, () => CLEAR), { colors: 4, removeBackground: true })
-  expect(svgToShapes(svg)).toEqual([])
+  expect(parseSvg(svg)).toMatchObject({ ok: false, error: { code: 'NO_FILLED_PATHS' } })
 })
 
 test('traceImage follows a curve, not the pixel staircase', () => {

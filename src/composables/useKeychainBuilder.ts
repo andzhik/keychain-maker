@@ -1,11 +1,12 @@
 import * as THREE from 'three'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/meshBuilder'
 import { Profiler } from '../utils/profiler'
 import { constrainConfig } from '../utils/configConstraints'
 import { logoOutline } from '../utils/svgToShapes'
 import { fitLogo } from '../utils/logoFit'
+import { validateGroupComplexity, type SvgParseError } from '../utils/svgValidation'
 
 export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   let currentGroup: THREE.Group | null = null
@@ -15,6 +16,7 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
   const dimensions = ref({ width: 0, height: 0, depth: 0 })
   // Wall-clock time of the last mesh build, in ms (null before the first build).
   const buildMs = ref<number | null>(null)
+  const buildError = shallowRef<SvgParseError | null>(null)
 
   function disposeCurrent() {
     if (!currentGroup) return
@@ -35,6 +37,10 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     const profiler = new Profiler('keychain build')
     const { config } = constrainConfig(rawConfig)
     profiler.measure('disposeCurrent', () => disposeCurrent())
+    dimensions.value = { width: 0, height: 0, depth: 0 }
+    buildMs.value = null
+    buildError.value = validateGroupComplexity(colorGroups)
+    if (buildError.value) return null
     const scene = getScene()
     if (!scene) return null
 
@@ -51,6 +57,8 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     // Parent group — rotation applied once to lay everything flat on XZ
     const root = new THREE.Group()
     root.rotation.x = -Math.PI / 2
+    // Keep partial geometry reachable for disposal if a later build step fails.
+    currentGroup = root
 
     // Logo cutout shapes (step 5), one per connected outline part. Each keeps
     // its holes so a logo counter (the middle of an "O") stays as plate
@@ -121,6 +129,8 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
 
   function dispose() {
     disposeCurrent()
+    dimensions.value = { width: 0, height: 0, depth: 0 }
+    buildMs.value = null
   }
 
   function setLogoVisible(visible: boolean) {
@@ -128,5 +138,5 @@ export function useKeychainBuilder(getScene: () => THREE.Scene | null) {
     if (logoGroupRef) logoGroupRef.visible = visible
   }
 
-  return { build, dispose, dimensions, buildMs, setLogoVisible }
+  return { build, dispose, dimensions, buildMs, buildError, setLogoVisible }
 }

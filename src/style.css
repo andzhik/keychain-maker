@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+.app-shell {
+  min-height: 100dvh;
+}
+
+.workspace, .control-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.control-column {
+  min-width: 0;
+}
+
+.three-frame {
+  height: 320px;
+}
+
+.expanded-preview {
+  position: fixed;
+  inset: 12px;
+}
+
+@media (min-width: 720px) {
+  .control-panel {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .three-frame {
+    height: 420px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .app-shell {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .workspace {
+    grid-template-columns: 692px minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+  }
+  .control-panel {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+  }
+  .model-preview {
+    min-height: 0;
+  }
+  .three-frame {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+  .expanded-preview {
+    position: absolute;
+    left: 324px;
+  }
+}
