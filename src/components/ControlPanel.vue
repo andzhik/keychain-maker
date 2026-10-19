@@ -5,6 +5,7 @@ import LogoPreview, { type LogoPreviewData } from './LogoPreview.vue'
 import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
+import WarningTooltip from './WarningTooltip.vue'
 import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
@@ -52,7 +53,6 @@ const emit = defineEmits<{
 const showThinFeatures = defineModel<boolean>('showThinFeatures', { required: true })
 
 const MAX_COLOR_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]
-const OUTLINE_POINT_WARNING_THRESHOLD = 500
 
 function updateRefinement<K extends keyof Refinements>(field: K, value: Refinements[K]) {
   emit('update:refinements', { ...props.refinements, [field]: value })
@@ -83,6 +83,7 @@ function resetRefinements() {
 }
 
 const fmtMm = (mm: number) => mm.toFixed(2).replace(/0$/, '')
+const nozzleWarning = computed(() => `${props.thinFeatures.count} thin area${props.thinFeatures.count !== 1 ? 's' : ''} under ${fmtMm(props.minFeatureWidth)} mm (2 nozzle widths) may not print. Enable Thin areas to highlight.`)
 
 const SHAPES: { value: BasePlateShape; label: string }[] = [
   { value: 'square', label: 'Square' },
@@ -227,22 +228,18 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
           />
           <p v-if="pointsNote" class="mt-0.5 text-xs text-gray-500">{{ pointsNote }}</p>
-          <p v-if="outlinePoints.after > OUTLINE_POINT_WARNING_THRESHOLD" role="status" class="mt-0.5 text-xs text-amber-600">
-            Over {{ OUTLINE_POINT_WARNING_THRESHOLD }} outline points remain. Model updates may be slow.
-            Increase Simplify to reduce outline complexity.
-          </p>
         </div>
         <div>
           <SliderField
             label="Nozzle" unit="mm" field="nozzleDiameter" labelWidth="w-24"
             :modelValue="refinements.nozzleDiameter" :min="0.2" :max="1" :step="0.05"
             @update:modelValue="v => updateRefinement('nozzleDiameter', v)"
-          />
-          <p v-if="thinFeatures.count" class="mt-0.5 text-xs text-amber-600">
-            {{ thinFeatures.count }} feature{{ thinFeatures.count !== 1 ? 's' : '' }} under {{ fmtMm(minFeatureWidth) }} mm
-            (2 nozzle widths) may not print. Enable Thin areas in either 2D preview to highlight them in red.
-          </p>
-          <p v-else-if="parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
+          >
+            <template #labelSuffix>
+              <WarningTooltip v-if="thinFeatures.count" label="Nozzle warning" :message="nozzleWarning" align="left" placement="above" />
+            </template>
+          </SliderField>
+          <p v-if="!thinFeatures.count && parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
             No thin areas detected at {{ fmtMm(minFeatureWidth) }} mm (2 nozzle widths).
           </p>
           <p v-if="showLogo && tinyIslands.count" role="status" class="mt-0.5 text-xs text-amber-600">

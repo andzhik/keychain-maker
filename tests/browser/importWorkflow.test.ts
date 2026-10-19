@@ -204,7 +204,7 @@ test('outline complexity advice starts above 500 refined points, including holes
     await page.goto(url)
     const simplify = page.getByRole('slider', { name: 'Simplify', exact: true })
     await simplify.fill('0')
-    const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
+    const advice = page.locator('.three-frame').getByRole('button', { name: 'Outline complexity warning', exact: true })
     const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
     const ring = (count: number, radius: number) => Array.from({ length: count }, (_, i) => {
       const angle = i / count * Math.PI * 2
@@ -219,7 +219,14 @@ test('outline complexity advice starts above 500 refined points, including holes
       assert.equal(await advice.count(), points > 500 ? 1 : 0)
       assert.equal(await download.isEnabled(), true, 'complexity advice must allow valid exports')
     }
-    assert.match(await advice.innerText(), /Increase Simplify/)
+    await advice.hover()
+    const tooltip = page.getByRole('tooltip').filter({ hasText: 'Over 500 outline points' })
+    await tooltip.waitFor()
+    assert.match(await tooltip.innerText(), /Increase Simplify/)
+    await page.screenshot({ path: 'test-output/outline-warning-tooltip.png' })
+    await advice.focus()
+    await advice.press('Escape')
+    await tooltip.waitFor({ state: 'hidden' })
 
     await simplify.fill('0.02')
     await advice.waitFor({ state: 'hidden' })
@@ -274,7 +281,7 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
 
 for (const width of [390, 1400]) {
   test(`thin-area visibility stays synchronized between 2D previews at ${width}px`, async () => {
-    const page = await browser.newPage({ viewport: { width, height: 900 } })
+    const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width === 390 })
     try {
       await page.goto(url)
       await page.locator('input[type="file"]').setInputFiles({ name: 'thin.svg', mimeType: 'image/svg+xml',
@@ -312,9 +319,21 @@ for (const width of [390, 1400]) {
       assert.equal(await enlarged.getAttribute('viewBox'), zoomedView)
       assert.equal(await enlarged.locator('path.edges').count(), 1)
       assert.equal(await enlarged.locator('path.original').count(), 1)
-      await page.getByText(/may not print\. Enable Thin areas/).waitFor()
+      const nozzleWarning = page.getByRole('button', { name: 'Nozzle warning', exact: true })
+      assert.equal(await nozzleWarning.count(), 1, 'hiding the overlay must preserve nozzle advice')
 
       await panel.getByRole('button', { name: 'Close', exact: true }).click()
+      if (width === 390) await nozzleWarning.tap()
+      else await nozzleWarning.focus()
+      const nozzleTooltip = page.getByRole('tooltip').filter({ hasText: '2 nozzle widths' })
+      await nozzleTooltip.waitFor()
+      assert.match(await nozzleTooltip.innerText(), /1 thin area under 0.8 mm.*may not print/)
+      await page.screenshot({ path: `test-output/nozzle-warning-${width}.png` })
+      const tooltipBox = await nozzleTooltip.boundingBox()
+      assert.ok(tooltipBox && tooltipBox.x >= 0 && tooltipBox.x + tooltipBox.width <= width)
+      assert.ok(tooltipBox && tooltipBox.y >= 0 && tooltipBox.y + tooltipBox.height <= 900)
+      await nozzleWarning.press('Escape')
+      await nozzleTooltip.waitFor({ state: 'hidden' })
       await inlineToggle.check()
       await inline.locator('path.thin').waitFor()
       await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()

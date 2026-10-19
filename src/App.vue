@@ -5,6 +5,7 @@ import ExportButton from './components/ExportButton.vue'
 import LogoPreviewPanel from './components/LogoPreviewPanel.vue'
 import type { LogoPreviewData } from './components/LogoPreview.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
+import WarningTooltip from './components/WarningTooltip.vue'
 import { useSvgParser } from './composables/useSvgParser'
 import { useLogoRefinement } from './composables/useLogoRefinement'
 import { exportTo3MF } from 'three-3mf-exporter'
@@ -40,6 +41,10 @@ if (svgText.value && !parse(svgText.value).ok) {
 }
 const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.valid ? constrained.value.config : DEFAULT_CONFIG))
 const colorGroups = refined.groups
+const OUTLINE_POINT_WARNING_THRESHOLD = 500
+const outlineWarning = computed(() => refined.outlinePoints.value.after > OUTLINE_POINT_WARNING_THRESHOLD
+  ? `Over ${OUTLINE_POINT_WARNING_THRESHOLD} outline points: updates may be slow. Increase Simplify to reduce complexity.`
+  : '')
 const validation = computed(() => constrained.value.valid
   ? constrainConfig(config.value, fitGroups(colorGroups.value, constrained.value.config))
   : constrained.value)
@@ -212,12 +217,15 @@ const buildTimeText = computed(() => {
             :configError="configError"
             @buildStatus="handleBuildStatus"
           />
-          <button
-            class="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
-            @click="viewerRef?.resetView()"
-          >
-            Reset View
-          </button>
+          <div class="absolute top-2 right-2 flex items-center gap-2">
+            <WarningTooltip v-if="outlineWarning" label="Outline complexity warning" :message="outlineWarning" />
+            <button
+              class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
+              @click="viewerRef?.resetView()"
+            >
+              Reset View
+            </button>
+          </div>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">

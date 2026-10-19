@@ -52,7 +52,9 @@ function onNumber(e: Event) {
   <!-- One row: label | slider | number box + unit. -->
   <div :class="{ 'opacity-40': disabled }">
     <div class="flex items-center gap-2">
-      <span class="shrink-0 text-sm text-gray-700" :class="labelWidth">{{ label }}</span>
+      <span class="shrink-0 inline-flex items-center gap-1 text-sm text-gray-700" :class="labelWidth">
+        {{ label }}<slot name="labelSuffix" />
+      </span>
       <input
         type="range"
         :value="modelValue"
