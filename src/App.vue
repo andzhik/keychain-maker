@@ -183,6 +183,7 @@ const buildTimeText = computed(() => {
         :specksRemoved="refined.specksRemoved.value"
         :outlinePoints="refined.outlinePoints.value"
         :thinFeatures="refined.thinFeatures.value"
+        :tinyIslands="refined.tinyIslands.value"
         :minFeatureWidth="refined.minFeatureWidth.value"
         :error="artworkError"
         :importReport="importReport"

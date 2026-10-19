@@ -8,7 +8,7 @@ import SvgUploader from './SvgUploader.vue'
 import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
-import { printabilityWarnings } from '../utils/printability'
+import { printabilityWarnings, type TinyIslands } from '../utils/printability'
 import type { SvgImportReport } from '../utils/svgImport'
 
 const props = defineProps<{
@@ -27,6 +27,7 @@ const props = defineProps<{
   /** Outline points before and after simplification. */
   outlinePoints: { before: number; after: number }
   thinFeatures: ThinFeatures
+  tinyIslands: TinyIslands
   minFeatureWidth: number
   error: string | null
   importReport: SvgImportReport | null
@@ -231,7 +232,13 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             (2 nozzle widths) may not print, shown in red.
           </p>
           <p v-else-if="parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
-            No features under {{ fmtMm(minFeatureWidth) }} mm (2 nozzle widths).
+            No thin areas detected at {{ fmtMm(minFeatureWidth) }} mm (2 nozzle widths).
+          </p>
+          <p v-if="showLogo && tinyIslands.count" role="status" class="mt-0.5 text-xs text-amber-600">
+            {{ tinyIslands.count }} tiny logo island{{ tinyIslands.count !== 1 ? 's' : '' }}
+            under {{ tinyIslands.minAreaMm2.toFixed(2) }} mm² may not print
+            (less material than a {{ fmtMm(minFeatureWidth) }} mm disc).
+            Increase Width, merge colors, or remove them with Min speck.
           </p>
         </div>
       </PanelCard>

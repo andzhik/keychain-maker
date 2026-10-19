@@ -1,4 +1,31 @@
-import type { KeychainConfig } from '../types/keychain'
+import type { ColorGroup, KeychainConfig } from '../types/keychain'
+import { shapeArea } from './refine'
+
+export interface TinyIslands {
+  count: number
+  /** Filled area of a disc of the minimum feature width, in mm². */
+  minAreaMm2: number
+}
+
+/**
+ * Area check alongside the raster thin-feature check: subpixel islands and
+ * components below its noise cutoff must still get advisory feedback.
+ * Call with the final refined groups and the same fitted scale as the model.
+ */
+export function findTinyIslands(groups: ColorGroup[], scale: number, minWidthMm: number): TinyIslands {
+  if (!(scale > 0 && Number.isFinite(scale) && minWidthMm > 0 && Number.isFinite(minWidthMm))) {
+    return { count: 0, minAreaMm2: 0 }
+  }
+  const minAreaMm2 = Math.PI * (minWidthMm / 2) ** 2
+  let count = 0
+  for (const group of groups) {
+    for (const shape of group.shapes) {
+      const areaMm2 = shapeArea(shape) * scale * scale
+      if (areaMm2 > 0 && areaMm2 < minAreaMm2) count++
+    }
+  }
+  return { count, minAreaMm2 }
+}
 
 export interface PrintabilityWarning {
   field: 'baseThickness' | 'keyringHoleDiameter'

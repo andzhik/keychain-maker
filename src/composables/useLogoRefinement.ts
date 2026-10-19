@@ -4,6 +4,7 @@ import { fitGroups } from '../utils/logoFit'
 import { refineColors, removeSpecks } from '../utils/refine'
 import { simplifyGroups } from '../utils/simplify'
 import { findThinFeatures, type ThinFeatures } from '../utils/thinFeatures'
+import { findTinyIslands } from '../utils/printability'
 
 // The thin-feature raster takes tens of ms; wait for sliders to settle.
 const THIN_DEBOUNCE_MS = 200
@@ -72,6 +73,7 @@ export function useLogoRefinement(
     /** Outline points before and after simplification. */
     outlinePoints,
     thinFeatures,
+    tinyIslands: computed(() => findTinyIslands(groups.value, scale.value, minFeatureWidth.value)),
     minFeatureWidth,
   }
 }

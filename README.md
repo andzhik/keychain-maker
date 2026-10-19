@@ -76,6 +76,12 @@ The base-thickness and keyring-wall messages are advisory: the base recommendati
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
 is 2 mm. These strength guidelines do not block export of valid geometry.
 
+Tiny logo islands are also flagged when their filled area (minus holes) is less
+than a disc two nozzle widths across. This complements the raster thin-feature
+overlay, which can miss very small pieces. The check uses the final refined logo
+at its fitted print size, follows size/nozzle/cleanup changes, and does not block
+export. Increase Width, merge colors, or use Min speck to address the warning.
+
 Configuration validation also runs independently of slider limits. Nonfinite,
 negative, or impossible dimensions block model generation and export. Safe
 padding, hole, bevel, and corner-radius adjustments keep the entered values in

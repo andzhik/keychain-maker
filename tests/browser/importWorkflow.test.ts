@@ -198,6 +198,43 @@ test('printability advice appears near settings and does not block a valid expor
   }
 })
 
+test('tiny-island advice follows print size, nozzle, and cleanup without blocking export', async () => {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  try {
+    await page.goto(url)
+    await page.locator('input[type="file"]').setInputFiles({ name: 'tiny.svg', mimeType: 'image/svg+xml',
+      buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/><rect x="101" width="0.6" height="0.6"/></svg>') })
+    const advice = page.getByRole('status').filter({ hasText: 'tiny logo island' })
+    const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
+    await advice.waitFor()
+    assert.match(await advice.innerText(), /1 tiny logo island\s+under 0.50 mm²/)
+    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    assert.equal(await download.isEnabled(), true)
+
+    const width = page.getByRole('spinbutton', { name: 'Width', exact: true })
+    await width.fill('150')
+    await width.press('Tab')
+    await advice.waitFor({ state: 'hidden' })
+    const nozzle = page.getByRole('spinbutton', { name: 'Nozzle', exact: true })
+    await nozzle.fill('0.8')
+    await nozzle.press('Tab')
+    await advice.waitFor()
+
+    await page.getByRole('checkbox', { name: 'Show logo' }).uncheck()
+    await advice.waitFor({ state: 'hidden' })
+    await page.getByRole('checkbox', { name: 'Show logo' }).check()
+    await advice.waitFor()
+    const speck = page.getByRole('spinbutton', { name: 'Min speck', exact: true })
+    await speck.fill('2')
+    await speck.press('Tab')
+    await advice.waitFor({ state: 'hidden' })
+    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    assert.equal(await download.isEnabled(), true)
+  } finally {
+    await page.close()
+  }
+})
+
 test('WebGL unavailability prevents export even when artwork parses', async () => {
   const page = await browser.newPage()
   try {
