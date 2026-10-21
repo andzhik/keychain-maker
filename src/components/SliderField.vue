@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import IconTooltip from './IconTooltip.vue'
 
 const props = withDefaults(defineProps<{
   label: string
@@ -11,6 +12,8 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   /** Shown under the slider, e.g. when the model is built from a clamped value. */
   note?: string
+  /** What the setting does, behind an info icon after the label. */
+  info?: string
   /** Stable hook for test-render/measure.ts, which drives sliders by field. */
   field?: string
   /** Tailwind width class for the label, narrower in tight columns. */
@@ -18,7 +21,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   unit: '',
   disabled: false,
-  labelWidth: 'w-28',
+  labelWidth: 'w-32',
 })
 
 const emit = defineEmits<{
@@ -53,7 +56,7 @@ function onNumber(e: Event) {
   <div :class="{ 'opacity-40': disabled }">
     <div class="flex items-center gap-2">
       <span class="shrink-0 inline-flex items-center gap-1 text-sm text-gray-700" :class="labelWidth">
-        {{ label }}<slot name="labelSuffix" />
+        {{ label }}<IconTooltip v-if="info" kind="info" :label="`About ${label}`" :message="info" align="left" /><slot name="labelSuffix" />
       </span>
       <input
         type="range"

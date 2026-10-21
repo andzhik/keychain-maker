@@ -17,11 +17,11 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Upload an SVG logo and preview it immediately in 3D
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (pick the maximum number of colors and whether to drop an opaque background, and tune how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
-- Refine the logo for printing: change, merge or remove colors, limit it to N filaments, drop specks below a size in mm², click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
+- Refine the logo for printing: change, merge or remove colors, limit it to N filaments, remove small bits below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
 - Toggle the red thin-area overlay from either 2D preview; both previews share the setting, while printability warnings stay visible
 - Simplify outlines to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens over the settings and 3D view, so the logo and refine controls stay usable
 - Choose a square or circle base plate
-- Tune base thickness, bevel, corner radius, padding, logo height, and target size
+- Tune base thickness, bevel, corner radius, margin, and target size
 - Add or remove the keyring hole
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
@@ -82,17 +82,24 @@ Simplify. The warning follows the final refined geometry and
 does not block building or export; the hard safety budgets above still apply.
 
 Thin-area advice appears in a warning tooltip beside Nozzle. Both warning icons
-show their explanations on hover, keyboard focus, or tap.
+show their explanations on hover, keyboard focus, or tap. Every setting keeps a
+short label; an info icon beside it explains what it does the same way.
+
+The minimum printable width is two nozzle widths, or one with **Thin walls** on
+(for slicers that print walls a single line wide, e.g. "Detect thin walls"). It
+drives the thin-area overlay and the tiny-island check.
 
 The base-thickness and keyring-wall messages are advisory: the base recommendation
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
 is 2 mm. These strength guidelines do not block export of valid geometry.
 
 Tiny logo islands are also flagged when their filled area (minus holes) is less
-than a disc two nozzle widths across. This complements the raster thin-feature
+than a disc the minimum printable width across. This complements the raster thin-feature
 overlay, which can miss very small pieces. The check uses the final refined logo
 at its fitted print size, follows size/nozzle/cleanup changes, and does not block
-export. Increase Width, merge colors, or use Min speck to address the warning.
+export. Increase Width, merge colors, or use the warning's "remove them" link,
+which sets Small bits to that width. Small bits is set as a width too: pieces and
+holes with less area than a disc that wide are removed.
 
 Configuration validation also runs independently of slider limits. Nonfinite,
 negative, or impossible dimensions block model generation and export. Safe

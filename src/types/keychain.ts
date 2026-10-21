@@ -41,12 +41,20 @@ export interface Refinements {
   mergeTolerance: number
   /** Merge the closest colors until at most this many remain; 0 = no limit. */
   maxColors: number
-  /** Pieces (and holes) smaller than this, in mm² at the printed size, are dropped; 0 = off. */
-  minSpeckArea: number
+  /**
+   * Pieces (and holes) with less area than a disc this wide, in mm at the
+   * printed size, are dropped; 0 = off.
+   */
+  minSpeckSize: number
   /** Outline points are dropped while the outline moves less than this, in mm at the printed size; 0 = off. */
   simplifyTolerance: number
-  /** Features narrower than two nozzle widths are flagged as unprintable. */
+  /** Features narrower than the minimum feature width (below) are flagged as unprintable. */
   nozzleDiameter: number
+  /**
+   * The slicer prints walls down to one nozzle width ("detect thin walls"),
+   * so the minimum feature width is one nozzle width instead of two.
+   */
+  thinWalls: boolean
 }
 
 export const DEFAULT_REFINEMENTS: Refinements = {
@@ -55,11 +63,12 @@ export const DEFAULT_REFINEMENTS: Refinements = {
   hiddenShapes: [],
   mergeTolerance: 0,
   maxColors: 0,
-  minSpeckArea: 0,
+  minSpeckSize: 0,
   // Far below what a nozzle can resolve, and drops most of the points curves
   // are tessellated into (16 per curve, however small).
   simplifyTolerance: 0.02,
   nozzleDiameter: 0.4,
+  thinWalls: false,
 }
 
 export const DEFAULT_CONFIG: KeychainConfig = {

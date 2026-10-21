@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, shallowRef } from 'vue'
+import IconTooltip from './IconTooltip.vue'
 import SliderField from './SliderField.vue'
 import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
 import { SVG_LIMITS, complexityError } from '../utils/svgValidation'
@@ -18,6 +19,13 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const raster = shallowRef<{ name: string; image: RasterImage } | null>(null)
 const traceOptions = ref<TraceOptions>({ ...DEFAULT_TRACE_OPTIONS })
 const COLOR_OPTIONS = [2, 3, 4, 5, 6, 7, 8]
+const INFO = {
+  colors: 'How many colors to split the image into, counting the background. With Remove background on, one fewer is printed.',
+  removeBackground: 'Drops the color around the image’s border, so the plate shows through there.',
+  smoothing: 'Evens out jagged pixel edges and wobbles. High values also soften small corners.',
+  roundness: 'How readily corners become curves. Low keeps more sharp corners; high rounds more of them.',
+  straighten: 'Snaps edges within a few degrees of horizontal or vertical to exactly straight.',
+}
 // Slider changes re-trace once the slider rests: a trace takes ~0.2 s, and the
 // model rebuild after it longer.
 const RETRACE_DELAY = 150
@@ -126,7 +134,7 @@ function onFileChange(e: Event) {
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
       <span class="text-sm text-gray-600">
-        <span class="font-medium">{{ isDragging ? 'Drop SVG or PNG here' : 'Drop SVG or PNG' }}</span>
+        <span class="font-medium">{{ isDragging ? 'Drop SVG or image here' : 'Drop SVG or image' }}</span>
         <span v-if="!isDragging" class="text-gray-400"> or click to browse</span>
       </span>
       <input
@@ -144,8 +152,9 @@ function onFileChange(e: Event) {
     <div v-if="raster" class="flex flex-col gap-1.5 text-xs text-gray-600">
       <p class="truncate text-gray-500" :title="raster.name">Traced from {{ raster.name }}</p>
       <div class="flex items-center gap-3">
+        <span class="flex items-center gap-1">
         <label class="flex items-center gap-1.5">
-          Max colors
+          Colors
           <select
             class="border border-gray-300 rounded px-1 py-0.5 bg-white"
             :value="traceOptions.colors"
@@ -154,6 +163,9 @@ function onFileChange(e: Event) {
             <option v-for="n in COLOR_OPTIONS" :key="n" :value="n">{{ n }}</option>
           </select>
         </label>
+        <IconTooltip kind="info" label="About Colors" :message="INFO.colors" align="left" />
+        </span>
+        <span class="flex items-center gap-1">
         <label class="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"
@@ -162,28 +174,30 @@ function onFileChange(e: Event) {
           />
           Remove background
         </label>
+        <IconTooltip kind="info" label="About Remove background" :message="INFO.removeBackground" />
+        </span>
       </div>
       <SliderField
-        label="Smoothing" unit="px" labelWidth="w-24"
+        label="Smoothing" labelWidth="w-28" :info="INFO.smoothing"
         :modelValue="traceOptions.smoothing" :min="0.5" :max="3" :step="0.25"
         @update:modelValue="(v: number) => setTraceOption('smoothing', v, true)"
       />
       <SliderField
-        label="Round corners" labelWidth="w-24"
+        label="Round corners" labelWidth="w-28" :info="INFO.roundness"
         :modelValue="traceOptions.roundness" :min="1" :max="10" :step="0.5"
         @update:modelValue="(v: number) => setTraceOption('roundness', v, true)"
       />
-      <label class="flex items-center gap-1.5 cursor-pointer">
-        <input
-          type="checkbox"
-          :checked="traceOptions.straighten"
-          @change="setTraceOption('straighten', ($event.target as HTMLInputElement).checked)"
-        />
-        Straighten nearly level and upright edges
-      </label>
-      <p class="text-[11px] text-gray-400 leading-snug">
-        More smoothing evens out wobbly edges; more corner rounding turns more corners into curves.
-      </p>
+      <span class="flex items-center gap-1">
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            :checked="traceOptions.straighten"
+            @change="setTraceOption('straighten', ($event.target as HTMLInputElement).checked)"
+          />
+          Straighten edges
+        </label>
+        <IconTooltip kind="info" label="About Straighten edges" :message="INFO.straighten" align="left" />
+      </span>
     </div>
 
     <!-- UI note -->

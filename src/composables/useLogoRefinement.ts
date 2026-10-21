@@ -26,8 +26,9 @@ export function useLogoRefinement(
   // dropping specks barely moves it.
   const specks = computed(() => {
     const { groups } = colors.value
-    const minArea = refinements.value.minSpeckArea
-    if (!(minArea > 0)) return { groups, removed: 0 }
+    const size = refinements.value.minSpeckSize
+    if (!(size > 0)) return { groups, removed: 0 }
+    const minArea = Math.PI * (size / 2) ** 2
     const { hasLogo, scale } = fitGroups(groups, config.value)
     return hasLogo ? removeSpecks(groups, minArea / (scale * scale)) : { groups, removed: 0 }
   })
@@ -50,7 +51,7 @@ export function useLogoRefinement(
     const fit = fitGroups(groups.value, config.value)
     return fit.hasLogo ? fit.scale : 0
   })
-  const minFeatureWidth = computed(() => 2 * refinements.value.nozzleDiameter)
+  const minFeatureWidth = computed(() => (refinements.value.thinWalls ? 1 : 2) * refinements.value.nozzleDiameter)
 
   const thinFeatures = shallowRef<ThinFeatures>({ count: 0, path: '' })
   let timer: ReturnType<typeof setTimeout> | null = null

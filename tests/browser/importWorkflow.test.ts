@@ -251,7 +251,7 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
     const advice = page.getByRole('status').filter({ hasText: 'tiny logo island' })
     const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
     await advice.waitFor()
-    assert.match(await advice.innerText(), /1 tiny logo island\s+under 0.50 mm²/)
+    assert.match(await advice.innerText(), /1 tiny logo island\s+smaller than 0.8 mm across/)
     await page.getByText('Ready to export.', { exact: true }).waitFor()
     assert.equal(await download.isEnabled(), true)
 
@@ -264,14 +264,13 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
     await nozzle.press('Tab')
     await advice.waitFor()
 
-    await page.getByRole('checkbox', { name: 'Show logo' }).uncheck()
+    await page.getByRole('checkbox', { name: 'Print logo' }).uncheck()
     await advice.waitFor({ state: 'hidden' })
-    await page.getByRole('checkbox', { name: 'Show logo' }).check()
+    await page.getByRole('checkbox', { name: 'Print logo' }).check()
     await advice.waitFor()
-    const speck = page.getByRole('spinbutton', { name: 'Min speck', exact: true })
-    await speck.fill('2')
-    await speck.press('Tab')
+    await advice.getByRole('button', { name: 'remove them' }).click()
     await advice.waitFor({ state: 'hidden' })
+    assert.equal(await page.getByRole('spinbutton', { name: 'Small bits', exact: true }).inputValue(), '1.60')
     await page.getByText('Ready to export.', { exact: true }).waitFor()
     assert.equal(await download.isEnabled(), true)
   } finally {

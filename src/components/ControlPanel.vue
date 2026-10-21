@@ -5,7 +5,7 @@ import LogoPreview, { type LogoPreviewData } from './LogoPreview.vue'
 import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
-import WarningTooltip from './WarningTooltip.vue'
+import IconTooltip from './IconTooltip.vue'
 import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
@@ -65,7 +65,7 @@ const warning = (field: keyof KeychainConfig) => warnings.value.find(w => w.fiel
 const refined = computed(() => {
   const r = props.refinements
   return r.hiddenShapes.length > 0 || r.hiddenColors.length > 0 || Object.keys(r.recolor).length > 0
-    || r.mergeTolerance > 0 || r.maxColors > 0 || r.minSpeckArea > 0
+    || r.mergeTolerance > 0 || r.maxColors > 0 || r.minSpeckSize > 0
     || r.simplifyTolerance !== DEFAULT_REFINEMENTS.simplifyTolerance
 })
 
@@ -77,16 +77,50 @@ const pointsNote = computed(() => {
   return `${fmt(before)} → ${fmt(after)} outline points (−${Math.round((1 - after / before) * 100)}%).`
 })
 
-/** Undoes every refinement; the nozzle is a printer setting, so it stays. */
+/** Undoes every refinement; the nozzle and thin walls are printer settings, so they stay. */
 function resetRefinements() {
-  emit('update:refinements', { ...DEFAULT_REFINEMENTS, nozzleDiameter: props.refinements.nozzleDiameter })
+  const { nozzleDiameter, thinWalls } = props.refinements
+  emit('update:refinements', { ...DEFAULT_REFINEMENTS, nozzleDiameter, thinWalls })
+}
+
+/** Small bits set to the minimum feature width (rounded up to the slider step) removes every tiny island. */
+function removeTinyIslands() {
+  updateRefinement('minSpeckSize', +(Math.ceil(props.minFeatureWidth / 0.05 - 1e-9) * 0.05).toFixed(2))
 }
 
 const fmtMm = (mm: number) => mm.toFixed(2).replace(/0$/, '')
-const nozzleWarning = computed(() => `${props.thinFeatures.count} thin area${props.thinFeatures.count !== 1 ? 's' : ''} under ${fmtMm(props.minFeatureWidth)} mm (2 nozzle widths) may not print. Enable Thin areas to highlight.`)
+const minWidth = computed(() => `${fmtMm(props.minFeatureWidth)} mm (${props.refinements.thinWalls ? '1 nozzle width' : '2 nozzle widths'})`)
+const nozzleWarning = computed(() => `${props.thinFeatures.count} thin area${props.thinFeatures.count !== 1 ? 's' : ''} under ${minWidth.value} may not print. Turn on Thin areas to see them.`)
+
+/** Descriptions behind the info icons, so the labels can stay short. */
+const INFO = {
+  printLogo: 'When off, the logo is left out and you download only the plate.',
+  merge: 'Merges colors that look nearly the same, so near-duplicates don’t each need a filament. '
+    + 'Measured as color difference (ΔE): about 2 is barely visible, 10 or more is clearly different. 0 = off.',
+  colorLimit: 'Merges the most similar colors until at most this many remain, so the logo fits the filaments you have.',
+  simplify: 'Drops outline points while keeping every edge within this distance of the original. '
+    + 'Fewer points build faster; the default is far finer than a printer can resolve.',
+  nozzle: 'Your printer’s nozzle diameter. Only used to find logo details too thin to print; it doesn’t change the model.',
+  thinWalls: 'Turn on if your slicer prints walls a single line wide (“Detect thin walls” or similar). '
+    + 'Details then print down to 1 nozzle width instead of 2.',
+  shape: 'Rectangle follows the logo’s proportions; Circle is round, with the logo centered.',
+  width: 'Width of the plate, not counting the keyring loop. A rectangle’s height follows the logo’s proportions.',
+  thickness: 'Total thickness of the keychain, logo included.',
+  margin: 'Space between the logo and the plate edge. Raised automatically to keep the logo clear of the keyring hole.',
+  cornerRadius: 'Rounds the corners of a rectangle plate.',
+  plateColor: 'Filament color of the plate. Logo colors you remove show this color.',
+  bevel: 'Size of the chamfer on the top and bottom edges. 0 = sharp edges.',
+  bevelSegments: 'Steps in the edge profile: 1 is a flat chamfer, more gives a rounder edge.',
+  keyring: 'Adds a loop with a hole to the top of the plate.',
+  hole: 'Diameter of the hole for the split ring or chain.',
+  ring: 'Outer diameter of the loop around the hole. Leave at least 2 mm of wall on each side of the hole.',
+}
+const thinAreasInfo = computed(() => `Marks in red the parts of the logo narrower than ${minWidth.value}, which may not print.`)
+const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smaller than this across (compared by area). '
+  + `Pieces under ${minWidth.value} may not print. 0 = off.`)
 
 const SHAPES: { value: BasePlateShape; label: string }[] = [
-  { value: 'square', label: 'Square' },
+  { value: 'square', label: 'Rectangle' },
   { value: 'circle', label: 'Circle' },
 ]
 
@@ -105,15 +139,18 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       <!-- Logo: upload, preview, colors -->
       <PanelCard title="Logo">
         <template #action>
-          <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              :checked="showLogo"
-              @change="emit('update:showLogo', ($event.target as HTMLInputElement).checked)"
-              class="accent-gray-700"
-            />
-            Show logo
-          </label>
+          <span class="flex items-center gap-1">
+            <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                :checked="showLogo"
+                @change="emit('update:showLogo', ($event.target as HTMLInputElement).checked)"
+                class="accent-gray-700"
+              />
+              Print logo
+            </label>
+            <IconTooltip kind="info" label="About Print logo" :message="INFO.printLogo" />
+          </span>
         </template>
 
         <SvgUploader
@@ -159,10 +196,13 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
               Restore {{ hiddenShapeCount }} shape{{ hiddenShapeCount !== 1 ? 's' : '' }}
             </button>
           </p>
-          <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-            <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
-            <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
-          </label>
+          <div class="mt-1 flex items-center gap-1">
+            <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
+              <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
+            </label>
+            <IconTooltip kind="info" label="About Thin areas" :message="thinAreasInfo" align="left" />
+          </div>
         </div>
 
         <div>
@@ -196,15 +236,17 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         </template>
 
         <SliderField
-          label="Merge similar" unit="ΔE" field="mergeTolerance" labelWidth="w-24"
+          label="Merge similar" unit="ΔE" field="mergeTolerance" labelWidth="w-28" :info="INFO.merge"
           :modelValue="refinements.mergeTolerance" :min="0" :max="50" :step="1"
           @update:modelValue="v => updateRefinement('mergeTolerance', v)"
         />
         <div class="flex items-center justify-between gap-3">
-          <span class="text-sm text-gray-700">Max colors</span>
+          <span class="inline-flex items-center gap-1 text-sm text-gray-700">
+            Color limit<IconTooltip kind="info" label="About Color limit" :message="INFO.colorLimit" align="left" />
+          </span>
           <select
             :value="refinements.maxColors"
-            aria-label="Max colors"
+            aria-label="Color limit"
             class="px-1.5 py-0.5 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500"
             @change="updateRefinement('maxColors', Number(($event.target as HTMLSelectElement).value))"
           >
@@ -213,17 +255,17 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         </div>
         <div>
           <SliderField
-            label="Min speck" unit="mm²" field="minSpeckArea" labelWidth="w-24"
-            :modelValue="refinements.minSpeckArea" :min="0" :max="5" :step="0.1"
-            @update:modelValue="v => updateRefinement('minSpeckArea', v)"
+            label="Small bits" unit="mm" field="minSpeckSize" labelWidth="w-28" :info="smallBitsInfo"
+            :modelValue="refinements.minSpeckSize" :min="0" :max="3" :step="0.05"
+            @update:modelValue="v => updateRefinement('minSpeckSize', v)"
           />
-          <p v-if="refinements.minSpeckArea > 0" class="mt-0.5 text-xs text-gray-500">
-            {{ specksRemoved ? `Removed ${specksRemoved} speck${specksRemoved !== 1 ? 's' : ''}.` : 'No specks this small.' }}
+          <p v-if="refinements.minSpeckSize > 0" class="mt-0.5 text-xs text-gray-500">
+            {{ specksRemoved ? `Removed ${specksRemoved} small bit${specksRemoved !== 1 ? 's' : ''}.` : 'No bits this small.' }}
           </p>
         </div>
         <div>
           <SliderField
-            label="Simplify" unit="mm" field="simplifyTolerance" labelWidth="w-24"
+            label="Simplify" unit="mm" field="simplifyTolerance" labelWidth="w-28" :info="INFO.simplify"
             :modelValue="refinements.simplifyTolerance" :min="0" :max="0.2" :step="0.01"
             @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
           />
@@ -231,23 +273,35 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         </div>
         <div>
           <SliderField
-            label="Nozzle" unit="mm" field="nozzleDiameter" labelWidth="w-24"
+            label="Nozzle" unit="mm" field="nozzleDiameter" labelWidth="w-28" :info="INFO.nozzle"
             :modelValue="refinements.nozzleDiameter" :min="0.2" :max="1" :step="0.05"
             @update:modelValue="v => updateRefinement('nozzleDiameter', v)"
           >
             <template #labelSuffix>
-              <WarningTooltip v-if="thinFeatures.count" label="Nozzle warning" :message="nozzleWarning" align="left" placement="above" />
+              <IconTooltip v-if="thinFeatures.count" label="Nozzle warning" :message="nozzleWarning" align="left" placement="above" />
             </template>
           </SliderField>
           <p v-if="!thinFeatures.count && parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
-            No thin areas detected at {{ fmtMm(minFeatureWidth) }} mm (2 nozzle widths).
+            No thin areas detected at {{ minWidth }}.
           </p>
           <p v-if="showLogo && tinyIslands.count" role="status" class="mt-0.5 text-xs text-amber-600">
             {{ tinyIslands.count }} tiny logo island{{ tinyIslands.count !== 1 ? 's' : '' }}
-            under {{ tinyIslands.minAreaMm2.toFixed(2) }} mm² may not print
-            (less material than a {{ fmtMm(minFeatureWidth) }} mm disc).
-            Increase Width, merge colors, or remove them with Min speck.
+            smaller than {{ fmtMm(minFeatureWidth) }} mm across may not print.
+            Increase Width, merge colors, or
+            <button type="button" class="underline hover:text-amber-800" @click="removeTinyIslands">remove them</button>.
           </p>
+        </div>
+        <div class="flex items-center gap-1">
+          <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              :checked="refinements.thinWalls"
+              class="accent-gray-700"
+              @change="updateRefinement('thinWalls', ($event.target as HTMLInputElement).checked)"
+            />
+            Thin walls
+          </label>
+          <IconTooltip kind="info" label="About Thin walls" :message="INFO.thinWalls" align="left" />
         </div>
       </PanelCard>
     </div>
@@ -257,7 +311,9 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       <PanelCard title="Plate">
         <p v-for="message in configMessages.filter(m => m.severity === 'error')" :key="message.field + message.code" role="alert" class="text-xs text-red-600">{{ message.message }}</p>
         <div class="flex items-center justify-between gap-3">
-          <span class="text-sm text-gray-700">Shape</span>
+          <span class="inline-flex items-center gap-1 text-sm text-gray-700">
+            Shape<IconTooltip kind="info" label="About Shape" :message="INFO.shape" align="left" />
+          </span>
           <div class="inline-flex rounded border border-gray-300 overflow-hidden" role="radiogroup" aria-label="Plate shape">
             <button
               v-for="shape in SHAPES"
@@ -277,24 +333,24 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         </div>
 
         <SliderField
-          label="Width" unit="mm" field="targetWidth"
+          label="Width" unit="mm" field="targetWidth" :info="INFO.width"
           :modelValue="config.targetWidth" :min="20" :max="150" :step="1"
           @update:modelValue="v => updateField('targetWidth', v)"
         />
         <SliderField
-          label="Thickness" unit="mm" field="baseThickness"
+          label="Thickness" unit="mm" field="baseThickness" :info="INFO.thickness"
           :modelValue="config.baseThickness" :min="0.4" :max="10" :step="0.1"
           :note="warning('baseThickness')"
           @update:modelValue="v => updateField('baseThickness', v)"
         />
         <SliderField
-          label="Padding" unit="mm" field="padding"
+          label="Margin" unit="mm" field="padding" :info="INFO.margin"
           :modelValue="config.padding" :min="0" :max="20" :step="0.5"
           :note="adjustment('padding')"
           @update:modelValue="v => updateField('padding', v)"
         />
         <SliderField
-          label="Corner radius" unit="mm" field="cornerRadius"
+          label="Corner radius" unit="mm" field="cornerRadius" :info="INFO.cornerRadius"
           :modelValue="config.cornerRadius" :min="0" :max="20" :step="0.5"
           :disabled="config.basePlateShape !== 'square'"
           :note="adjustment('cornerRadius')"
@@ -302,7 +358,9 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         />
 
         <div class="flex items-center justify-between gap-3">
-          <span class="text-sm text-gray-700">Color</span>
+          <span class="inline-flex items-center gap-1 text-sm text-gray-700">
+            Color<IconTooltip kind="info" label="About Color" :message="INFO.plateColor" align="left" />
+          </span>
           <div class="flex items-center gap-1.5">
             <span class="text-gray-400 font-mono text-xs">{{ config.baseColor }}</span>
             <input
@@ -319,13 +377,13 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       <!-- Edge: bevel -->
       <PanelCard title="Edge">
         <SliderField
-          label="Bevel" unit="mm" field="edgeBevel"
+          label="Bevel" unit="mm" field="edgeBevel" :info="INFO.bevel"
           :modelValue="config.edgeBevel" :min="0" :max="2" :step="0.1"
           :note="adjustment('edgeBevel')"
           @update:modelValue="v => updateField('edgeBevel', v)"
         />
         <SliderField
-          label="Bevel segments" field="bevelSegments"
+          label="Bevel segments" field="bevelSegments" :info="INFO.bevelSegments"
           :modelValue="config.bevelSegments" :min="1" :max="8" :step="1"
           :disabled="config.edgeBevel <= 0"
           :note="adjustment('bevelSegments')"
@@ -336,26 +394,29 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       <!-- Keyring -->
       <PanelCard title="Keyring">
         <template #action>
-          <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              :checked="config.keyringEnabled"
-              @change="updateField('keyringEnabled', ($event.target as HTMLInputElement).checked)"
-              class="accent-gray-700"
-            />
-            Enabled
-          </label>
+          <span class="flex items-center gap-1">
+            <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                :checked="config.keyringEnabled"
+                @change="updateField('keyringEnabled', ($event.target as HTMLInputElement).checked)"
+                class="accent-gray-700"
+              />
+              Enabled
+            </label>
+            <IconTooltip kind="info" label="About Keyring" :message="INFO.keyring" />
+          </span>
         </template>
 
         <SliderField
-          label="Hole diameter" unit="mm" field="keyringHoleDiameter"
+          label="Hole diameter" unit="mm" field="keyringHoleDiameter" :info="INFO.hole"
           :modelValue="config.keyringHoleDiameter" :min="2" :max="10" :step="0.5"
           :disabled="!config.keyringEnabled"
           :note="config.keyringEnabled ? [adjustment('keyringHoleDiameter'), warning('keyringHoleDiameter')].filter(Boolean).join(' ') : undefined"
           @update:modelValue="v => updateField('keyringHoleDiameter', v)"
         />
         <SliderField
-          label="Ring diameter" unit="mm" field="keyringRingDiameter"
+          label="Ring diameter" unit="mm" field="keyringRingDiameter" :info="INFO.ring"
           :modelValue="config.keyringRingDiameter" :min="4" :max="15" :step="0.5"
           :disabled="!config.keyringEnabled"
           @update:modelValue="v => updateField('keyringRingDiameter', v)"

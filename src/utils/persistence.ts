@@ -81,15 +81,23 @@ export function sanitizeRefinements(raw: unknown): Refinements {
   result.hiddenColors = strings(source.hiddenColors).filter(c => HEX.test(c))
   result.hiddenShapes = strings(source.hiddenShapes)
 
-  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckArea' | 'simplifyTolerance' | 'nozzleDiameter', min: number) => {
+  const isNumber = (value: unknown, min: number): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value >= min
+  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckSize' | 'simplifyTolerance' | 'nozzleDiameter', min: number) => {
     const value = source[key]
-    if (typeof value === 'number' && Number.isFinite(value) && value >= min) result[key] = value
+    if (isNumber(value, min)) result[key] = value
   }
   number('mergeTolerance', 0)
   number('maxColors', 0)
-  number('minSpeckArea', 0)
+  number('minSpeckSize', 0)
+  // Older saves stored the speck threshold as an area (mm²): convert it to
+  // the width of a disc with that area.
+  if (!('minSpeckSize' in source) && isNumber(source.minSpeckArea, 0)) {
+    result.minSpeckSize = +(2 * Math.sqrt(source.minSpeckArea / Math.PI)).toFixed(2)
+  }
   number('simplifyTolerance', 0)
   number('nozzleDiameter', 0.1)
+  if (typeof source.thinWalls === 'boolean') result.thinWalls = source.thinWalls
   return result
 }
 

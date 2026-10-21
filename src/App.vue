@@ -5,7 +5,7 @@ import ExportButton from './components/ExportButton.vue'
 import LogoPreviewPanel from './components/LogoPreviewPanel.vue'
 import type { LogoPreviewData } from './components/LogoPreview.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
-import WarningTooltip from './components/WarningTooltip.vue'
+import IconTooltip from './components/IconTooltip.vue'
 import { useSvgParser } from './composables/useSvgParser'
 import { useLogoRefinement } from './composables/useLogoRefinement'
 import { exportTo3MF } from 'three-3mf-exporter'
@@ -218,7 +218,7 @@ const buildTimeText = computed(() => {
             @buildStatus="handleBuildStatus"
           />
           <div class="absolute top-2 right-2 flex items-center gap-2">
-            <WarningTooltip v-if="outlineWarning" label="Outline complexity warning" :message="outlineWarning" />
+            <IconTooltip v-if="outlineWarning" label="Outline complexity warning" :message="outlineWarning" />
             <button
               class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
               @click="viewerRef?.resetView()"

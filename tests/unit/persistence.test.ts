@@ -37,7 +37,8 @@ test('saved state round-trips', () => {
     hiddenColors: ['#ffffff'],
     hiddenShapes: ['#000000:3'],
     maxColors: 4,
-    minSpeckArea: 0.5,
+    minSpeckSize: 0.5,
+    thinWalls: true,
   }
   saveRefinements(refinements, storage)
 
@@ -80,14 +81,20 @@ test('malformed refinements are ignored field by field', () => {
     hiddenColors: ['#ffffff', 3, 'white'],
     hiddenShapes: 'all',
     maxColors: -1,
-    minSpeckArea: 1.5,
+    minSpeckSize: 1.5,
     nozzleDiameter: Infinity,
+    thinWalls: 'yes',
   })
 
   expect(refinements).toEqual({
     ...DEFAULT_REFINEMENTS,
     recolor: { '#00ff00': '#0000ff' },
     hiddenColors: ['#ffffff'],
-    minSpeckArea: 1.5,
+    minSpeckSize: 1.5,
   })
+})
+
+test('a saved speck area converts to the width of a disc with that area', () => {
+  expect(sanitizeRefinements({ minSpeckArea: Math.PI }).minSpeckSize).toBe(2)
+  expect(sanitizeRefinements({ minSpeckArea: 2, minSpeckSize: 0.3 }).minSpeckSize).toBe(0.3)
 })
