@@ -22,6 +22,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Simplify outlines to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens over the settings and 3D view, so the logo and refine controls stay usable
 - Choose a square or circle base plate
 - Tune base thickness, bevel, corner radius, margin, and target size
+- Set logo depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
 - Add or remove the keyring hole
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
@@ -149,7 +150,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 
 ## Render Snapshots
 
-`bun run render` drives the real build pipeline in headless Chromium and writes PNG snapshots to `test-output/` for offline inspection. The default capture set includes isometric, back-isometric, top, front, and back views.
+`bun run render` drives the real build pipeline in headless Chromium and writes PNG snapshots to `test-output/` for offline inspection. The default capture set includes isometric, back-isometric, top, bottom, front, and back views.
 
 ```bash
 bunx playwright install chromium
@@ -188,7 +189,8 @@ of the historical build time was CSG subtraction (see Gotchas).
 Things that look wrong or slow but are deliberate. Read before "fixing" them.
 
 - **Layout widths stay bounded at every breakpoint.** At 1024 px and up, the controls occupy a 660 px panel (a 300 px logo column and a narrower settings column), beside a 3D preview capped at 720 px. Below 1024 px, the preview sits beneath the controls and the page scrolls vertically. The controls stay in two columns from 720 px up and stack below that. The enlarged logo preview's desktop left inset follows the logo column so its controls remain usable.
-- **Logo cutouts are cut with CSG, not `shape.holes`.** Putting the cutouts into the plate shape before extruding would be ~200× faster, but `ExtrudeGeometry` bevels every contour, including holes, so the logo cutouts would get beveled edges and the inlaid logo wouldn't sit flush. The plate is extruded with only the outer edge and keyring hole beveled, then the cutouts are subtracted with `three-bvh-csg` (`cutoutBasePlateHoles` in `src/utils/meshBuilder.ts`). This one step is ~95% of the rebuild time (~440 ms for c1.svg). Exception: when the bevel is ≤ 0.01 mm there is nothing to protect, so the cutouts go straight into `shape.holes` and CSG is skipped.
+- **Logo cutouts are cut with CSG, not `shape.holes`.** `ExtrudeGeometry` bevels every contour, including holes, so logo holes in a beveled extrusion would get beveled edges and the inlays wouldn't sit flush. A hole also runs through the entire extrusion and cannot leave a recess floor. The plate is extruded with only the outer edge and keyring hole beveled, then straight-sided surface recesses are subtracted with `three-bvh-csg` (`cutoutBasePlateHoles` in `src/utils/meshBuilder.ts`). Both faces' cutters share one CSG evaluation. Exception: when the bevel is ≤ 0.01 mm and the inlays meet through the plate, the cutouts go straight into `shape.holes` with counter islands and CSG is skipped. Shallow recesses still use CSG without bevel.
+- **Logo depth is per face, measured in mm.** `logoDepth` defaults to 0.6 mm (three layers at 0.2 mm). Choose a multiple of the slicer's layer height; the app does not change slicer settings. Recesses and inlays use the same Z intervals, leaving a continuous middle in the plate material. The depth is capped at half the thickness without changing the raw slider value. When the two faces meet, one through-inlay replaces the two shells, avoiding overlap and coincident internal caps. The two shells otherwise share one mesh/material per color for preview and 3MF export. Bevels ≤ 0.01 mm count as zero for both plate and inlays. See the [slicer comparison](docs/surface-inlays.md) for measured print savings.
 - **The keyring hole *is* beveled on purpose.** It's added to `shape.holes` before extruding so its inner edge gets the bevel. Only the logo cutouts go through CSG.
 - **Refinements never edit the SVG.** They're stored as settings (`Refinements` in `src/types/keychain.ts`) and applied to the parsed color groups before the model is built (`src/utils/refine.ts`, wired up in `useLogoRefinement`). The parser doesn't know about them, and every edit can be undone. Recolors and hidden shapes refer to the current logo (shapes by `color:index`), so they reset on a new upload; the cleanup settings carry over.
 - **Each refinement step returns a new array only when its output changes.** Because groups are compared by identity (below), `refineColors` and `removeSpecks` keep their last result per input and return it again when nothing changed (e.g. a merge tolerance below every color distance). Otherwise every slider tick would trigger a ~400 ms rebuild.

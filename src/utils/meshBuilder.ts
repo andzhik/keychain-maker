@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import { MeshBVH } from 'three-mesh-bvh'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import type { Profiler } from './profiler'
 
@@ -8,9 +9,9 @@ import type { Profiler } from './profiler'
  * Mesh build pipeline (keep this order in code and callers):
  * 1. base-plate outline spline
  * 2. optional keyring loop on outline + keyring hole path → shape.holes before extrude
- * 3. base extrude with bevel (keyring hole beveled inside; flat path uses shape.holes + islands for logo too)
+ * 3. base extrude with bevel (keyring hole beveled inside; flat through-inlays use shape.holes + islands)
  * 4. logo extrude — no bevel (`buildLogoMeshes`, caller)
- * 5. CSG subtract logo cutouts from beveled base (`cutoutBasePlateHoles`, caller)
+ * 5. CSG subtract surface recesses where needed (`cutoutBasePlateHoles`, caller)
  */
 
 // Segments per full turn when sampling outline arcs. ExtrudeGeometry's default
@@ -165,7 +166,33 @@ function buildKeyringHolePath(config: KeychainConfig, h: number): THREE.Path {
 
 function clampBevel(config: KeychainConfig): number {
   const maxBevel = config.baseThickness / 2 - 0.05
-  return Math.max(0, Math.min(config.edgeBevel, maxBevel))
+  const bevel = Math.max(0, Math.min(config.edgeBevel, maxBevel))
+  return bevel <= 0.01 ? 0 : bevel
+}
+
+/** Shared Z intervals for recesses and inlays, measured inward from the actual plate faces. */
+function logoLayers(config: KeychainConfig): { bottom: number; top: number }[] {
+  const bottom = -clampBevel(config)
+  const top = bottom + config.baseThickness
+  const depth = Math.min(config.logoDepth, config.baseThickness / 2)
+  // One continuous body avoids coincident internal caps when the faces meet.
+  return depth >= config.baseThickness / 2
+    ? [{ bottom, top }]
+    : [{ bottom, top: bottom + depth }, { bottom: top - depth, top }]
+}
+
+/** Keep separate closed surface bodies in one mesh per color (or one CSG cutter). */
+function extrudeLayers(shapes: THREE.Shape[], layers: { bottom: number; top: number }[]): THREE.BufferGeometry {
+  const parts = layers.map(({ bottom, top }) => {
+    const geometry = new THREE.ExtrudeGeometry(shapes, { depth: top - bottom, bevelEnabled: false })
+    return geometry.translate(0, 0, bottom)
+  })
+  if (parts.length === 1) return parts[0]
+  try {
+    return mergeGeometries(parts)!
+  } finally {
+    for (const part of parts) part.dispose()
+  }
 }
 
 /** Step 3: beveled base extrude (logo holes are CSG-cut in step 5; keyring hole is already in shape.holes). */
@@ -213,7 +240,9 @@ export function buildBasePlate(
     // counter of an "O") are re-filled as plate islands, matching what the CSG
     // path leaves behind.
     const islands: THREE.Shape[] = []
-    for (const cutout of logoCutouts) {
+    // Blind surface recesses need floors, so they use CSG even without bevel.
+    // Keep the fast shape.holes path when the inlays span the full thickness.
+    for (const cutout of config.logoDepth >= config.baseThickness / 2 ? logoCutouts : []) {
       shape.holes.push(new THREE.Path(cutout.getPoints()))
       for (const inner of cutout.holes) islands.push(new THREE.Shape(inner.getPoints()))
     }
@@ -261,15 +290,11 @@ export function buildLogoMeshes(
   config: KeychainConfig,
   transform?: THREE.Matrix4,
 ): THREE.Mesh[] {
-  const bevel = clampBevel(config)
+  const layers = logoLayers(config)
   const meshes: THREE.Mesh[] = []
   for (const group of groups) {
     if (group.shapes.length === 0) continue
-    const geometry = new THREE.ExtrudeGeometry(group.shapes, {
-      depth: config.baseThickness,
-      bevelEnabled: false,
-    })
-    if (bevel > 0) geometry.translate(0, 0, -bevel)
+    const geometry = extrudeLayers(group.shapes, layers)
     if (transform) {
       geometry.applyMatrix4(transform)
       if (transform.determinant() < 0) flipWinding(geometry)
@@ -280,7 +305,7 @@ export function buildLogoMeshes(
   return meshes
 }
 
-/** Step 5: subtract straight vertical logo cutout prisms from the beveled base (keyring hole is step 2–3). */
+/** Step 5: subtract surface recesses; the keyring hole still passes through the whole plate. */
 export function cutoutBasePlateHoles(
   basePlate: THREE.Mesh,
   logoCutouts: THREE.Shape[],
@@ -288,19 +313,17 @@ export function cutoutBasePlateHoles(
   profiler?: Profiler,
 ): void {
   const bevel = clampBevel(config)
-  if (bevel <= 0.01 || logoCutouts.length === 0) return
+  if (logoCutouts.length === 0 || (bevel === 0 && config.logoDepth >= config.baseThickness / 2)) return
 
-  const baseGeometry = basePlate.geometry as THREE.ExtrudeGeometry
-  const geometry = subtractCutoutHoles(baseGeometry, logoCutouts, config, bevel, profiler)
+  const geometry = subtractCutoutHoles(basePlate.geometry, logoCutouts, config, profiler)
   basePlate.geometry.dispose()
   basePlate.geometry = geometry
 }
 
 function subtractCutoutHoles(
-  baseGeometry: THREE.ExtrudeGeometry,
+  baseGeometry: THREE.BufferGeometry,
   cutouts: THREE.Shape[],
   config: KeychainConfig,
-  bevel: number,
   profiler?: Profiler,
 ): THREE.BufferGeometry {
   const cut = () => {
@@ -309,11 +332,13 @@ function subtractCutoutHoles(
     // disjoint (they come from the logo outline union), so the merged cutter
     // is a set of separate closed bodies. Each keeps its holes, so a logo
     // counter stays as plate material.
-    const prisms = new THREE.ExtrudeGeometry(cutouts, {
-      depth: config.baseThickness + 2,
-      bevelEnabled: false,
-    })
-    prisms.translate(0, 0, -bevel - 1)
+    const layers = logoLayers(config)
+    // Extend only the outside ends past the faces. Recess floors coincide
+    // exactly with the inlay caps, leaving no overlap or gap in the interior.
+    const prisms = extrudeLayers(cutouts, layers.map(({ bottom, top }, i) => ({
+      bottom: i === 0 ? bottom - 1 : bottom,
+      top: i === layers.length - 1 ? top + 1 : top,
+    })))
     try {
       // CSG 0.0.17 still requests the deprecated maxLeafTris option. Supply
       // equivalent trees with the current spelling before Brush prepares them.

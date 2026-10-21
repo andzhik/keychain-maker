@@ -14,6 +14,8 @@ export type BuildStatus = 'pending' | 'ready' | 'error' | 'unavailable'
 export interface KeychainConfig {
   basePlateShape: BasePlateShape
   baseThickness: number
+  /** Depth of the colored inlay on each face, in mm; capped at half the thickness. */
+  logoDepth: number
   cornerRadius: number
   padding: number
   targetWidth: number
@@ -74,6 +76,7 @@ export const DEFAULT_REFINEMENTS: Refinements = {
 export const DEFAULT_CONFIG: KeychainConfig = {
   basePlateShape: 'square',
   baseThickness: 5,
+  logoDepth: 0.6,
   cornerRadius: 5,
   padding: 5,
   targetWidth: 50,

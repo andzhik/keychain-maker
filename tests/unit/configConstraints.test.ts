@@ -64,6 +64,7 @@ test('invalid numeric settings return structured errors without modifying the in
     { padding: -1 }, { baseThickness: 0 }, { baseThickness: -1 },
     { targetWidth: 0 }, { edgeBevel: NaN }, { cornerRadius: Infinity },
     { keyringHoleDiameter: 0 }, { keyringRingDiameter: 2 }, { bevelSegments: 1000000 },
+    { logoDepth: 0 }, { logoDepth: -1 }, { logoDepth: NaN }, { logoDepth: Infinity },
   ]) {
     const input = config(overrides)
     const snapshot = { ...input }
@@ -85,7 +86,17 @@ test('bevel and corner limits use the actual plate size and report effective val
   expect(result.valid).toBe(true)
   expect(result.config.edgeBevel).toBeCloseTo(0.15)
   expect(result.config.cornerRadius).toBe(6)
-  expect(result.adjustments.map(a => a.field)).toEqual(['edgeBevel', 'cornerRadius'])
+  expect(result.adjustments.map(a => a.field)).toEqual(['logoDepth', 'edgeBevel', 'cornerRadius'])
   expect(result.messages.every(m => m.severity === 'warning')).toBe(true)
   expect(validateConfig(result.config, { width: 50, height: 12 }).adjustments).toEqual([])
+})
+
+test('surface depth is capped at half the thickness without changing the requested value', () => {
+  const input = config({ baseThickness: 0.8, logoDepth: 0.6 })
+  const result = validateConfig(input)
+  expect(result.valid).toBe(true)
+  expect(result.config.logoDepth).toBe(0.4)
+  expect(input.logoDepth).toBe(0.6)
+  expect(result.adjustments.find(a => a.field === 'logoDepth')?.message).toContain('inlays meet')
+  expect(validateConfig(result.config).adjustments).toEqual([])
 })

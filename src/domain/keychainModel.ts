@@ -52,7 +52,7 @@ export function buildKeychainModel(colorGroups: ColorGroup[], rawConfig: Keychai
     )
     root.add(basePlate)
 
-    // Step 4: logo meshes — un-beveled extrude, flush with base faces
+    // Step 4: logo surface inlays — un-beveled, flush with both base faces
     if (hasSvg) {
       // Center SVG on origin, flip Y, and apply uniform scale. Baked into the
       // geometry rather than set on the group: a mirrored (negative-determinant)
@@ -71,7 +71,7 @@ export function buildKeychainModel(colorGroups: ColorGroup[], rawConfig: Keychai
       root.add(logoGroup)
     }
 
-    // Step 5: CSG subtract logo cutouts from beveled base (keyring hole is in step 3 extrude)
+    // Step 5: subtract logo recesses (keyring through-hole is in step 3 extrude)
     profiler.measure('cutoutBasePlateHoles', () =>
       cutoutBasePlateHoles(basePlate, logoCutouts, config, profiler),
     )

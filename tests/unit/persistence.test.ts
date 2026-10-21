@@ -27,7 +27,7 @@ test('no storage at all loads the defaults', () => {
 
 test('saved state round-trips', () => {
   const storage = memoryStorage()
-  const config = { ...DEFAULT_CONFIG, basePlateShape: 'circle' as const, padding: 7, baseColor: '#112233' }
+  const config = { ...DEFAULT_CONFIG, basePlateShape: 'circle' as const, padding: 7, baseColor: '#112233', logoDepth: 0.8 }
   saveConfig(config, storage)
   saveShowLogo(false, storage)
   saveSvg('<svg/>', storage)
@@ -73,6 +73,13 @@ test('unknown, mistyped and missing fields are ignored', () => {
   })
 
   expect(config).toEqual({ ...DEFAULT_CONFIG, cornerRadius: 2 })
+})
+
+test('sessions saved before surface inlays use the new default depth', () => {
+  const { logoDepth, ...oldConfig } = DEFAULT_CONFIG
+  expect(sanitizeConfig(oldConfig).logoDepth).toBe(0.6)
+  expect(sanitizeConfig({ logoDepth: '0.8' }).logoDepth).toBe(logoDepth)
+  expect(sanitizeConfig({ logoDepth: Infinity }).logoDepth).toBe(logoDepth)
 })
 
 test('malformed refinements are ignored field by field', () => {

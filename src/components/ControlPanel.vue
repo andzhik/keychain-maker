@@ -106,6 +106,9 @@ const INFO = {
   shape: 'Rectangle follows the logo’s proportions; Circle is round, with the logo centered.',
   width: 'Width of the plate, not counting the keyring loop. A rectangle’s height follows the logo’s proportions.',
   thickness: 'Total thickness of the keychain, logo included.',
+  logoDepth: 'Depth of the logo on each face. The middle stays plate material to reduce filament changes. '
+    + '0.6 mm is 3 layers at a 0.2 mm layer height; choose a multiple of your slicer layer height. '
+    + 'Limited to half the plate thickness; when the inlays meet, the logo goes through the plate.',
   margin: 'Space between the logo and the plate edge. Raised automatically to keep the logo clear of the keyring hole.',
   cornerRadius: 'Rounds the corners of a rectangle plate.',
   plateColor: 'Filament color of the plate. Logo colors you remove show this color.',
@@ -342,6 +345,13 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           :modelValue="config.baseThickness" :min="0.4" :max="10" :step="0.1"
           :note="warning('baseThickness')"
           @update:modelValue="v => updateField('baseThickness', v)"
+        />
+        <SliderField
+          label="Logo depth" unit="mm" field="logoDepth" :info="INFO.logoDepth"
+          :modelValue="config.logoDepth" :min="0.1" :max="5" :step="0.1"
+          :disabled="!showLogo"
+          :note="adjustment('logoDepth')"
+          @update:modelValue="v => updateField('logoDepth', v)"
         />
         <SliderField
           label="Margin" unit="mm" field="padding" :info="INFO.margin"

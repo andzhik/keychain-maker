@@ -70,12 +70,12 @@ function hitsFromAbove(geometry: THREE.BufferGeometry, x: number, y: number): nu
 for (const edgeBevel of [0.6, 0]) {
   test(`logo counters stay as plate material (bevel ${edgeBevel})`, () => {
     const { build } = useKeychainBuilder(() => new THREE.Scene())
-    const root = build([letterO()], config({ edgeBevel }))!
+    const root = build([letterO()], config({ edgeBevel, logoDepth: 2.5 }))!
     const basePlate = root.children[0] as THREE.Mesh
 
     // Inside the counter: the plate is solid (top + bottom faces).
     expect(hitsFromAbove(basePlate.geometry, 0, 0)).toBeGreaterThan(0)
-    // On the letter's stroke: the plate is cut away for the inlay.
+    // On the letter's stroke: the plate is cut away for the through-inlay.
     expect(hitsFromAbove(basePlate.geometry, 15, 0)).toBe(0)
   })
 }
@@ -194,7 +194,7 @@ test('several logo parts are all cut out of the beveled plate', () => {
     { id: '#00ff00', color: '#00ff00', shapes: [square(2)], pathCount: 1 },
   ]
   const { build } = useKeychainBuilder(() => new THREE.Scene())
-  const root = build(groups, config())!
+  const root = build(groups, config({ logoDepth: 2.5 }))!
   const basePlate = root.children[0] as THREE.Mesh
 
   // The logo spans x 0..20, scaled ×2 to -20..20 mm: red -20..-12, green

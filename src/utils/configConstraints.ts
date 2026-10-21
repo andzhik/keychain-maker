@@ -39,7 +39,7 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
   const error = (field: keyof KeychainConfig, code: string, message: string) =>
     messages.push({ field, code, message, severity: 'error' })
   const nonnegative = ['padding', 'cornerRadius', 'edgeBevel'] as const
-  const positive = ['targetWidth', 'baseThickness', 'bevelSegments',
+  const positive = ['targetWidth', 'baseThickness', 'logoDepth', 'bevelSegments',
     ...(config.keyringEnabled ? ['keyringHoleDiameter', 'keyringRingDiameter'] as const : [])] as const
   for (const field of [...nonnegative, ...positive]) {
     const value = config[field]
@@ -58,12 +58,17 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
   }
   if (messages.length) return { config, adjustments, messages, valid: false }
 
-  const adjust = (field: 'keyringHoleDiameter' | 'padding' | 'edgeBevel' | 'cornerRadius' | 'bevelSegments', value: number, message: string) => {
+  const adjust = (field: 'keyringHoleDiameter' | 'padding' | 'edgeBevel' | 'cornerRadius' | 'bevelSegments' | 'logoDepth', value: number, message: string) => {
     config[field] = value
     // A later rule wins over an earlier one for the same field.
     const i = adjustments.findIndex(a => a.field === field)
     if (i >= 0) adjustments.splice(i, 1)
     adjustments.push({ field, value, message })
+  }
+
+  if (config.logoDepth > config.baseThickness / 2) {
+    adjust('logoDepth', config.baseThickness / 2,
+      `Limited to ${fmt(config.baseThickness / 2)} mm per face; the inlays meet through this thin plate.`)
   }
 
   if (config.keyringEnabled) {

@@ -21,6 +21,7 @@ const VIEWS: View[] = [
   { name: 'iso', dir: [1, 1, 1] },
   { name: 'iso-back', dir: [-1, 1, -1] },
   { name: 'top', dir: [0, 1, 0] },
+  { name: 'bottom', dir: [0, -1, 0] },
   { name: 'front', dir: [0, 0.35, 1] },
   { name: 'back', dir: [0, 0.35, -1] },
 ]

@@ -3,6 +3,8 @@ import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
 import { chromium, type Browser } from 'playwright'
 import { readFileSync } from 'node:fs'
+import JSZip from 'jszip'
+import { XMLParser } from 'fast-xml-parser'
 
 let server: Awaited<ReturnType<typeof createServer>>
 let browser: Browser
@@ -138,6 +140,64 @@ test('export waits for current settings to build and produces a 3MF download', a
     const bytes = readFileSync(path)
     assert.equal(bytes.subarray(0, 4).toString('hex'), '504b0304', '3MF must be a ZIP package')
     assert.ok(bytes.length > 1000)
+  } finally {
+    await page.close()
+  }
+})
+
+test('logo depth persists and the exported surface shells match the preview for flat, beveled and thin plates', async () => {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  try {
+    await page.goto(url)
+    await page.locator('input[type="file"]').setInputFiles({ name: 'two-colors.svg', mimeType: 'image/svg+xml',
+      buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path fill="red" fill-rule="evenodd" d="M0 0H10V20H0Z M3 7H7V13H3Z"/><path fill="blue" d="M10 0H20V20H10Z"/></svg>') })
+    for (const [bevel, depth, thickness] of [[0.6, 0.6, 5], [0, 0.8, 5], [0, 0.6, 0.8]]) {
+      for (const [label, value] of [['Bevel', bevel], ['Logo depth', depth], ['Thickness', thickness]] as const) {
+        const input = page.getByRole('spinbutton', { name: label, exact: true })
+        await input.fill(String(value))
+        await input.press('Tab')
+      }
+      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      const preview = await page.evaluate(() => {
+        const root = (document.querySelector('canvas')!.parentElement as any).__vueParentComponent.exposed.getCurrentGroup()
+        const meshes: number[][][] = []
+        root.traverse((node: any) => {
+          if (!node.isMesh) return
+          const { index, attributes: { position } } = node.geometry
+          const vertices: number[][] = []
+          for (let i = 0; i < (index?.count ?? position.count); i++) {
+            const j = index ? index.getX(i) : i
+            vertices.push([position.getX(j), position.getY(j), position.getZ(j)].map(v => +v.toFixed(5)))
+          }
+          meshes.push(vertices)
+        })
+        return meshes
+      })
+      const downloaded = page.waitForEvent('download')
+      await page.getByRole('button', { name: 'Download .3mf', exact: true }).click()
+      const download = await downloaded
+      assert.equal(await download.failure(), null)
+      const zip = await JSZip.loadAsync(readFileSync((await download.path())!))
+      const xml = await zip.file('3D/3dmodel.model')!.async('string')
+      const model = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' }).parse(xml).model
+      const exported = model.resources.object.filter((object: any) => object.mesh).map(({ mesh }: any) => {
+        const vertices = mesh.vertices.vertex.map(({ x, y, z }: any) => [+x, +y, +z])
+        return mesh.triangles.triangle.flatMap(({ v1, v2, v3 }: any) => [vertices[v1], vertices[v2], vertices[v3]])
+      })
+      assert.deepEqual(exported, preview, '3MF must contain exactly the preview triangles, including both surface shells')
+      const baseBottom = bevel > 0.01 ? -Math.min(bevel, thickness / 2 - 0.05) : 0
+      for (const shell of exported.slice(1)) {
+        const zs = [...new Set<number>(shell.map((v: number[]) => v[2]))].sort((a, b) => a - b)
+        const expected = depth * 2 >= thickness ? [baseBottom, baseBottom + thickness]
+          : [baseBottom, baseBottom + depth, baseBottom + thickness - depth, baseBottom + thickness]
+        assert.deepEqual(zs, expected.map(z => +z.toFixed(5)))
+      }
+    }
+    await page.getByText('Limited to 0.4 mm per face; the inlays meet through this thin plate.', { exact: true }).waitFor()
+    await page.reload()
+    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('slider', { name: 'Logo depth', exact: true }).inputValue(), '0.6')
+    await page.getByText('Limited to 0.4 mm per face; the inlays meet through this thin plate.', { exact: true }).waitFor()
   } finally {
     await page.close()
   }

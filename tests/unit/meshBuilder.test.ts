@@ -47,7 +47,7 @@ test('buildBasePlate puts the keyring hole in the extruded shape', () => {
 test('flat base extrude includes logo cutout outlines as shape holes', () => {
   const cutout = rectangleShape()
   const base = buildBasePlate(
-    config({ edgeBevel: 0, keyringEnabled: false }),
+    config({ edgeBevel: 0, keyringEnabled: false, logoDepth: 2.5 }),
     50,
     30,
     [cutout],
@@ -61,7 +61,7 @@ test('flat base extrude includes logo cutout outlines as shape holes', () => {
 
 test('flat base extrude refills logo counters as plate islands', () => {
   const base = buildBasePlate(
-    config({ edgeBevel: 0, keyringEnabled: false }),
+    config({ edgeBevel: 0, keyringEnabled: false, logoDepth: 2.5 }),
     50,
     30,
     [ringShape(10, 5)],
@@ -116,7 +116,10 @@ test('logo meshes are un-beveled and shifted flush by the base bevel', () => {
 
   mesh.geometry.computeBoundingBox()
 
-  expect(mesh.geometry.parameters.options.bevelEnabled).toBe(false)
+  // Unbeveled surface shells have vertices only at the four cap heights.
+  const positions = mesh.geometry.getAttribute('position')
+  const heights = [...new Set(Array.from({ length: positions.count }, (_, i) => +positions.getZ(i).toFixed(5)))].sort((a, b) => a - b)
+  expect(heights).toEqual([-0.6, 0, 3.8, 4.4])
   expect(mesh.geometry.boundingBox?.min.z).toBeCloseTo(-0.6, 5)
   expect(mesh.geometry.boundingBox?.max.z).toBeCloseTo(4.4, 5)
 })
