@@ -108,6 +108,37 @@ the controls and show the effective values beside them; corner limits use the
 actual fitted plate height. `validateConfig` returns structured field messages
 and is also enforced for direct builder calls.
 
+## Feedback
+
+The **Send feedback** link in the app header opens a Google Form in a new tab,
+keeping the current keychain open. Google handles submissions and image uploads;
+the site needs no backend or credentials. The responder URL is the
+`feedbackFormUrl` constant in `src/App.vue`.
+
+The form collects:
+
+| Field | Required |
+| --- | --- |
+| Feedback type: bug report, suggestion, or other | Yes |
+| Title | Yes |
+| Description | Yes |
+| Contact email | No |
+| Expected behavior | No |
+| Screenshots/images: up to 5 files, 10 MB per file | No |
+
+Google sign-in is required for a form with file uploads. Google records the
+account's name, email, and photo when a respondent uploads files and submits.
+Images are stored in the form owner's Drive; the form currently has a 1 GB total
+upload limit. Responses are linked to **Keychain Maker feedback (Responses)** in
+Google Sheets, and email notifications for new responses are enabled.
+
+Before releasing the feedback link, open **Keychain Maker feedback** in Google
+Forms, review the questions and responder access, and click **Publish**. The form
+was prepared as an unpublished draft for review. In **Responses**, use **View in
+Sheets** to review submissions; you can add Status, Priority, and Your Notes
+columns to track follow-up. Changing questions or upload limits happens in
+Google Forms, while replacing the form itself requires updating the URL above.
+
 ## Tech Stack
 
 - Vue 3 with `<script setup>` and TypeScript

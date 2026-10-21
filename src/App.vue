@@ -15,6 +15,8 @@ import { loadState, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '.
 import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Refinements } from './types/keychain'
 import type * as THREE from 'three'
 
+const feedbackFormUrl = 'https://docs.google.com/forms/d/1lZpW5DAEnC6JclehfbRkM4rgmWh3CuYwTV77Ai-dnsc/viewform'
+
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 // Restore the last session so a reload picks up where the user left off.
 const saved = loadState()
@@ -176,6 +178,19 @@ const buildTimeText = computed(() => {
     <!-- Header -->
     <header class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 shrink-0">
       <h1 class="text-base font-semibold tracking-tight">Keychain Maker</h1>
+      <a
+        :href="feedbackFormUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Share feedback and up to 5 images in Google Forms. Google sign-in required."
+        class="inline-flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+      >
+        Send feedback
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 3h6v6M17 3l-8 8M8 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
+        </svg>
+        <span class="sr-only">(Google Forms, opens in a new tab; Google sign-in required)</span>
+      </a>
     </header>
 
     <!-- Desktop keeps three columns; narrower screens scroll vertically. -->
