@@ -1,7 +1,8 @@
 # Improvement roadmap
 
 This list covers remaining work verified against the checked-in code and workflows.
-Use the [main README](../README.md) for current features and development guidance.
+See the [user guide](user-guide.md) for current features and the
+[development guide](development.md) for setup and commands.
 
 ## Add pull request verification
 
