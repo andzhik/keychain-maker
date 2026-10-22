@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import * as THREE from 'three'
 import polygonClipping, { type MultiPolygon, type Ring } from 'polygon-clipping'
 import type { ColorGroup } from '../../src/types/keychain'
-import { simplifyGroups } from '../../src/utils/simplify'
+import { outlinePointsNote, simplifyGroups } from '../../src/utils/simplify'
 import { logoOutline, polygonToShape, shapeToPolygon } from '../../src/utils/svgToShapes'
 import { shapeArea } from '../../src/utils/refine'
 
@@ -156,4 +156,13 @@ test('returns the previous array when the same points survive', () => {
   // Within the circle's sampling, a hair more tolerance drops nothing new.
   expect(simplifyGroups(groups, 0.05 + 1e-12).groups).toBe(first.groups)
   expect(simplifyGroups(groups, 0.5).groups).not.toBe(first.groups)
+})
+
+test('the outline points note signs the change in either direction', () => {
+  expect(outlinePointsNote({ before: 0, after: 0 })).toBe('')
+  expect(outlinePointsNote({ before: 354, after: 354 })).toBe('354 outline points.')
+  expect(outlinePointsNote({ before: 1279, after: 236 })).toBe('1,279 → 236 outline points (−82%).')
+  // Sealing shared borders can add T-junction vertices at tiny tolerances.
+  expect(outlinePointsNote({ before: 354, after: 358 })).toBe('354 → 358 outline points (+1%).')
+  expect(outlinePointsNote({ before: 1000, after: 1002 })).toBe('1,000 → 1,002 outline points.')
 })

@@ -39,6 +39,20 @@ export interface SimplifyResult {
   after: number
 }
 
+/**
+ * "1,279 → 236 outline points (−82%)." The count can rise: shared borders gain
+ * the T-junction vertices that keep neighbors sealed, so near-zero tolerances
+ * on logos with many meeting colors may end up with more points than they had.
+ */
+export function outlinePointsNote({ before, after }: { before: number; after: number }): string {
+  if (before === 0) return ''
+  const fmt = (n: number) => n.toLocaleString('en-US')
+  if (after === before) return `${fmt(before)} outline points.`
+  const percent = Math.round(Math.abs(after - before) / before * 100)
+  const change = percent ? ` (${after < before ? '−' : '+'}${percent}%)` : ''
+  return `${fmt(before)} → ${fmt(after)} outline points${change}.`
+}
+
 const graphs = new WeakMap<ColorGroup[], Graph>()
 const lastResult = new WeakMap<ColorGroup[], { keep: Uint8Array; result: SimplifyResult }>()
 

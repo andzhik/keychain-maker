@@ -10,6 +10,7 @@ import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type Keychai
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
 import { printabilityWarnings, type TinyIslands } from '../utils/printability'
+import { outlinePointsNote } from '../utils/simplify'
 import type { SvgImportReport } from '../utils/svgImport'
 
 const props = defineProps<{
@@ -72,13 +73,7 @@ const refined = computed(() => {
     || r.simplifyTolerance !== DEFAULT_REFINEMENTS.simplifyTolerance
 })
 
-const pointsNote = computed(() => {
-  const { before, after } = props.outlinePoints
-  if (before === 0) return ''
-  const fmt = (n: number) => n.toLocaleString('en-US')
-  if (after === before) return `${fmt(before)} outline points.`
-  return `${fmt(before)} → ${fmt(after)} outline points (−${Math.round((1 - after / before) * 100)}%).`
-})
+const pointsNote = computed(() => outlinePointsNote(props.outlinePoints))
 
 /** Undoes every refinement; the nozzle and thin walls are printer settings, so they stay. */
 function resetRefinements() {
@@ -102,7 +97,8 @@ const INFO = {
     + 'Measured as color difference (ΔE): about 2 is barely visible, 10 or more is clearly different. 0 = off.',
   colorLimit: 'Merges the most similar colors until at most this many remain, so the logo fits the filaments you have.',
   simplify: 'Drops outline points while keeping every edge within this distance of the original. '
-    + 'Fewer points build faster; the default is far finer than a printer can resolve.',
+    + 'Fewer points build faster; the default is far finer than a printer can resolve. '
+    + 'Borders shared by two colors may gain a few points, so the colors stay sealed.',
   nozzle: 'Your printer’s nozzle diameter. Only used to find logo details too thin to print; it doesn’t change the model.',
   thinWalls: 'Turn on if your slicer prints walls a single line wide (“Detect thin walls” or similar). '
     + 'Details then print down to 1 nozzle width instead of 2.',
