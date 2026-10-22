@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import type { Face } from '../types/keychain'
 
 export function useThreeScene() {
   let renderer: THREE.WebGLRenderer | null = null
@@ -65,16 +66,15 @@ export function useThreeScene() {
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0)
     dirLight.position.set(5, 10, 7.5)
     scene.add(dirLight)
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.8)
+    backLight.position.set(-5, -10, 7.5)
+    scene.add(backLight)
 
     // OrbitControls
     controls = new OrbitControls(camera, renderer.domElement)
     controls.target.set(0, 0, 0)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
-
-    // Grid + axes
-    scene.add(new THREE.GridHelper(50, 50, 0xcccccc, 0xe0e0e0))
-    scene.add(new THREE.AxesHelper(10))
 
     // Resize handling — throttle to one update per animation frame so a burst
     // of ResizeObserver callbacks (e.g. while dragging the window edge) coalesces
@@ -124,7 +124,7 @@ export function useThreeScene() {
     resizeRafId = null
   }
 
-  function fitCamera(target: THREE.Object3D) {
+  function fitCamera(target: THREE.Object3D, face?: Face) {
     if (!camera || !controls) return
     const box = new THREE.Box3().setFromObject(target)
     const sphere = new THREE.Sphere()
@@ -135,7 +135,10 @@ export function useThreeScene() {
       (camera.top - camera.bottom) / (2 * radius)
     )
     camera.updateProjectionMatrix()
-    const offset = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(radius * 2)
+    // The display rotation puts Front on +Y, Back on -Y, and the keyring at -Z.
+    camera.up.set(0, face ? 0 : 1, face ? -1 : 0)
+    const offset = (face ? new THREE.Vector3(0, face === 'front' ? 1 : -1, 0)
+      : new THREE.Vector3(1, 1, 1).normalize()).multiplyScalar(radius * 2)
     camera.position.copy(sphere.center).add(offset)
     controls.target.copy(sphere.center)
     controls.update()

@@ -80,15 +80,14 @@ for (const edgeBevel of [0.6, 0]) {
   })
 }
 
-test('a hidden logo stays hidden across rebuilds', () => {
-  const { build, setLogoVisible } = useKeychainBuilder(() => new THREE.Scene())
-  build([letterO()], config())
-  setLogoVisible(false)
-
-  const root = build([letterO()], config({ baseThickness: 3 }))!
-  const logoGroup = root.children[1]
-
-  expect(logoGroup.visible).toBe(false)
+test('Print logo off rebuilds a solid plate without hidden inlays', () => {
+  const { build } = useKeychainBuilder(() => new THREE.Scene())
+  const groups = [letterO()]
+  const artwork = { front: { groups, mirror: false }, back: { groups, mirror: false }, showLogo: true }
+  build(artwork, config())
+  const root = build({ ...artwork, showLogo: false }, config({ baseThickness: 3 }))!
+  expect(root.children).toHaveLength(1)
+  expect(hitsFromAbove((root.children[0] as THREE.Mesh).geometry, 15, 0)).toBeGreaterThan(0)
 })
 
 test('a square logo fits inside a circle plate', () => {

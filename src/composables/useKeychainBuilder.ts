@@ -30,11 +30,11 @@ export function useKeychainBuilder(getScene: () => Scene | null) {
       return null
     }
     const { model } = result
-    if (!lifecycle.attach(model.root, model.logoGroup)) return null
+    if (!lifecycle.attach(model.root)) return null
     dimensions.value = model.dimensions
     buildMs.value = performance.now() - startedAt
     return model.root
   }
 
-  return { build, dispose, dimensions, buildMs, buildError, setLogoVisible: lifecycle.setLogoVisible }
+  return { build, dispose, dimensions, buildMs, buildError }
 }

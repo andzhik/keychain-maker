@@ -133,7 +133,7 @@ test('export waits for current settings to build and produces a 3MF download', a
     const downloaded = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Download .3mf', exact: true }).click()
     const download = await downloaded
-    assert.equal(download.suggestedFilename(), 'keychain.3mf')
+    assert.equal(download.suggestedFilename(), 'c1-keychain.3mf')
     assert.equal(await download.failure(), null)
     const path = await download.path()
     assert.ok(path)
@@ -151,6 +151,10 @@ test('logo depth persists and the exported surface shells match the preview for 
     await page.goto(url)
     await page.locator('input[type="file"]').first().setInputFiles({ name: 'two-colors.svg', mimeType: 'image/svg+xml',
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path fill="red" fill-rule="evenodd" d="M0 0H10V20H0Z M3 7H7V13H3Z"/><path fill="blue" d="M10 0H20V20H10Z"/></svg>') })
+    // Exercise the legacy equivalent-face shell optimization explicitly;
+    // fresh Back defaults now read normally from outside instead of mirroring.
+    await page.getByRole('button', { name: 'Back', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
     for (const [bevel, depth, thickness] of [[0.6, 0.6, 5], [0, 0.8, 5], [0, 0.6, 0.8]]) {
       for (const [label, value] of [['Bevel', bevel], ['Logo depth', depth], ['Thickness', thickness]] as const) {
         const input = page.getByRole('spinbutton', { name: label, exact: true })
@@ -223,7 +227,7 @@ test('the SVG import report shows safe cleanup and reports unsupported replaceme
     const input = page.locator('input[type="file"]').first()
     const source = '<svg xmlns="http://www.w3.org/2000/svg"><metadata>Editor data</metadata><path fill="black" style="fill:#ffffff;fill-rule:evenodd" d="M0 0H20V20H0Z M5 5H15V15H5Z"/></svg>'
     await input.setInputFiles({ name: 'prepared.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(source) })
-    const report = page.getByRole('region', { name: 'SVG import report', exact: true })
+    const report = page.getByRole('region', { name: 'Import', exact: true })
     await report.getByText('Ready: 1 colors, 1 filled shapes.', { exact: true }).waitFor()
     await report.getByText('Removed 1 non-rendering metadata elements.', { exact: true }).waitFor()
     await report.getByText('Normalized inline fills/styles on 1 elements.', { exact: true }).waitFor()
@@ -264,7 +268,7 @@ test('outline complexity advice starts above 500 refined points, including holes
     await page.goto(url)
     const simplify = page.getByRole('slider', { name: 'Simplify', exact: true })
     await simplify.fill('0')
-    const advice = page.locator('.three-frame').getByRole('button', { name: 'Outline complexity warning', exact: true })
+    const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
     const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
     const ring = (count: number, radius: number) => Array.from({ length: count }, (_, i) => {
       const angle = i / count * Math.PI * 2
@@ -279,14 +283,9 @@ test('outline complexity advice starts above 500 refined points, including holes
       assert.equal(await advice.count(), points > 500 ? 1 : 0)
       assert.equal(await download.isEnabled(), true, 'complexity advice must allow valid exports')
     }
-    await advice.hover()
-    const tooltip = page.getByRole('tooltip').filter({ hasText: 'Over 500 outline points' })
-    await tooltip.waitFor()
-    assert.match(await tooltip.innerText(), /Increase Simplify/)
-    await page.screenshot({ path: 'test-output/outline-warning-tooltip.png' })
-    await advice.focus()
-    await advice.press('Escape')
-    await tooltip.waitFor({ state: 'hidden' })
+    assert.match(await advice.innerText(), /Increase Simplify/)
+    assert.equal(await advice.locator('..').getByRole('slider', { name: 'Simplify', exact: true }).count(), 1)
+    await page.screenshot({ path: 'test-output/outline-warning.png' })
 
     await simplify.fill('0.02')
     await advice.waitFor({ state: 'hidden' })
@@ -338,9 +337,9 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
   }
 })
 
-for (const width of [390, 1400]) {
+for (const width of [1024, 1400]) {
   test(`thin-area visibility stays synchronized between 2D previews at ${width}px`, async () => {
-    const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width === 390 })
+    const page = await browser.newPage({ viewport: { width, height: 900 } })
     try {
       await page.goto(url)
       await page.locator('input[type="file"]').first().setInputFiles({ name: 'thin.svg', mimeType: 'image/svg+xml',
@@ -382,8 +381,7 @@ for (const width of [390, 1400]) {
       assert.equal(await nozzleWarning.count(), 1, 'hiding the overlay must preserve nozzle advice')
 
       await panel.getByRole('button', { name: 'Close', exact: true }).click()
-      if (width === 390) await nozzleWarning.tap()
-      else await nozzleWarning.focus()
+      await nozzleWarning.focus()
       const nozzleTooltip = page.getByRole('tooltip').filter({ hasText: '2 nozzle widths' })
       await nozzleTooltip.waitFor()
       assert.match(await nozzleTooltip.innerText(), /1 thin area under 0.8 mm.*may not print/)
@@ -443,12 +441,12 @@ test('invalid restored settings block model generation and recover when correcte
   }
 })
 
-for (const width of [390, 768, 1400]) {
+for (const width of [1024, 1400, 1920]) {
   test(`preview and export are reachable at ${width}px`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
     try {
       await page.goto(url)
-      const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
+      const download = page.getByRole('button', { name: 'Download .3mf (base only)', exact: true })
       const box = await download.boundingBox()
       assert.ok(box)
       assert.ok(box.x >= 0 && box.x + box.width <= width, `Download is clipped: ${JSON.stringify(box)}`)

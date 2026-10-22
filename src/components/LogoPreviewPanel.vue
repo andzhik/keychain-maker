@@ -69,6 +69,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       :showThinFeatures="showThinFeatures"
       @toggleShape="(id: string) => emit('toggleShape', id)"
     />
-    <p class="text-[11px] text-gray-400 shrink-0">{{ preview.faceLabel }} outside view · keyring at top{{ preview.mirror ? ' · mirrored' : '' }}. Scroll to zoom, drag to pan, double-click to fit. Click a shape to remove it.</p>
+    <p class="text-[11px] text-gray-400 shrink-0">{{ preview.faceLabel }} outside view · keyring at top{{ preview.mirror ? ' · mirrored' : '' }}. Scroll to zoom, drag to pan, double-click to fit. {{ preview.readOnly ? 'Shared artwork: edit shapes on Front.' : 'Click a shape to remove it.' }}</p>
   </section>
 </template>

@@ -20,8 +20,8 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | --- | --- |
 | `bun run dev` | Start the Vite dev server |
 | `bun run test` | Run focused unit tests for geometry and SVG parsing |
-| `bun run test:browser` | Check import failures/races, export readiness/downloads, responsive layouts, and preview zoom in headless Chromium |
-| `bun run test:slicer [Bambu Studio executable]` | Slice browser-test face downloads in Bambu Studio CLI and verify color layers and outside-view orientation |
+| `bun run test:browser` | Check import failures/races, export readiness/downloads, desktop layouts, shared printer/face controls, and preview zoom in headless Chromium |
+| `bun run test:slicer [Bambu Studio executable]` | Slice browser-test downloads in Bambu Studio CLI and verify color layers, outside-view orientation, blank plates, and five-filament output |
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |

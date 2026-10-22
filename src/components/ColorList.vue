@@ -66,14 +66,17 @@ const hidden = computed(() => {
   <div>
     <ul class="space-y-1">
       <li v-for="row in rows" :key="row.key" class="flex items-center gap-2 text-xs text-gray-700">
+        <label class="group relative shrink-0 cursor-pointer" title="Change color">
         <input
           type="color"
           :value="row.color"
           :aria-label="`Print color for ${row.color}`"
           title="Change color"
-          class="w-5 h-5 rounded-sm border border-gray-300 cursor-pointer p-0 shrink-0"
+          class="block w-5 h-5 rounded-sm border border-gray-300 cursor-pointer p-0 group-hover:ring-2 group-hover:ring-gray-400"
           @change="recolor(row.sources, ($event.target as HTMLInputElement).value)"
         />
+        <span class="pointer-events-none absolute -bottom-1 -right-1 rounded bg-white text-[10px] leading-none text-gray-600" aria-hidden="true">✎</span>
+        </label>
         <span class="font-mono">{{ row.color }}</span>
         <!-- Originals merged or recolored into this one -->
         <span

@@ -16,6 +16,7 @@ export interface LogoPreviewData {
   plateColor: string
   mirror?: boolean
   faceLabel?: string
+  readOnly?: boolean
 }
 </script>
 
@@ -114,7 +115,7 @@ const artworkTransform = computed(() => props.mirror && viewBox.value
   ? `translate(${2 * viewBox.value.x + viewBox.value.w} 0) scale(-1 1)` : undefined)
 const MAX_ZOOM = 200
 
-watch(() => props.sourceKey, () => { zoom.value = null })
+watch(() => [props.sourceKey, props.mirror], () => { zoom.value = null })
 
 function resetZoom() {
   zoom.value = null
@@ -177,6 +178,7 @@ function onPointerUp(e: PointerEvent) {
 }
 
 function onShapeClick(s: { id: string; colorHidden: boolean }) {
+  if (props.readOnly) return
   if (suppressClick) {
     suppressClick = false
     return
@@ -196,7 +198,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
       class="logo-preview block w-full h-full"
       :class="{ 'touch-none': zoomable }"
       role="img"
-      :aria-label="`${faceLabel ?? 'Logo'} outside view, keyring at top${mirror ? ', mirrored horizontally' : ''}: click a shape to hide or restore it`"
+      :aria-label="`${faceLabel ?? 'Logo'} outside view, keyring at top${mirror ? ', mirrored horizontally' : ''}${readOnly ? ': shared with Front, read-only' : ': click a shape to hide or restore it'}`"
       v-on="zoomable ? {
         wheel: (e: WheelEvent) => { e.preventDefault(); onWheel(e) },
         pointerdown: onPointerDown,
@@ -220,11 +222,11 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
           v-for="s in sourceShapes"
           :key="s.id"
           :d="s.d"
-          :class="s.colorHidden ? 'ghost' : s.hidden ? 'ghost clickable' : 'target clickable'"
+          :class="[s.colorHidden || s.hidden ? 'ghost' : 'target', { clickable: !readOnly && !s.colorHidden }]"
           :style="{ '--source': s.color }"
           @click="onShapeClick(s)"
         >
-          <title>{{ s.colorHidden ? `${s.color} (color hidden)` : s.hidden ? `Click to restore (${s.color})` : `Click to hide (${s.color})` }}</title>
+          <title>{{ readOnly ? `${s.color} (edit on Front)` : s.colorHidden ? `${s.color} (color hidden)` : s.hidden ? `Click to restore (${s.color})` : `Click to hide (${s.color})` }}</title>
         </path>
       </g>
       <!-- Inspection overlays, above the hover outline -->
@@ -247,7 +249,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
   stroke: transparent;
   stroke-width: 2px;
 }
-.target:hover {
+.target.clickable:hover {
   stroke: #2563eb;
 }
 .ghost {

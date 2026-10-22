@@ -21,6 +21,7 @@ export interface FaceSettings {
   refinements: Refinements
   mirror: boolean
   importFailed: boolean
+  fileName: string | null
 }
 
 export type BasePlateShape = 'square' | 'circle'
@@ -66,7 +67,10 @@ export interface Refinements {
   minSpeckSize: number
   /** Outline points are dropped while the outline moves less than this, in mm at the printed size; 0 = off. */
   simplifyTolerance: number
-  /** Features narrower than the minimum feature width (below) are flagged as unprintable. */
+}
+
+/** Shared printer capabilities used by both faces' printability checks. */
+export interface PrinterSettings {
   nozzleDiameter: number
   /**
    * The slicer prints walls down to one nozzle width ("detect thin walls"),
@@ -85,9 +89,9 @@ export const DEFAULT_REFINEMENTS: Refinements = {
   // Far below what a nozzle can resolve, and drops most of the points curves
   // are tessellated into (16 per curve, however small).
   simplifyTolerance: 0.02,
-  nozzleDiameter: 0.4,
-  thinWalls: false,
 }
+
+export const DEFAULT_PRINTER: PrinterSettings = { nozzleDiameter: 0.4, thinWalls: false }
 
 export const DEFAULT_CONFIG: KeychainConfig = {
   basePlateShape: 'square',

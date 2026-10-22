@@ -191,6 +191,7 @@ test('different, front-only and back-only 3MF files preserve colors, outside ori
     }
     await selectFace(page, 'Back')
     await page.getByLabel('Face artwork', { exact: true }).selectOption('empty')
-    assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
+    await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Download .3mf (base only)', exact: true }).isEnabled(), true)
   } finally { await page.close() }
 })

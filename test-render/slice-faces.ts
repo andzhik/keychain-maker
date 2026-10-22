@@ -36,7 +36,12 @@ function toolpaths(gcode: string, colors: string[]) {
   for (const line of gcode.split(/\r?\n/)) {
     if (line.startsWith('; Z_HEIGHT:')) layers.push({ z: +line.split(':')[1], segments: [] })
     const selection = line.match(/^T(\d+)\s*$/)
-    if (selection) { tool = +selection[1]; feature = '' }
+    if (selection) {
+      // Bambu's startup T1000/T1100 commands are calibration operations, not
+      // filament selections. Single-color jobs may never emit a later T0.
+      if (+selection[1] < colors.length) tool = +selection[1]
+      feature = ''
+    }
     if (line.startsWith('; FEATURE:')) feature = line.slice(11).trim()
     if (/^M620\b/.test(line)) feature = ''
     if (/^G91\b/.test(line)) relative = true
@@ -54,39 +59,44 @@ function toolpaths(gcode: string, colors: string[]) {
   return layers
 }
 
+async function slice(name: string, file: string) {
+  const dir = join(out, name)
+  await mkdir(dir, { recursive: true })
+  const zip = await JSZip.loadAsync(await readFile(file))
+  const originalModel = await zip.file('3D/3dmodel.model')!.async('string')
+  // The installed CLI is 1.9; the exporter's default header claims 2.4.
+  // Match the CLI version and installed profiles, as in the issue #12 probe.
+  // No vertices, triangles, transforms or part/material assignments change.
+  zip.file('3D/3dmodel.model', originalModel.replace('BambuStudio-02.04.00.70', 'BambuStudio-01.09.07.52'))
+  const settings = JSON.parse(await zip.file('Metadata/project_settings.config')!.async('string'))
+  Object.assign(settings, { printer_model: 'Bambu Lab X1 Carbon', printer_settings_id: 'Bambu Lab X1 Carbon 0.4 nozzle',
+    print_settings_id: '0.20mm Standard @BBL X1C', curr_bed_type: 'Textured PEI Plate',
+    initial_layer_print_height: '0.2', enable_prime_tower: '1' })
+  const colors: string[] = settings.filament_colour
+  settings.flush_volumes_matrix = Array.from({ length: colors.length ** 2 }, (_, i) => i % (colors.length + 1) === 0 ? '0' : '280')
+  settings.flush_volumes_vector = Array(colors.length * 2).fill('140')
+  settings.flush_multiplier = '1'
+  zip.file('Metadata/project_settings.config', JSON.stringify(settings))
+  const input = join(dir, 'input.3mf')
+  await writeFile(input, await zip.generateAsync({ type: 'nodebuffer' }))
+  await rm(join(dir, 'plate_1.gcode'), { force: true })
+  await rm(join(dir, 'sliced.3mf'), { force: true })
+  const run = spawnSync(executable, ['--debug', '3', '--load-settings', `${join(out, 'machine.json')};${join(out, 'process.json')}`,
+    '--load-filaments', Array(colors.length).fill(join(out, 'filament.json')).join(';'),
+    '--orient', '0', '--arrange', '0', '--slice', '0', '--outputdir', dir,
+    '--export-3mf', 'sliced.3mf', input], { windowsHide: true, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 60000 })
+  await writeFile(join(dir, 'bambu.log'), (run.stdout ?? '') + (run.stderr ?? ''))
+  assert.equal(run.status, 0, `${name}: Bambu failed; see bambu.log`)
+  const gcode = await readFile(join(dir, 'plate_1.gcode'), 'utf8')
+  const layers = toolpaths(gcode, colors)
+  return { dir, colors, layers }
+}
+
 const results = []
 for (const scenario of ['different', 'front-mirrored', 'back-mirrored', 'front-only', 'back-only']) {
   for (const [bevel, thickness] of [[0.6, 5], [0, 0.8], [0.3, 0.8]]) {
     const name = `${scenario}-${bevel}-${thickness}`
-    const dir = join(out, name)
-    await mkdir(dir, { recursive: true })
-    const zip = await JSZip.loadAsync(await readFile(`test-output/faces-${name}.3mf`))
-    const originalModel = await zip.file('3D/3dmodel.model')!.async('string')
-    // The installed CLI is 1.9; the exporter's default header claims 2.4.
-    // Match the CLI version and installed profiles, as in the issue #12 probe.
-    // No vertices, triangles, transforms or part/material assignments change.
-    zip.file('3D/3dmodel.model', originalModel.replace('BambuStudio-02.04.00.70', 'BambuStudio-01.09.07.52'))
-    const settings = JSON.parse(await zip.file('Metadata/project_settings.config')!.async('string'))
-    Object.assign(settings, { printer_model: 'Bambu Lab X1 Carbon', printer_settings_id: 'Bambu Lab X1 Carbon 0.4 nozzle',
-      print_settings_id: '0.20mm Standard @BBL X1C', curr_bed_type: 'Textured PEI Plate',
-      initial_layer_print_height: '0.2', enable_prime_tower: '1' })
-    const colors: string[] = settings.filament_colour
-    settings.flush_volumes_matrix = Array.from({ length: colors.length ** 2 }, (_, i) => i % (colors.length + 1) === 0 ? '0' : '280')
-    settings.flush_volumes_vector = Array(colors.length * 2).fill('140')
-    settings.flush_multiplier = '1'
-    zip.file('Metadata/project_settings.config', JSON.stringify(settings))
-    const input = join(dir, 'input.3mf')
-    await writeFile(input, await zip.generateAsync({ type: 'nodebuffer' }))
-    await rm(join(dir, 'plate_1.gcode'), { force: true })
-    await rm(join(dir, 'sliced.3mf'), { force: true })
-    const run = spawnSync(executable, ['--debug', '3', '--load-settings', `${join(out, 'machine.json')};${join(out, 'process.json')}`,
-      '--load-filaments', Array(colors.length).fill(join(out, 'filament.json')).join(';'),
-      '--orient', '0', '--arrange', '0', '--slice', '0', '--outputdir', dir,
-      '--export-3mf', 'sliced.3mf', input], { windowsHide: true, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 60000 })
-    await writeFile(join(dir, 'bambu.log'), (run.stdout ?? '') + (run.stderr ?? ''))
-    assert.equal(run.status, 0, `${name}: Bambu failed; see bambu.log`)
-    const gcode = await readFile(join(dir, 'plate_1.gcode'), 'utf8')
-    const layers = toolpaths(gcode, colors)
+    const { dir, colors, layers } = await slice(name, `test-output/faces-${name}.3mf`)
     assert.equal(layers.length, Math.round(thickness / 0.2))
     const depth = Math.min(0.6, thickness / 2)
     for (const layer of layers) {
@@ -126,5 +136,14 @@ for (const scenario of ['different', 'front-mirrored', 'back-mirrored', 'front-o
     results.push(result)
     console.log(result)
   }
+}
+for (const [name, expectedColors] of [['ui-blank', ['#ffffff']], ['ui-five-colors', ['#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00']]] as const) {
+  const { colors, layers } = await slice(name, `test-output/${name}.3mf`)
+  assert.equal(layers.length, 25, `${name}: expected a 5 mm plate at 0.2 mm layers`)
+  const printed = new Set(layers.flatMap(layer => layer.segments.map(segment => segment.color)))
+  assert.deepEqual([...printed].sort(), [...expectedColors].sort(), `${name}: actual sliced filaments must match the UI summary`)
+  const result = { name, layers: layers.length, filaments: new Set(colors.map(color => color.toLowerCase())).size }
+  results.push(result)
+  console.log(result)
 }
 await writeFile(join(out, 'results.json'), JSON.stringify(results, null, 2))

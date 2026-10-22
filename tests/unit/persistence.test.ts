@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS } from '../../src/types/keychain'
-import { loadState, loadFaces, saveFace, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
+import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, DEFAULT_PRINTER } from '../../src/types/keychain'
+import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
 
 function memoryStorage(quota = Infinity): Storage {
   const data = new Map<string, string>()
@@ -38,11 +38,25 @@ test('saved state round-trips', () => {
     hiddenShapes: ['#000000:3'],
     maxColors: 4,
     minSpeckSize: 0.5,
-    thinWalls: true,
   }
   saveRefinements(refinements, storage)
 
   expect(loadState(storage)).toEqual({ config, showLogo: false, svg: '<svg/>', refinements })
+})
+
+test('fresh faces are unmirrored and printer settings migrate from Front only', () => {
+  const storage = memoryStorage()
+  expect(loadFaces(storage).back.mirror).toBe(false)
+  expect(loadPrinter(storage)).toEqual(DEFAULT_PRINTER)
+  saveRefinements({ ...DEFAULT_REFINEMENTS, nozzleDiameter: 0.25, thinWalls: true } as any, storage)
+  expect(loadPrinter(storage)).toEqual({ nozzleDiameter: 0.25, thinWalls: true })
+  storage.setItem('keychain-maker:front:v1', JSON.stringify({ refinements: { nozzleDiameter: 0.2, thinWalls: true } }))
+  storage.setItem('keychain-maker:back:v1', JSON.stringify({ refinements: { nozzleDiameter: 0.8, thinWalls: false } }))
+  expect(loadPrinter(storage)).toEqual({ nozzleDiameter: 0.2, thinWalls: true })
+  savePrinter({ nozzleDiameter: 0.6, thinWalls: false }, storage)
+  expect(loadPrinter(storage)).toEqual({ nozzleDiameter: 0.6, thinWalls: false })
+  storage.setItem('keychain-maker:printer:v1', JSON.stringify({ nozzleDiameter: -1, thinWalls: 'yes' }))
+  expect(loadPrinter(storage)).toEqual(DEFAULT_PRINTER)
 })
 
 test('old single-image sessions migrate to the same physical artwork and independent mirrors', () => {

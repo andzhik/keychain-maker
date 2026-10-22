@@ -25,7 +25,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
 - See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
-- Use the full controls and export flow on phone and tablet screens with a vertically scrolling layout
+- Configure the shared nozzle diameter and Thin walls behavior in the Printer card
 - Remember both images, face selections, mirror settings and refinements across reloads (browser localStorage)
 
 ## Front and Back artwork
@@ -36,13 +36,15 @@ Front**, sharing Front's image and refinements while keeping an independent
 mirror setting. Switching Back to its own image and back again preserves its
 previous image and edits. **Empty** leaves a solid face in the plate material;
 switching back restores the stored artwork and refinements.
+The shared Back preview is read-only: use **Edit on Front →** to change its
+colors or shapes. Mirroring remains independent on Back.
 
 **Mirror horizontally** changes only the selected face. The 2D preview shows
 that face from outside, with the keyring at the top, matching the 3D model and
-export. For compatibility, the initial same-image setup repeats the original
-plate coordinates: Back is marked mirrored. Uncheck Back's mirror toggle to
-make path-based text read normally from that side. Older saved sessions restore
-this same-image setup and their original orientation.
+export. Fresh sessions leave Mirror off on both faces, so text reads normally
+on each side. Older single-image saved sessions keep Back mirrored to preserve
+their original orientation. Use **Front** and **Back** above the 3D view to
+inspect either outside face; **Reset View** returns to the isometric view.
 
 Each image is centered independently and keeps its aspect ratio. A rectangle
 has the configured Width; each image fills the width remaining after Margin on
@@ -57,11 +59,19 @@ their outlines overlap; other regions keep plate material. Empty faces remain
 solid even at maximum depth. Turning off **Print logo** exports a solid base
 with the same dimensions.
 
-Download requires at least one valid image on a populated face. A failed import
+You can download a blank plate without uploading artwork. A failed import
 blocks export until repaired or that face is deliberately set to Empty (or its
 unused source is replaced by Same as Front). Imports and tracing continue on
 their original source when you switch face controls; downloads wait for all
 active sources and the current model. Failures are remembered across reloads.
+Reloading during a retrace restores the last valid artwork. Successful uploads
+collapse to a filename and **Replace** row, which still accepts dropped files.
+
+The filament summary counts distinct colors across the plate and both faces;
+matching colors share a filament. A warning above four colors helps you plan
+for your printer's available slots. Downloads use the artwork filename when
+available. **Start over** in the header clears both images and resets keychain
+and printer settings after confirmation.
 
 ## Preparing artwork
 
@@ -84,7 +94,7 @@ linked copies produce visible instructions instead of silently losing artwork.
 Inline fills/styles, transforms, holes, white fills, and bounded local `xlink:href`
 copies of paths or groups remain supported. Unused paint definitions are ignored.
 
-The SVG import report shows parsed color/shape counts and conservative cleanup:
+The Import report shows parsed color/shape counts and conservative cleanup:
 non-rendering metadata, titles and descriptions are removed from the parsing
 copy, and simple inline fills, fill rules and opacity are normalized to attributes.
 CSS priorities and mixed duplicate declarations stay intact. Unsupported artwork
@@ -112,18 +122,19 @@ the source artwork or trace a smaller image with fewer colors when a limit is re
 
 ## Printability warnings
 
-Above 500 outline points after refinement (including holes), a warning icon beside
-Reset View explains in a tooltip that updates may be slow and recommends increasing
-Simplify. The warning follows the final refined geometry and
+Above 500 outline points after refinement (including holes), advice beside
+Simplify explains that updates may be slow and recommends increasing it.
+The warning follows the artwork being edited, excludes unused sources, and
 does not block building or export; the hard safety budgets above still apply.
 
-Thin-area advice appears in a warning tooltip beside Nozzle. Both warning icons
+Thin-area advice appears in a warning tooltip beside Thin areas. The warning icons
 show their explanations on hover, keyboard focus, or tap. Every setting keeps a
 short label; an info icon beside it explains what it does the same way.
 
 The minimum printable width is two nozzle widths, or one with **Thin walls** on
 (for slicers that print walls a single line wide, e.g. "Detect thin walls"). It
 drives the thin-area overlay and the tiny-island check.
+The Printer card applies to both faces, including when the selected face is Empty.
 
 The base-thickness and keyring-wall messages are advisory: the base recommendation
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation

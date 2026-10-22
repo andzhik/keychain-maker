@@ -5,8 +5,9 @@ import SliderField from './SliderField.vue'
 import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
 import { SVG_LIMITS, complexityError } from '../utils/svgValidation'
 
+defineProps<{ imported: boolean; fileName: string | null }>()
 const emit = defineEmits<{
-  svgLoaded: [svgString: string, retraced?: boolean]
+  svgLoaded: [svgString: string, retraced?: boolean, fileName?: string]
   importStarted: [retraced: boolean]
   importFailed: [message: string]
 }>()
@@ -49,7 +50,7 @@ async function handleFile(file: File) {
         return
       }
       const text = await file.text()
-      if (currentRequest === requestId) emit('svgLoaded', text)
+      if (currentRequest === requestId) emit('svgLoaded', text, false, file.name)
     } else if (isRaster(file)) {
       const image = await decodeImage(file)
       if (currentRequest !== requestId) return
@@ -86,7 +87,7 @@ function retrace(retraced = false) {
   clearTimeout(retraceTimer)
   if (!raster.value) return
   try {
-    emit('svgLoaded', traceImage(raster.value.image, traceOptions.value), retraced)
+    emit('svgLoaded', traceImage(raster.value.image, traceOptions.value), retraced, raster.value.name)
   } catch {
     emit('importFailed', `Could not trace "${raster.value.name}". Try fewer colors or more smoothing.`)
   }
@@ -121,6 +122,9 @@ function onFileChange(e: Event) {
     <!-- Drop zone -->
     <div
       class="border-2 border-dashed rounded-lg px-3 py-2.5 flex items-center justify-center gap-2 cursor-pointer select-none transition-colors"
+      role="button"
+      tabindex="0"
+      :aria-label="imported ? `Replace ${fileName ?? 'artwork'}` : 'Upload SVG or image'"
       :class="isDragging
         ? 'border-blue-400 bg-blue-50'
         : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-gray-50'"
@@ -128,12 +132,18 @@ function onFileChange(e: Event) {
       @dragleave.prevent="isDragging = false"
       @drop.prevent="onDrop"
       @click="fileInput?.click()"
+      @keydown.enter.prevent="fileInput?.click()"
+      @keydown.space.prevent="fileInput?.click()"
     >
       <svg class="w-5 h-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
-      <span class="text-sm text-gray-600">
+      <span v-if="imported && !isDragging" class="flex min-w-0 flex-1 items-center gap-2 text-xs text-gray-600">
+        <span class="truncate" :title="fileName ?? 'Imported artwork'">{{ fileName ?? 'Imported artwork' }}</span>
+        <span class="ml-auto underline">Replace</span>
+      </span>
+      <span v-else class="text-sm text-gray-600">
         <span class="font-medium">{{ isDragging ? 'Drop SVG or image here' : 'Drop SVG or image' }}</span>
         <span v-if="!isDragging" class="text-gray-400"> or click to browse</span>
       </span>
@@ -201,7 +211,7 @@ function onFileChange(e: Event) {
     </div>
 
     <!-- UI note -->
-    <p class="text-[11px] text-gray-400 leading-snug">
+    <p v-if="!imported" class="text-[11px] text-gray-400 leading-snug">
       For best results, use flat SVGs without gradients, filters, clip-paths, or text elements.
       PNGs are traced into flat colors; logos with few, solid colors trace best. Traced artwork may need cleanup before printing.
     </p>

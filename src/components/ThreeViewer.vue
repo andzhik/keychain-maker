@@ -2,13 +2,12 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useThreeScene } from '../composables/useThreeScene'
 import { useKeychainBuilder } from '../composables/useKeychainBuilder'
-import type { BuildStatus, KeychainArtwork, KeychainConfig } from '../types/keychain'
+import type { BuildStatus, KeychainArtwork, KeychainConfig, Face } from '../types/keychain'
 
 const props = defineProps<{
   artwork: KeychainArtwork
   /** The camera refits when this changes (a new SVG), not on every logo edit. */
   fitKey?: unknown
-  showLogo: boolean
   config: KeychainConfig
   configError?: string | null
 }>()
@@ -19,7 +18,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
 
 const { init, dispose: disposeScene, getScene, fitCamera, requestRender } = useThreeScene()
-const { build, dispose: disposeBuilder, dimensions, buildMs, buildError, setLogoVisible } = useKeychainBuilder(getScene)
+const { build, dispose: disposeBuilder, dimensions, buildMs, buildError } = useKeychainBuilder(getScene)
 
 let currentGroup: ReturnType<typeof build> = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -73,8 +72,11 @@ function scheduleRebuild(refit: boolean) {
 function resetView() {
   if (currentGroup) fitCamera(currentGroup)
 }
+function showFace(face: Face) {
+  if (currentGroup) fitCamera(currentGroup, face)
+}
 
-defineExpose({ dimensions, buildMs, resetView, getCurrentGroup: () => currentGroup })
+defineExpose({ dimensions, buildMs, resetView, showFace, getCurrentGroup: () => currentGroup })
 
 onMounted(() => {
   if (!containerRef.value) return
@@ -85,7 +87,6 @@ onMounted(() => {
     return
   }
 
-  setLogoVisible(props.showLogo)
   refitPending = true
   rebuild()
 })
@@ -98,11 +99,6 @@ watch(() => props.fitKey, () => scheduleRebuild(true))
 
 watch(() => props.config, () => scheduleRebuild(false), { deep: true })
 watch(() => props.configError, () => scheduleRebuild(false))
-
-watch(() => props.showLogo, (visible) => {
-  setLogoVisible(visible)
-  requestRender()
-})
 
 onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer)

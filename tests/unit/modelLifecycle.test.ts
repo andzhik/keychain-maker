@@ -61,7 +61,7 @@ test('a failed CSG build disposes its partially built model', () => {
   }
 })
 
-test('scene replacements dispose shared resources and preserve hidden-logo state', () => {
+test('scene replacements dispose shared resources', () => {
   let scene: THREE.Scene | null = new THREE.Scene()
   const originalScene = scene
   const lifecycle = createSceneLifecycle(() => scene)
@@ -73,19 +73,14 @@ test('scene replacements dispose shared resources and preserve hidden-logo state
   const logo = new THREE.Group()
   root.add(logo)
   const disposals = [spyOn(geometry, 'dispose'), spyOn(red, 'dispose'), spyOn(blue, 'dispose')]
-  lifecycle.setLogoVisible(false)
-  expect(lifecycle.attach(root, logo)).toBe(true)
-  expect(logo.visible).toBe(false)
+  expect(lifecycle.attach(root)).toBe(true)
   scene = new THREE.Scene()
   const replacement = new THREE.Group()
   const nextLogo = new THREE.Group()
   replacement.add(nextLogo)
-  expect(lifecycle.attach(replacement, nextLogo)).toBe(true)
+  expect(lifecycle.attach(replacement)).toBe(true)
   expect(originalScene.children).toHaveLength(0)
   for (const dispose of disposals) expect(dispose).toHaveBeenCalledTimes(1)
-  expect(nextLogo.visible).toBe(false)
-  lifecycle.setLogoVisible(true)
-  expect(nextLogo.visible).toBe(true)
   lifecycle.clear()
   lifecycle.clear()
   expect(scene.children).toHaveLength(0)
@@ -97,7 +92,7 @@ test('a missing scene releases a model instead of retaining detached resources',
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial())
   root.add(mesh)
   const dispose = spyOn(mesh.geometry, 'dispose')
-  expect(createSceneLifecycle(() => null).attach(root, null)).toBe(false)
+  expect(createSceneLifecycle(() => null).attach(root)).toBe(false)
   expect(dispose).toHaveBeenCalledTimes(1)
   dispose.mockRestore()
 })

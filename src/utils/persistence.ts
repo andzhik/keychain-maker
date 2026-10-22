@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, type KeychainConfig, type Refinements, type Face, type FaceSettings } from '../types/keychain'
+import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, DEFAULT_PRINTER, type KeychainConfig, type Refinements, type Face, type FaceSettings, type PrinterSettings } from '../types/keychain'
 
 // Separate keys so an SVG too big for the storage quota doesn't take the
 // (tiny) config down with it.
@@ -6,6 +6,7 @@ const CONFIG_KEY = 'keychain-maker:config:v1'
 const SHOW_LOGO_KEY = 'keychain-maker:showLogo:v1'
 const SVG_KEY = 'keychain-maker:svg:v1'
 const REFINEMENTS_KEY = 'keychain-maker:refinements:v1'
+const PRINTER_KEY = 'keychain-maker:printer:v1'
 
 export interface PersistedState {
   config: KeychainConfig
@@ -83,7 +84,7 @@ export function sanitizeRefinements(raw: unknown): Refinements {
 
   const isNumber = (value: unknown, min: number): value is number =>
     typeof value === 'number' && Number.isFinite(value) && value >= min
-  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckSize' | 'simplifyTolerance' | 'nozzleDiameter', min: number) => {
+  const number = (key: 'mergeTolerance' | 'maxColors' | 'minSpeckSize' | 'simplifyTolerance', min: number) => {
     const value = source[key]
     if (isNumber(value, min)) result[key] = value
   }
@@ -96,9 +97,30 @@ export function sanitizeRefinements(raw: unknown): Refinements {
     result.minSpeckSize = +(2 * Math.sqrt(source.minSpeckArea / Math.PI)).toFixed(2)
   }
   number('simplifyTolerance', 0)
-  number('nozzleDiameter', 0.1)
-  if (typeof source.thinWalls === 'boolean') result.thinWalls = source.thinWalls
   return result
+}
+
+export function loadPrinter(storage: Storage | null = defaultStorage()): PrinterSettings {
+  // Front was the original home of these settings. Prefer it when migrating
+  // conflicting per-face saves, before useFaceArtwork retires the old keys.
+  const front = parseJson(read(storage, 'keychain-maker:front:v1')) as { refinements?: unknown } | null
+  const raw = parseJson(read(storage, PRINTER_KEY)) ?? front?.refinements ?? parseJson(read(storage, REFINEMENTS_KEY))
+  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  return {
+    nozzleDiameter: typeof value.nozzleDiameter === 'number' && Number.isFinite(value.nozzleDiameter) && value.nozzleDiameter >= 0.1
+      ? value.nozzleDiameter : DEFAULT_PRINTER.nozzleDiameter,
+    thinWalls: typeof value.thinWalls === 'boolean' ? value.thinWalls : DEFAULT_PRINTER.thinWalls,
+  }
+}
+
+export function savePrinter(printer: PrinterSettings, storage: Storage | null = defaultStorage()) {
+  write(storage, PRINTER_KEY, JSON.stringify(printer))
+}
+
+export function clearSession(storage: Storage | null = defaultStorage()) {
+  const keys = [CONFIG_KEY, SHOW_LOGO_KEY, SVG_KEY, REFINEMENTS_KEY, PRINTER_KEY,
+    ...(['front', 'back'] as const).flatMap(face => [`keychain-maker:${face}:v1`, `keychain-maker:${face}:svg:v1`])]
+  for (const key of keys) write(storage, key, null)
 }
 
 /** Parsed JSON, or null when missing or corrupt (the sanitizers then use the defaults). */
@@ -138,10 +160,10 @@ export function saveRefinements(refinements: Refinements, storage: Storage | nul
 
 export function loadFaces(storage: Storage | null = defaultStorage()): Record<Face, FaceSettings> {
   const legacy = loadState(storage)
-  const front: FaceSettings = { mode: 'artwork', svg: legacy.svg, refinements: legacy.refinements, mirror: false, importFailed: false }
+  const front: FaceSettings = { mode: 'artwork', svg: legacy.svg, refinements: legacy.refinements, mirror: false, importFailed: false, fileName: null }
   // Legacy sessions repeat plate coordinates on the back, which is mirrored
   // in outside view. Preserve that orientation until the user changes it.
-  const back: FaceSettings = { ...front, mode: 'same', svg: null, refinements: sanitizeRefinements(null), mirror: true }
+  const back: FaceSettings = { ...front, mode: 'same', svg: null, refinements: sanitizeRefinements(null), mirror: legacy.svg !== null }
   const faces = { front, back }
   for (const face of ['front', 'back'] as const) {
     const raw = parseJson(read(storage, `keychain-maker:${face}:v1`))
@@ -154,13 +176,23 @@ export function loadFaces(storage: Storage | null = defaultStorage()): Record<Fa
       refinements: sanitizeRefinements(value.refinements),
       mirror: typeof value.mirror === 'boolean' ? value.mirror : faces[face].mirror,
       importFailed: value.importFailed === true || (value.hasArtwork === true && !svg),
+      fileName: typeof value.fileName === 'string' ? value.fileName : null,
     }
   }
   return faces
 }
 
 export function saveFace(face: Face, settings: FaceSettings, storage: Storage | null = defaultStorage()) {
+  saveFaceSvg(face, settings.svg, storage)
+  saveFaceMetadata(face, settings, storage)
+}
+
+export function saveFaceMetadata(face: Face, settings: FaceSettings, storage: Storage | null = defaultStorage()) {
   const { svg, ...metadata } = settings
+  write(storage, `keychain-maker:${face}:v1`, JSON.stringify({ ...metadata, hasArtwork: svg !== null }))
+}
+
+export function saveFaceSvg(face: Face, svg: string | null, storage: Storage | null = defaultStorage()) {
   // Retire migrated source keys before saving, freeing quota rather than
   // storing a second copy of Front or resurrecting it after a failed save.
   if (face === 'front') {
@@ -168,5 +200,4 @@ export function saveFace(face: Face, settings: FaceSettings, storage: Storage | 
     write(storage, REFINEMENTS_KEY, null)
   }
   write(storage, `keychain-maker:${face}:svg:v1`, svg)
-  write(storage, `keychain-maker:${face}:v1`, JSON.stringify({ ...metadata, hasArtwork: svg !== null }))
 }

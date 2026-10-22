@@ -1,5 +1,5 @@
 import { computed, onUnmounted, shallowRef, watch, type Ref } from 'vue'
-import type { ColorGroup, KeychainConfig, Refinements } from '../types/keychain'
+import type { ColorGroup, KeychainConfig, Refinements, PrinterSettings } from '../types/keychain'
 import { fitGroups } from '../utils/logoFit'
 import { refineColors, removeSpecks } from '../utils/refine'
 import { simplifyGroups } from '../utils/simplify'
@@ -18,8 +18,11 @@ export function useLogoRefinement(
   parsed: Ref<ColorGroup[]>,
   refinements: Ref<Refinements>,
   config: Ref<KeychainConfig>,
+  printer: Ref<PrinterSettings>,
+  active: Ref<boolean>,
 ) {
-  const colors = computed(() => refineColors(parsed.value, refinements.value))
+  const emptyGroups: ColorGroup[] = []
+  const colors = computed(() => refineColors(active.value ? parsed.value : emptyGroups, refinements.value))
 
   // Specks are measured at the printed size, which depends on the logo outline
   // and the plate settings. The scale comes from the logo before speck removal;
@@ -51,7 +54,7 @@ export function useLogoRefinement(
     const fit = fitGroups(groups.value, config.value)
     return fit.hasLogo ? fit.scale : 0
   })
-  const minFeatureWidth = computed(() => (refinements.value.thinWalls ? 1 : 2) * refinements.value.nozzleDiameter)
+  const minFeatureWidth = computed(() => (printer.value.thinWalls ? 1 : 2) * printer.value.nozzleDiameter)
 
   const thinFeatures = shallowRef<ThinFeatures>({ count: 0, path: '' })
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -59,11 +62,13 @@ export function useLogoRefinement(
     timer = null
     thinFeatures.value = findThinFeatures(groups.value, scale.value, minFeatureWidth.value)
   }
-  watch([groups, scale, minFeatureWidth], () => {
+  watch(() => active.value ? [groups.value, scale.value, minFeatureWidth.value] : null, () => {
     if (timer) clearTimeout(timer)
-    timer = setTimeout(checkThin, THIN_DEBOUNCE_MS)
+    timer = null
+    if (active.value) timer = setTimeout(checkThin, THIN_DEBOUNCE_MS)
+    else thinFeatures.value = { count: 0, path: '' }
   })
-  checkThin()
+  if (active.value) checkThin()
   onUnmounted(() => { if (timer) clearTimeout(timer) })
 
   return {
