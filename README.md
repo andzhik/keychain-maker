@@ -3,6 +3,8 @@
 Turn your logo into a multi-color, 3D-printable keychain in your browser.
 Upload an SVG, PNG, JPEG, or WebP and export a `.3mf` for your slicer.
 
+![Logo to 3D keychain to slicer preview](docs/img/logo-steps.png)
+
 [Open the app](https://andzhik.github.io/keychain-maker/)
 
 ![Keychain Maker interface](docs/img/UI.png)
