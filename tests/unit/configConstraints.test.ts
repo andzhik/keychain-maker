@@ -97,6 +97,6 @@ test('surface depth is capped at half the thickness without changing the request
   expect(result.valid).toBe(true)
   expect(result.config.logoDepth).toBe(0.4)
   expect(input.logoDepth).toBe(0.6)
-  expect(result.adjustments.find(a => a.field === 'logoDepth')?.message).toContain('inlays meet')
+  expect(result.adjustments.find(a => a.field === 'logoDepth')?.message).toContain('half the plate thickness')
   expect(validateConfig(result.config).adjustments).toEqual([])
 })

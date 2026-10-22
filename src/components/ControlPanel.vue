@@ -6,7 +6,7 @@ import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
 import IconTooltip from './IconTooltip.vue'
-import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements } from '../types/keychain'
+import { DEFAULT_REFINEMENTS, type BasePlateShape, type ColorGroup, type KeychainConfig, type Refinements, type Face, type FaceMode } from '../types/keychain'
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import type { ThinFeatures } from '../utils/thinFeatures'
 import { printabilityWarnings, type TinyIslands } from '../utils/printability'
@@ -40,9 +40,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  svgLoaded: [svgText: string, retraced?: boolean]
-  importStarted: [retraced: boolean]
-  importFailed: [message: string]
+  svgLoaded: [face: Face, svgText: string, retraced?: boolean]
+  importStarted: [face: Face, retraced: boolean]
+  importFailed: [face: Face, message: string]
   'update:showLogo': [value: boolean]
   'update:config': [value: KeychainConfig]
   'update:refinements': [value: Refinements]
@@ -51,6 +51,9 @@ const emit = defineEmits<{
 }>()
 
 const showThinFeatures = defineModel<boolean>('showThinFeatures', { required: true })
+const selectedFace = defineModel<Face>('selectedFace', { required: true })
+const faceMode = defineModel<FaceMode>('faceMode', { required: true })
+const mirror = defineModel<boolean>('mirror', { required: true })
 
 const MAX_COLOR_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]
 
@@ -94,7 +97,7 @@ const nozzleWarning = computed(() => `${props.thinFeatures.count} thin area${pro
 
 /** Descriptions behind the info icons, so the labels can stay short. */
 const INFO = {
-  printLogo: 'When off, the logo is left out and you download only the plate.',
+  printLogo: 'When off, both images are left out and you download a solid plate with the same dimensions.',
   merge: 'Merges colors that look nearly the same, so near-duplicates don’t each need a filament. '
     + 'Measured as color difference (ΔE): about 2 is barely visible, 10 or more is clearly different. 0 = off.',
   colorLimit: 'Merges the most similar colors until at most this many remain, so the logo fits the filaments you have.',
@@ -103,12 +106,12 @@ const INFO = {
   nozzle: 'Your printer’s nozzle diameter. Only used to find logo details too thin to print; it doesn’t change the model.',
   thinWalls: 'Turn on if your slicer prints walls a single line wide (“Detect thin walls” or similar). '
     + 'Details then print down to 1 nozzle width instead of 2.',
-  shape: 'Rectangle follows the logo’s proportions; Circle is round, with the logo centered.',
-  width: 'Width of the plate, not counting the keyring loop. A rectangle’s height follows the logo’s proportions.',
+  shape: 'Rectangle fits both faces; Circle keeps a fixed diameter with each image centered.',
+  width: 'Width of the plate, not counting the keyring loop. Each image fills the width inside the margins; the taller fitted image sets rectangle height.',
   thickness: 'Total thickness of the keychain, logo included.',
   logoDepth: 'Depth of the logo on each face. The middle stays plate material to reduce filament changes. '
     + '0.6 mm is 3 layers at a 0.2 mm layer height; choose a multiple of your slicer layer height. '
-    + 'Limited to half the plate thickness; when the inlays meet, the logo goes through the plate.',
+    + 'Limited to half the plate thickness. Opposing inlays meet only where their outlines overlap; an Empty face stays solid.',
   margin: 'Space between the logo and the plate edge. Raised automatically to keep the logo clear of the keyring hole.',
   cornerRadius: 'Rounds the corners of a rectangle plate.',
   plateColor: 'Filament color of the plate. Logo colors you remove show this color.',
@@ -156,11 +159,38 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           </span>
         </template>
 
-        <SvgUploader
-          @svgLoaded="(text: string, retraced?: boolean) => emit('svgLoaded', text, retraced)"
-          @importStarted="(retraced: boolean) => emit('importStarted', retraced)"
-          @importFailed="(message: string) => emit('importFailed', message)"
-        />
+        <div class="flex gap-1" role="group" aria-label="Artwork face">
+          <button v-for="face in (['front', 'back'] as const)" :key="face" type="button"
+            :aria-pressed="selectedFace === face"
+            class="flex-1 rounded border px-2 py-1 text-sm capitalize"
+            :class="selectedFace === face ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-300'"
+            @click="selectedFace = face">{{ face === 'front' ? 'Front' : 'Back' }}</button>
+        </div>
+        <label class="flex items-center justify-between text-xs text-gray-600 gap-2">
+          {{ selectedFace === 'front' ? 'Front' : 'Back' }} artwork
+          <select v-model="faceMode" aria-label="Face artwork" class="border border-gray-300 rounded px-1 py-1 bg-white">
+            <option value="artwork">Upload image</option>
+            <option v-if="selectedFace === 'back'" value="same">Same as Front</option>
+            <option value="empty">Empty</option>
+          </select>
+        </label>
+        <p v-if="faceMode === 'same'" class="text-xs text-gray-500">Image and refinements shared with Front. Mirroring affects only Back.</p>
+        <p v-if="faceMode === 'empty'" class="text-xs text-gray-500">Solid base material. Your image and refinements are kept.</p>
+        <!-- Keep both uploaders mounted: async reads and tracing belong to their
+             source even when the user switches the selected face. -->
+        <template v-for="face in (['front', 'back'] as const)" :key="face">
+          <SvgUploader v-show="selectedFace === face && faceMode === 'artwork'"
+            :aria-label="`${face} image upload`"
+            @svgLoaded="(text: string, retraced?: boolean) => emit('svgLoaded', face, text, retraced)"
+            @importStarted="(retraced: boolean) => emit('importStarted', face, retraced)"
+            @importFailed="(message: string) => emit('importFailed', face, message)"
+          />
+        </template>
+        <label v-if="faceMode !== 'empty'" class="flex items-center gap-1.5 text-xs text-gray-600">
+          <input v-model="mirror" type="checkbox" :disabled="!parsedGroups.length" />
+          Mirror horizontally
+        </label>
+        <p class="text-[11px] text-gray-500">{{ selectedFace === 'front' ? 'Front' : 'Back' }} outside view · keyring at top{{ faceMode !== 'empty' && mirror ? ' · mirrored' : '' }}</p>
         <div v-if="error || importReport" role="region" aria-label="SVG import report" class="text-xs text-gray-500 space-y-1">
           <p class="font-medium text-gray-700">SVG import report</p>
           <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
@@ -226,7 +256,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       </PanelCard>
 
       <!-- Refine: print-oriented cleanup of the logo -->
-      <PanelCard title="Refine">
+      <PanelCard v-if="faceMode !== 'empty'" title="Refine">
         <template #action>
           <button
             v-if="refined"

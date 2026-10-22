@@ -2,10 +2,10 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useThreeScene } from '../composables/useThreeScene'
 import { useKeychainBuilder } from '../composables/useKeychainBuilder'
-import type { BuildStatus, ColorGroup, KeychainConfig } from '../types/keychain'
+import type { BuildStatus, KeychainArtwork, KeychainConfig } from '../types/keychain'
 
 const props = defineProps<{
-  colorGroups: ColorGroup[]
+  artwork: KeychainArtwork
   /** The camera refits when this changes (a new SVG), not on every logo edit. */
   fitKey?: unknown
   showLogo: boolean
@@ -37,7 +37,7 @@ function rebuild() {
     return
   }
   try {
-    currentGroup = build(props.colorGroups, props.config)
+    currentGroup = build(props.artwork, props.config)
     if (currentGroup) {
       if (refitPending) fitCamera(currentGroup)
       else requestRender()
@@ -61,7 +61,7 @@ function scheduleRebuild(refit: boolean) {
   // Export may only read the group built from the current inputs.
   currentGroup = null
   emit('buildStatus', 'pending')
-  if (props.colorGroups.length === 0) {
+  if (props.artwork.front.groups.length === 0 && props.artwork.back.groups.length === 0) {
     disposeBuilder()
     requestRender()
   }
@@ -93,7 +93,7 @@ onMounted(() => {
 // Not deep: a new SVG or refinement replaces the whole array, and walking
 // every THREE.Shape curve and vector on each change would be wasted work.
 // Both watchers fire for a new SVG; the refit request is sticky.
-watch(() => props.colorGroups, () => scheduleRebuild(false))
+watch(() => props.artwork, () => scheduleRebuild(false))
 watch(() => props.fitKey, () => scheduleRebuild(true))
 
 watch(() => props.config, () => scheduleRebuild(false), { deep: true })

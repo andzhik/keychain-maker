@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS } from '../../src/types/keychain'
-import { loadState, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
+import { loadState, loadFaces, saveFace, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
 
 function memoryStorage(quota = Infinity): Storage {
   const data = new Map<string, string>()
@@ -43,6 +43,42 @@ test('saved state round-trips', () => {
   saveRefinements(refinements, storage)
 
   expect(loadState(storage)).toEqual({ config, showLogo: false, svg: '<svg/>', refinements })
+})
+
+test('old single-image sessions migrate to the same physical artwork and independent mirrors', () => {
+  const storage = memoryStorage()
+  saveSvg('<svg/>', storage)
+  saveRefinements({ ...DEFAULT_REFINEMENTS, hiddenColors: ['#ffffff'] }, storage)
+  const faces = loadFaces(storage)
+  expect(faces.front.svg).toBe('<svg/>')
+  expect(faces.front.refinements.hiddenColors).toEqual(['#ffffff'])
+  expect(faces.front.mirror).toBe(false)
+  expect(faces.back.mode).toBe('same')
+  expect(faces.back.mirror).toBe(true)
+})
+
+test('separate sources, edits, failed imports and empty selections survive reload', () => {
+  const storage = memoryStorage()
+  const faces = loadFaces(storage)
+  faces.front = { ...faces.front, svg: '<svg>front</svg>', mode: 'empty', mirror: true,
+    refinements: { ...faces.front.refinements, hiddenShapes: ['#ffffff:0'] } }
+  faces.back = { ...faces.back, svg: '<svg>back</svg>', mode: 'artwork', mirror: false, importFailed: true }
+  saveFace('front', faces.front, storage)
+  saveFace('back', faces.back, storage)
+  expect(loadFaces(storage)).toEqual(faces)
+  faces.back.mode = 'same'
+  saveFace('back', faces.back, storage)
+  expect(loadFaces(storage).back.svg).toBe('<svg>back</svg>')
+})
+
+test('a missing saved face SVG is a failure and cannot resurrect legacy artwork', () => {
+  const storage = memoryStorage()
+  saveSvg('<svg>old</svg>', storage)
+  const face = { ...loadFaces(storage).front, svg: '<svg>new</svg>' }
+  saveFace('front', face, storage)
+  storage.removeItem('keychain-maker:front:svg:v1')
+  expect(loadFaces(storage).front.svg).toBeNull()
+  expect(loadFaces(storage).front.importFailed).toBe(true)
 })
 
 test('an SVG over the quota is dropped without losing the config', () => {

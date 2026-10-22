@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 import type { Scene } from 'three'
-import type { ColorGroup, KeychainConfig } from '../types/keychain'
+import type { ColorGroup, KeychainArtwork, KeychainConfig } from '../types/keychain'
 import { buildKeychainModel, type ModelBuildError } from '../domain/keychainModel'
 import { createSceneLifecycle } from '../three/sceneLifecycle'
 import { Profiler } from '../utils/profiler'
@@ -18,7 +18,7 @@ export function useKeychainBuilder(getScene: () => Scene | null) {
     buildMs.value = null
   }
 
-  function build(colorGroups: ColorGroup[], config: KeychainConfig) {
+  function build(colorGroups: ColorGroup[] | KeychainArtwork, config: KeychainConfig) {
     const startedAt = performance.now()
     const profiler = new Profiler('keychain build')
     profiler.measure('disposeCurrent', dispose)

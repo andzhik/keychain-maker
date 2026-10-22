@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
+import { Brush, Evaluator, SUBTRACTION, ADDITION } from 'three-bvh-csg'
 import { MeshBVH } from 'three-mesh-bvh'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
@@ -181,11 +181,25 @@ function logoLayers(config: KeychainConfig): { bottom: number; top: number }[] {
     : [{ bottom, top: bottom + depth }, { bottom: top - depth, top }]
 }
 
+export interface LogoLayer { bottom: number; top: number }
+
+export function faceLayer(config: KeychainConfig, face: 'front' | 'back'): LogoLayer {
+  const bottom = -clampBevel(config)
+  const top = bottom + config.baseThickness
+  const depth = Math.min(config.logoDepth, config.baseThickness / 2)
+  return face === 'front' ? { bottom: top - depth, top } : { bottom, top: bottom + depth }
+}
+
 /** Keep separate closed surface bodies in one mesh per color (or one CSG cutter). */
 function extrudeLayers(shapes: THREE.Shape[], layers: { bottom: number; top: number }[]): THREE.BufferGeometry {
   const parts = layers.map(({ bottom, top }) => {
     const geometry = new THREE.ExtrudeGeometry(shapes, { depth: top - bottom, bevelEnabled: false })
-    return geometry.translate(0, 0, bottom)
+    // Assign the endpoints once, rather than rounding the extrusion depth to
+    // Float32 and then adding the offset. Both faces must meet at exactly the
+    // same Z, including thin plates with non-binary thicknesses (e.g. 0.8 mm).
+    const position = geometry.getAttribute('position')
+    for (let i = 0; i < position.count; i++) position.setZ(i, position.getZ(i) === 0 ? bottom : top)
+    return geometry
   })
   if (parts.length === 1) return parts[0]
   try {
@@ -289,8 +303,8 @@ export function buildLogoMeshes(
   groups: ColorGroup[],
   config: KeychainConfig,
   transform?: THREE.Matrix4,
+  layers = logoLayers(config),
 ): THREE.Mesh[] {
-  const layers = logoLayers(config)
   const meshes: THREE.Mesh[] = []
   for (const group of groups) {
     if (group.shapes.length === 0) continue
@@ -303,6 +317,51 @@ export function buildLogoMeshes(
     meshes.push(new THREE.Mesh(geometry, material))
   }
   return meshes
+}
+
+/** Independent recesses. Only the outer ends extend beyond the plate faces.
+ * At meeting depth, union the touching cutters before subtraction: merging
+ * their triangles would leave coincident internal caps in overlapping regions.
+ */
+export function cutoutFaceRecesses(basePlate: THREE.Mesh,
+  faces: { shapes: THREE.Shape[]; layer: LogoLayer; face: 'front' | 'back' }[], config: KeychainConfig): void {
+  const cutters: THREE.BufferGeometry[] = []
+  let combined: THREE.BufferGeometry | null = null
+  try {
+    for (const { shapes, layer, face } of faces) {
+      if (shapes.length) cutters.push(extrudeLayers(shapes, [{
+        bottom: layer.bottom - (face === 'back' ? 1 : 0),
+        top: layer.top + (face === 'front' ? 1 : 0),
+      }]))
+    }
+    if (!cutters.length) return
+    combined = cutters.length === 1 ? cutters[0]
+      : config.logoDepth >= config.baseThickness / 2
+        ? evaluateCSG(cutters[0], cutters[1], ADDITION)
+        : mergeGeometries(cutters)!
+    const geometry = evaluateCSG(basePlate.geometry, combined, SUBTRACTION)
+    basePlate.geometry.dispose()
+    basePlate.geometry = geometry
+  } finally {
+    if (combined && !cutters.includes(combined)) combined.dispose()
+    for (const geometry of cutters) geometry.dispose()
+  }
+}
+
+function evaluateCSG(a: THREE.BufferGeometry, b: THREE.BufferGeometry, operation: typeof SUBTRACTION): THREE.BufferGeometry {
+  for (const geometry of [a, b]) {
+    const useSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined'
+    if (!geometry.index) {
+      const count = geometry.getAttribute('position').count
+      const IndexArray = count > 65535 ? Uint32Array : Uint16Array
+      const Buffer = useSharedArrayBuffer ? SharedArrayBuffer : ArrayBuffer
+      const index = new IndexArray(new Buffer(count * IndexArray.BYTES_PER_ELEMENT) as ArrayBuffer)
+      for (let i = 0; i < count; i++) index[i] = i
+      geometry.setIndex(new THREE.BufferAttribute(index, 1))
+    }
+    geometry.boundsTree = new MeshBVH(geometry, { maxLeafSize: 3, indirect: true, useSharedArrayBuffer })
+  }
+  return new Evaluator().evaluate(new Brush(a), new Brush(b), operation).geometry
 }
 
 /** Step 5: subtract surface recesses; the keyring hole still passes through the whole plate. */
@@ -342,25 +401,7 @@ function subtractCutoutHoles(
     try {
       // CSG 0.0.17 still requests the deprecated maxLeafTris option. Supply
       // equivalent trees with the current spelling before Brush prepares them.
-      for (const geometry of [baseGeometry, prisms]) {
-        const useSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined'
-        // CSG needs an explicit index even though an indirect BVH does not.
-        if (!geometry.index) {
-          const count = geometry.getAttribute('position').count
-          const IndexArray = count > 65535 ? Uint32Array : Uint16Array
-          const Buffer = useSharedArrayBuffer ? SharedArrayBuffer : ArrayBuffer
-          const index = new IndexArray(new Buffer(count * IndexArray.BYTES_PER_ELEMENT) as ArrayBuffer)
-          for (let i = 0; i < count; i++) index[i] = i
-          geometry.setIndex(new THREE.BufferAttribute(index, 1))
-        }
-        geometry.boundsTree = new MeshBVH(geometry, {
-          maxLeafSize: 3,
-          indirect: true,
-          useSharedArrayBuffer,
-        })
-      }
-      const result = new Evaluator().evaluate(new Brush(baseGeometry), new Brush(prisms), SUBTRACTION)
-      return result.geometry
+      return evaluateCSG(baseGeometry, prisms, SUBTRACTION)
     } finally {
       prisms.dispose()
     }

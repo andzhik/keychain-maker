@@ -16,7 +16,7 @@ test('changing smoothing preserves the logo preview zoom and pan', async () => {
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     await page.goto(`http://localhost:${server.config.server.port}/`)
-    await page.locator('input[type="file"]').setInputFiles('test-images/logo-white.png')
+    await page.locator('input[type="file"]').first().setInputFiles('test-images/logo-white.png')
     await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
 
     const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
@@ -36,10 +36,10 @@ test('changing smoothing preserves the logo preview zoom and pan', async () => {
     const previewElement = await preview.elementHandle()
 
     for (const smoothing of ['2', '0.5']) {
-      const previousSvg = await page.evaluate(() => localStorage.getItem('keychain-maker:svg:v1'))
+      const previousSvg = await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1'))
       await page.getByRole('slider', { name: 'Smoothing', exact: true }).fill(smoothing)
       await page.waitForFunction(previous => {
-        const svg = localStorage.getItem('keychain-maker:svg:v1')
+        const svg = localStorage.getItem('keychain-maker:front:svg:v1')
         return svg !== null && svg !== previous
       }, previousSvg)
       assert.equal(await preview.evaluate((element, previous) => element === previous, previewElement), true,
@@ -58,7 +58,7 @@ test('changing smoothing preserves the logo preview zoom and pan', async () => {
       await preview.hover()
       await page.mouse.wheel(0, -600)
       await panel.getByRole('button', { name: 'Fit', exact: true }).waitFor()
-      await page.locator('input[type="file"]').setInputFiles(file)
+      await page.locator('input[type="file"]').first().setInputFiles(file)
       await panel.getByRole('button', { name: 'Fit', exact: true }).waitFor({ state: 'hidden', timeout: 5000 })
       assert.equal(await preview.getAttribute('viewBox'), await inlinePreview.getAttribute('viewBox'),
         'a new upload must fit the new logo')

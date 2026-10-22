@@ -68,7 +68,7 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
 
   if (config.logoDepth > config.baseThickness / 2) {
     adjust('logoDepth', config.baseThickness / 2,
-      `Limited to ${fmt(config.baseThickness / 2)} mm per face; the inlays meet through this thin plate.`)
+      `Limited to ${fmt(config.baseThickness / 2)} mm per face (half the plate thickness).`)
   }
 
   if (config.keyringEnabled) {

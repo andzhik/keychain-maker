@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, type KeychainConfig, type Refinements } from '../types/keychain'
+import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, type KeychainConfig, type Refinements, type Face, type FaceSettings } from '../types/keychain'
 
 // Separate keys so an SVG too big for the storage quota doesn't take the
 // (tiny) config down with it.
@@ -134,4 +134,39 @@ export function saveSvg(svg: string | null, storage: Storage | null = defaultSto
 
 export function saveRefinements(refinements: Refinements, storage: Storage | null = defaultStorage()) {
   write(storage, REFINEMENTS_KEY, JSON.stringify(refinements))
+}
+
+export function loadFaces(storage: Storage | null = defaultStorage()): Record<Face, FaceSettings> {
+  const legacy = loadState(storage)
+  const front: FaceSettings = { mode: 'artwork', svg: legacy.svg, refinements: legacy.refinements, mirror: false, importFailed: false }
+  // Legacy sessions repeat plate coordinates on the back, which is mirrored
+  // in outside view. Preserve that orientation until the user changes it.
+  const back: FaceSettings = { ...front, mode: 'same', svg: null, refinements: sanitizeRefinements(null), mirror: true }
+  const faces = { front, back }
+  for (const face of ['front', 'back'] as const) {
+    const raw = parseJson(read(storage, `keychain-maker:${face}:v1`))
+    if (!raw || typeof raw !== 'object') continue
+    const value = raw as Record<string, unknown>
+    const svg = read(storage, `keychain-maker:${face}:svg:v1`)
+    faces[face] = {
+      mode: value.mode === 'empty' || (value.mode === 'same' && face === 'back') ? value.mode : 'artwork',
+      svg,
+      refinements: sanitizeRefinements(value.refinements),
+      mirror: typeof value.mirror === 'boolean' ? value.mirror : faces[face].mirror,
+      importFailed: value.importFailed === true || (value.hasArtwork === true && !svg),
+    }
+  }
+  return faces
+}
+
+export function saveFace(face: Face, settings: FaceSettings, storage: Storage | null = defaultStorage()) {
+  const { svg, ...metadata } = settings
+  // Retire migrated source keys before saving, freeing quota rather than
+  // storing a second copy of Front or resurrecting it after a failed save.
+  if (face === 'front') {
+    write(storage, SVG_KEY, null)
+    write(storage, REFINEMENTS_KEY, null)
+  }
+  write(storage, `keychain-maker:${face}:svg:v1`, svg)
+  write(storage, `keychain-maker:${face}:v1`, JSON.stringify({ ...metadata, hasArtwork: svg !== null }))
 }

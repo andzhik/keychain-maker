@@ -62,3 +62,15 @@ export function fitLogo(outerRings: THREE.Vector2[][], config: KeychainConfig): 
 export function fitGroups(groups: ColorGroup[], config: KeychainConfig): LogoFit {
   return fitLogo(logoOutline(groups).map(shape => shape.extractPoints(16).shape), config)
 }
+
+/** Each face fills the padded width independently; the taller face sets rectangle height.
+ * Circles keep their diameter and fit each outline inside the padded radius.
+ * Scales therefore also match the per-source refinement measurements.
+ */
+export function fitFaces(front: ColorGroup[], back: ColorGroup[], config: KeychainConfig) {
+  const frontFit = fitGroups(front, config)
+  const fits = { front: frontFit, back: front === back ? frontFit : fitGroups(back, config) }
+  const populated = [fits.front, fits.back].filter(fit => fit.hasLogo)
+  return { ...fits, width: config.targetWidth,
+    height: populated.length ? Math.max(...populated.map(fit => fit.height)) : fits.front.height }
+}

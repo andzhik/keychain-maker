@@ -7,6 +7,22 @@ export interface ColorGroup {
   pathCount: number
 }
 
+export type Face = 'front' | 'back'
+export type FaceMode = 'artwork' | 'same' | 'empty'
+
+/** Mirror is relative to looking at this face from outside, keyring at the top. */
+export interface FaceArtwork { groups: ColorGroup[]; mirror: boolean }
+export interface KeychainArtwork { front: FaceArtwork; back: FaceArtwork; showLogo?: boolean }
+
+/** An empty face retains its source and edits so switching back is reversible. */
+export interface FaceSettings {
+  mode: FaceMode
+  svg: string | null
+  refinements: Refinements
+  mirror: boolean
+  importFailed: boolean
+}
+
 export type BasePlateShape = 'square' | 'circle'
 
 export type BuildStatus = 'pending' | 'ready' | 'error' | 'unavailable'

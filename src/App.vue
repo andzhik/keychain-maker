@@ -6,127 +6,106 @@ import LogoPreviewPanel from './components/LogoPreviewPanel.vue'
 import type { LogoPreviewData } from './components/LogoPreview.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import IconTooltip from './components/IconTooltip.vue'
-import { useSvgParser } from './composables/useSvgParser'
-import { useLogoRefinement } from './composables/useLogoRefinement'
+import { useFaceArtwork } from './composables/useFaceArtwork'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
-import { fitGroups } from './utils/logoFit'
-import { loadState, saveConfig, saveRefinements, saveShowLogo, saveSvg } from './utils/persistence'
-import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Refinements } from './types/keychain'
+import { fitFaces } from './utils/logoFit'
+import { loadState, loadFaces, saveConfig, saveShowLogo } from './utils/persistence'
+import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Face, type FaceMode, type ColorGroup, type KeychainArtwork } from './types/keychain'
 import type * as THREE from 'three'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
-// Restore the last session so a reload picks up where the user left off.
 const saved = loadState()
+const savedFaces = loadFaces()
 const showLogo = ref(saved.showLogo)
 const config = ref<KeychainConfig>(saved.config)
-const svgText = ref<string | null>(saved.svg)
-// Retracing edits the current logo; only a new upload resets the preview view.
-const logoSourceKey = ref(0)
-// Edits to the parsed logo; the SVG itself is never changed.
-const refinements = ref<Refinements>(saved.refinements)
-// The sliders keep the user's raw values; the model is built from these.
 const constrained = computed(() => constrainConfig(config.value))
-const exporting = ref(false)
-const exportError = ref<string | null>(null)
-const importing = ref(false)
-const importError = ref<string | null>(null)
-const buildStatus = ref<BuildStatus>('pending')
-const modelError = ref<string | null>(null)
-const { colorGroups: parsedGroups, error, report: importReport, parse, clear } = useSvgParser()
-// Parsed before ThreeViewer mounts, so its first build already has the logo.
-if (svgText.value && !parse(svgText.value).ok) {
-  svgText.value = null
-  saveSvg(null)
-}
-const refined = useLogoRefinement(parsedGroups, refinements, computed(() => constrained.value.valid ? constrained.value.config : DEFAULT_CONFIG))
-const colorGroups = refined.groups
-const OUTLINE_POINT_WARNING_THRESHOLD = 500
-const outlineWarning = computed(() => refined.outlinePoints.value.after > OUTLINE_POINT_WARNING_THRESHOLD
-  ? `Over ${OUTLINE_POINT_WARNING_THRESHOLD} outline points: updates may be slow. Increase Simplify to reduce complexity.`
-  : '')
+const effectiveConfig = computed(() => constrained.value.valid ? constrained.value.config : DEFAULT_CONFIG)
+const front = useFaceArtwork('front', savedFaces.front, effectiveConfig)
+const back = useFaceArtwork('back', savedFaces.back, effectiveConfig)
+const selectedFace = ref<Face>('front')
+const selectedSettings = computed(() => selectedFace.value === 'front' ? front.settings.value : back.settings.value)
+const source = computed(() => selectedFace.value === 'front' || back.settings.value.mode === 'same' ? front : back)
+const mode = computed({ get: () => selectedSettings.value.mode, set: (value: FaceMode) => { selectedSettings.value.mode = value } })
+const mirror = computed({ get: () => selectedSettings.value.mirror, set: value => { selectedSettings.value.mirror = value } })
+const emptyGroups: ColorGroup[] = []
+const parsedGroups = computed(() => mode.value === 'empty' ? emptyGroups : source.value.parser.colorGroups.value)
+const colorGroups = computed(() => mode.value === 'empty' ? emptyGroups : source.value.refined.groups.value)
+const refinements = computed({ get: () => source.value.refinements.value, set: value => { source.value.refinements.value = value } })
+const refined = computed(() => source.value.refined)
+const importReport = computed(() => mode.value === 'empty' ? null : source.value.parser.report.value)
+const artworkError = computed(() => mode.value === 'empty' ? null : source.value.error.value)
+const artwork = computed<KeychainArtwork>(() => ({
+  front: { groups: front.settings.value.mode !== 'empty' ? front.refined.groups.value : emptyGroups,
+    mirror: front.settings.value.mirror },
+  back: { groups: back.settings.value.mode === 'empty' ? emptyGroups
+    : back.settings.value.mode === 'same' ? front.refined.groups.value : back.refined.groups.value,
+    mirror: back.settings.value.mirror },
+  showLogo: showLogo.value,
+}))
+const fitKey = computed(() => [front.parser.colorGroups.value, back.parser.colorGroups.value])
 const validation = computed(() => constrained.value.valid
-  ? constrainConfig(config.value, fitGroups(colorGroups.value, constrained.value.config))
+  ? constrainConfig(config.value, fitFaces(artwork.value.front.groups, artwork.value.back.groups, constrained.value.config))
   : constrained.value)
 const configError = computed(() => validation.value.messages.find(m => m.severity === 'error')?.message ?? null)
-
-function handleSvgLoaded(text: string, retraced = false) {
-  importing.value = false
-  importError.value = null
-  if (!retraced) logoSourceKey.value++
-  // Recolors and hidden shapes refer to the old logo's colors and shapes; the
-  // cleanup settings (tolerance, color limit, specks, nozzle) carry over.
-  refinements.value = { ...refinements.value, recolor: {}, hiddenColors: [], hiddenShapes: [] }
-  const result = parse(text)
-  svgText.value = result.ok ? text : null
-  saveSvg(svgText.value)
-}
-
-function handleImportStarted(retraced: boolean) {
-  importing.value = true
-  importError.value = null
-  exportError.value = null
-  if (!retraced) {
-    clear()
-    svgText.value = null
-    saveSvg(null)
-  }
-}
-
-function handleImportFailed(message: string) {
-  importing.value = false
-  importError.value = message
-  clear()
-  svgText.value = null
-  saveSvg(null)
-}
-
+const OUTLINE_POINT_WARNING_THRESHOLD = 500
+const outlineWarning = computed(() => Math.max(front.refined.outlinePoints.value.after, back.refined.outlinePoints.value.after) > OUTLINE_POINT_WARNING_THRESHOLD
+  ? `Over ${OUTLINE_POINT_WARNING_THRESHOLD} outline points: updates may be slow. Increase Simplify to reduce complexity.` : '')
+const exporting = ref(false)
+const exportError = ref<string | null>(null)
+const buildStatus = ref<BuildStatus>('pending')
+const modelError = ref<string | null>(null)
+const usedSources = computed(() => {
+  const sources = []
+  if (front.settings.value.mode !== 'empty' || back.settings.value.mode === 'same') sources.push(front)
+  if (back.settings.value.mode === 'artwork') sources.push(back)
+  return sources
+})
+const importing = computed(() => usedSources.value.some(s => s.importing.value))
+const failedSource = computed(() => usedSources.value.find(s => s.error.value))
+const faceError = computed(() => failedSource.value?.error.value ?? null)
+const hasImport = computed(() => usedSources.value.some(s => s.parser.colorGroups.value.length > 0))
+const hasPrintedLogo = computed(() => showLogo.value && (artwork.value.front.groups.length > 0 || artwork.value.back.groups.length > 0))
+const canExport = computed(() => hasImport.value && !faceError.value && validation.value.valid
+  && !importing.value && buildStatus.value === 'ready' && !exporting.value)
+const exportLabel = computed(() => !hasImport.value || hasPrintedLogo.value ? 'Download .3mf' : 'Download .3mf (base only)')
+const readiness = computed(() => {
+  if (importing.value) return 'Importing artwork\u2026'
+  if (faceError.value) return `Fix the ${failedSource.value === front ? 'Front' : 'Back'} artwork import before exporting.`
+  if (configError.value) return configError.value
+  if (modelError.value) return modelError.value
+  if (!hasImport.value) return 'Upload artwork to create a keychain.'
+  if (buildStatus.value === 'pending') return 'Updating model\u2026'
+  return hasPrintedLogo.value ? 'Ready to export.' : 'Ready to export the base only.'
+})
 function handleBuildStatus(status: BuildStatus, message?: string) {
   buildStatus.value = status
   modelError.value = message ?? null
 }
-
-const artworkError = computed(() => importError.value ?? error.value)
-const canExport = computed(() => parsedGroups.value.length > 0 && !artworkError.value
-  && validation.value.valid && !importing.value && buildStatus.value === 'ready' && !exporting.value)
-const hasPrintedLogo = computed(() => showLogo.value && colorGroups.value.length > 0)
-const exportLabel = computed(() => parsedGroups.value.length === 0 || hasPrintedLogo.value
-  ? 'Download .3mf' : 'Download .3mf (base only)')
-const readiness = computed(() => {
-  if (importing.value) return 'Importing artwork…'
-  if (artworkError.value) return 'Fix the artwork import before exporting.'
-  if (configError.value) return configError.value
-  if (modelError.value) return modelError.value
-  if (parsedGroups.value.length === 0) return 'Upload artwork to create a keychain.'
-  if (buildStatus.value === 'pending') return 'Updating model…'
-  return hasPrintedLogo.value ? 'Ready to export.' : 'Ready to export the base only.'
-})
-
-// Shared by the inline logo preview and the enlarged one beside the 3D view.
+function handleImportStarted(face: Face, retraced: boolean) {
+  exportError.value = null
+  ;(face === 'front' ? front : back).started(retraced)
+}
 const previewData = computed<LogoPreviewData>(() => ({
-  sourceKey: logoSourceKey.value,
+  sourceKey: `${selectedFace.value}:${mode.value}:${source.value.sourceKey.value}`,
   parsed: parsedGroups.value,
   groups: colorGroups.value,
   hiddenColors: refinements.value.hiddenColors,
   hiddenShapes: refinements.value.hiddenShapes,
-  thinPath: refined.thinFeatures.value.path,
+  thinPath: refined.value.thinFeatures.value.path,
   plateColor: config.value.baseColor,
+  mirror: mirror.value,
+  faceLabel: selectedFace.value === 'front' ? 'Front' : 'Back',
 }))
 const previewExpanded = ref(false)
 const showThinFeatures = ref(true)
 const showPreviewPanel = computed(() => previewExpanded.value && parsedGroups.value.length > 0)
-
 function toggleShape(id: string) {
   const hidden = refinements.value.hiddenShapes
-  refinements.value = {
-    ...refinements.value,
-    hiddenShapes: hidden.includes(id) ? hidden.filter(h => h !== id) : [...hidden, id],
-  }
+  refinements.value = { ...refinements.value, hiddenShapes: hidden.includes(id) ? hidden.filter(h => h !== id) : [...hidden, id] }
 }
-
-watch(config, (value) => saveConfig(value), { deep: true })
-watch(showLogo, (value) => saveShowLogo(value))
-watch(refinements, (value) => saveRefinements(value), { deep: true })
+watch(config, value => saveConfig(value), { deep: true })
+watch(showLogo, value => saveShowLogo(value))
 
 async function handleExport() {
   if (!canExport.value) return
@@ -200,9 +179,12 @@ const buildTimeText = computed(() => {
         :adjustments="validation.adjustments"
         :configMessages="validation.messages"
         :effectiveConfig="validation.config"
-        @svgLoaded="handleSvgLoaded"
+        v-model:selectedFace="selectedFace"
+        v-model:faceMode="mode"
+        v-model:mirror="mirror"
+        @svgLoaded="(face: Face, text: string, retraced?: boolean) => (face === 'front' ? front : back).loaded(text, retraced)"
         @importStarted="handleImportStarted"
-        @importFailed="handleImportFailed"
+        @importFailed="(face: Face, message: string) => (face === 'front' ? front : back).failed(message)"
         @toggleShape="toggleShape"
       />
 
@@ -210,8 +192,8 @@ const buildTimeText = computed(() => {
         <div class="three-frame relative bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
           <ThreeViewer
             ref="viewerRef"
-            :colorGroups="colorGroups"
-            :fitKey="parsedGroups"
+            :artwork="artwork"
+            :fitKey="fitKey"
             :showLogo="showLogo"
             :config="validation.config"
             :configError="configError"

@@ -1,10 +1,10 @@
 import * as THREE from 'three'
-import type { ColorGroup, KeychainConfig } from '../types/keychain'
-import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles } from '../utils/meshBuilder'
+import type { ColorGroup, KeychainArtwork, KeychainConfig, Face } from '../types/keychain'
+import { buildBasePlate, buildLogoMeshes, cutoutBasePlateHoles, cutoutFaceRecesses, faceLayer } from '../utils/meshBuilder'
 import { Profiler } from '../utils/profiler'
 import { validateConfig } from '../utils/configConstraints'
 import { logoOutline } from '../utils/svgToShapes'
-import { fitLogo } from '../utils/logoFit'
+import { fitFaces } from '../utils/logoFit'
 import { validateGroupComplexity } from '../utils/svgValidation'
 import { createLogoCutouts } from './logoCutouts'
 import { disposeObject } from '../three/sceneLifecycle'
@@ -18,62 +18,69 @@ export interface KeychainModel {
 export type ModelBuildResult = { ok: true; model: KeychainModel } | { ok: false; error: ModelBuildError }
 
 /** Build an owned, detached model without Vue state or scene mutation. */
-export function buildKeychainModel(colorGroups: ColorGroup[], rawConfig: KeychainConfig,
+export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawConfig: KeychainConfig,
   profiler = new Profiler('keychain build')): ModelBuildResult {
+  // Direct single-image callers retain the original physical orientation.
+  const faces: KeychainArtwork = Array.isArray(artwork)
+    ? { front: { groups: artwork, mirror: false }, back: { groups: artwork, mirror: true } } : artwork
   const validation = validateConfig(rawConfig)
-  const error = validation.messages.find(m => m.severity === 'error') ?? validateGroupComplexity(colorGroups)
+  const allGroups = faces.front.groups === faces.back.groups ? faces.front.groups : [...faces.front.groups, ...faces.back.groups]
+  const error = validation.messages.find(m => m.severity === 'error') ?? validateGroupComplexity(allGroups)
   if (error) return { ok: false, error }
   let config = validation.config
   const root = new THREE.Group()
   let logoGroup: THREE.Group | null = null
   try {
-    // The plate is cut along the logo's outline (the union of all colors), so
-    // cutouts never overlap. Its points are reused for sizing and the cutout
-    // shapes below. The union is cached per groups array, so slider changes
-    // don't recompute it. SVG-parsed shapes are already straight-edged; 16
-    // divisions only applies to curved shapes passed in directly.
-    const outline = profiler.measure('logo outline', () => logoOutline(colorGroups))
-    const shapePoints = outline.map(shape => shape.extractPoints(16))
-    const fit = fitLogo(shapePoints.map(pts => pts.shape), config)
-    const { hasLogo: hasSvg, scale, center: svgCenter, width, height } = fit
+    const fit = profiler.measure('logo outlines and fit', () => fitFaces(faces.front.groups, faces.back.groups, config))
+    const { width, height } = fit
+    const printLogo = faces.showLogo !== false
     config = validateConfig(rawConfig, { width, height }).config
 
     // Parent group — rotation applied once to lay everything flat on XZ
     root.rotation.x = -Math.PI / 2
 
-    // Logo cutout shapes (step 5), one per connected outline part. Each keeps
-    // its holes so a logo counter (the middle of an "O") stays as plate
-    // material instead of becoming a through-hole.
-    const logoCutouts = profiler.measure('cutout shapes', () => createLogoCutouts(shapePoints, fit))
+    const faceNames: Face[] = ['front', 'back']
+    // The back's outside-view X axis is opposite the plate's X axis.
+    const flipX = (face: Face) => faces[face].mirror !== (face === 'back')
+    // Only identical volumes/materials may share the legacy through-inlay and
+    // flat through-hole shortcuts. Empty or independently mirrored faces may not.
+    const equivalent = faces.front.groups === faces.back.groups && flipX('front') === flipX('back')
+    const cutouts = profiler.measure('cutout shapes', () => {
+      const create = (face: Face) => printLogo
+        ? createLogoCutouts(logoOutline(faces[face].groups).map(shape => shape.extractPoints(16)), fit[face], flipX(face)) : []
+      const front = create('front')
+      return { front, back: equivalent ? front : create('back') }
+    })
 
     // Steps 1–3: base-plate spline, optional keyring, bevel extrude
     const basePlate = profiler.measure('buildBasePlate', () =>
-      buildBasePlate(config, width, height, logoCutouts, profiler),
+      buildBasePlate(config, width, height, equivalent ? cutouts.front : [], profiler),
     )
     root.add(basePlate)
 
     // Step 4: logo surface inlays — un-beveled, flush with both base faces
-    if (hasSvg) {
-      // Center SVG on origin, flip Y, and apply uniform scale. Baked into the
-      // geometry rather than set on the group: a mirrored (negative-determinant)
-      // node transform is exported as-is to 3MF, and slicers handle it unevenly.
-      const logoTransform = new THREE.Matrix4()
-        .makeScale(scale, -scale, 1)
-        .setPosition(-svgCenter.x * scale, svgCenter.y * scale, 0)
-      const logoMeshes = profiler.measure('buildLogoMeshes', () =>
-        buildLogoMeshes(colorGroups, config, logoTransform),
-      )
+    if (printLogo && (fit.front.hasLogo || fit.back.hasLogo)) {
       logoGroup = new THREE.Group()
-
-      for (const mesh of logoMeshes) {
-        logoGroup.add(mesh)
-      }
       root.add(logoGroup)
+      for (const face of equivalent ? ['front'] as const : faceNames) {
+        const { scale, center, hasLogo } = fit[face]
+        if (!hasLogo) continue
+        const sx = scale * (flipX(face) ? -1 : 1)
+        const transform = new THREE.Matrix4().makeScale(sx, -scale, 1)
+          .setPosition(-center.x * sx, center.y * scale, 0)
+        const meshes = profiler.measure(`buildLogoMeshes (${face})`, () =>
+          buildLogoMeshes(faces[face].groups, config, transform, equivalent ? undefined : [faceLayer(config, face)]))
+        for (const mesh of meshes) {
+          mesh.name = equivalent ? 'Front and Back inlay' : `${face} inlay`
+          logoGroup.add(mesh)
+        }
+      }
     }
 
     // Step 5: subtract logo recesses (keyring through-hole is in step 3 extrude)
     profiler.measure('cutoutBasePlateHoles', () =>
-      cutoutBasePlateHoles(basePlate, logoCutouts, config, profiler),
+      equivalent ? cutoutBasePlateHoles(basePlate, cutouts.front, config, profiler)
+        : cutoutFaceRecesses(basePlate, faceNames.map(face => ({ shapes: cutouts[face], layer: faceLayer(config, face), face })), config),
     )
 
     // Measured from the finished plate: the bevel bulges the outline outward

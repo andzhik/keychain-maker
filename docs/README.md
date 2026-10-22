@@ -11,6 +11,7 @@
   rebuild, and rendering constraints.
 - [Deployment](deployment.md): production and preview deployments on GitHub Pages.
 - [Surface inlay validation](surface-inlays.md): slicer comparisons and geometry checks.
+- [Two-sided artwork validation](two-sided-artwork.md): face geometry, persistence and Bambu Studio CLI checks.
 - [Improvement roadmap](IMPROVEMENT-ROADMAP.md): open development gaps and planned CI work.
 
 Before changing geometry, rebuild timing, or rendering, read

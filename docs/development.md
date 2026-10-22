@@ -21,6 +21,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | `bun run dev` | Start the Vite dev server |
 | `bun run test` | Run focused unit tests for geometry and SVG parsing |
 | `bun run test:browser` | Check import failures/races, export readiness/downloads, responsive layouts, and preview zoom in headless Chromium |
+| `bun run test:slicer [Bambu Studio executable]` | Slice browser-test face downloads in Bambu Studio CLI and verify color layers and outside-view orientation |
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
@@ -38,6 +39,12 @@ bun run render test-svg/c1.svg '{"edgeBevel":0}'
 ```
 
 The render harness lives in `test-render/` and runs under Node because Playwright's browser pipe transport hangs under Bun.
+
+Run `bun run test:browser` before `bun run test:slicer`. The latter defaults to
+`C:/Program Files/Bambu Studio/bambu-studio.exe`, resolves the installed X1 Carbon
+profiles, and writes G-code, logs and outside-view toolpath SVGs under
+`test-output/face-slicer/`. See [two-sided artwork validation](two-sided-artwork.md)
+for the cases and the installed CLI version compatibility adjustment.
 
 ## Raster test images
 

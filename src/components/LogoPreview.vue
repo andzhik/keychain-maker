@@ -4,7 +4,7 @@ import type { ColorGroup } from '../types/keychain'
 /** What to draw; the inline and the enlarged preview share it. */
 export interface LogoPreviewData {
   /** Changes on a new upload, not when retracing the current raster. */
-  sourceKey: number
+  sourceKey: number | string
   /** The parsed logo: one clickable region per shape. */
   parsed: ColorGroup[]
   /** What will be printed. */
@@ -14,6 +14,8 @@ export interface LogoPreviewData {
   /** SVG path data of thin features, drawn over everything. */
   thinPath: string
   plateColor: string
+  mirror?: boolean
+  faceLabel?: string
 }
 </script>
 
@@ -108,6 +110,8 @@ const svgRef = ref<SVGSVGElement | null>(null)
 /** The zoomed view; null shows the whole logo. */
 const zoom = ref<ViewBox | null>(null)
 const view = computed(() => zoom.value ?? viewBox.value)
+const artworkTransform = computed(() => props.mirror && viewBox.value
+  ? `translate(${2 * viewBox.value.x + viewBox.value.w} 0) scale(-1 1)` : undefined)
 const MAX_ZOOM = 200
 
 watch(() => props.sourceKey, () => { zoom.value = null })
@@ -192,7 +196,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
       class="logo-preview block w-full h-full"
       :class="{ 'touch-none': zoomable }"
       role="img"
-      aria-label="Logo preview: click a shape to hide or restore it"
+      :aria-label="`${faceLabel ?? 'Logo'} outside view, keyring at top${mirror ? ', mirrored horizontally' : ''}: click a shape to hide or restore it`"
       v-on="zoomable ? {
         wheel: (e: WheelEvent) => { e.preventDefault(); onWheel(e) },
         pointerdown: onPointerDown,
@@ -203,6 +207,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
       } : {}"
     >
       <rect :x="viewBox.x" :y="viewBox.y" :width="viewBox.w" :height="viewBox.h" :fill="plateColor" />
+      <g :transform="artworkTransform">
       <!-- What gets printed -->
       <g pointer-events="none">
         <template v-for="group in groups" :key="group.id">
@@ -227,6 +232,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
       <path v-if="edgesPath" :d="edgesPath" class="edges" pointer-events="none" />
       <path v-if="pointsPath" :d="pointsPath" class="points" pointer-events="none" />
       <path v-if="showThinFeatures && thinPath" :d="thinPath" class="thin" pointer-events="none" />
+      </g>
     </svg>
     <div v-else class="h-full flex items-center justify-center text-sm text-gray-400">No logo</div>
   </div>

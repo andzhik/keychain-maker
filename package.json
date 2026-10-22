@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "test": "bun test tests/unit",
     "test:browser": "node --experimental-strip-types --test tests/browser/*.test.ts",
+    "test:slicer": "node --experimental-strip-types test-render/slice-faces.ts",
     "render": "node --experimental-strip-types test-render/capture.ts",
     "measure": "node --experimental-strip-types test-render/measure.ts",
     "rasterize": "node --experimental-strip-types test-render/rasterize.ts"

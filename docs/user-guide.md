@@ -11,6 +11,8 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 ## Controls and features
 
 - Upload an SVG logo and preview it immediately in 3D
+- Choose Front and Back artwork independently, reuse Front on Back, or leave either face Empty
+- Mirror each populated face horizontally, with previews labeled as outside views with the keyring at the top
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (pick the maximum number of colors and whether to drop an opaque background, and tune how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
 - Refine the logo for printing: change, merge or remove colors, limit it to N filaments, remove small bits below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
@@ -24,7 +26,42 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Export a multi-color `.3mf` for modern slicers
 - See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
 - Use the full controls and export flow on phone and tablet screens with a vertically scrolling layout
-- Remember the last SVG, settings and refinements across reloads (browser localStorage)
+- Remember both images, face selections, mirror settings and refinements across reloads (browser localStorage)
+
+## Front and Back artwork
+
+Select **Front** or **Back** in the Logo card. **Upload image** uses that face's
+own SVG or traced raster and its own refinements. Back initially uses **Same as
+Front**, sharing Front's image and refinements while keeping an independent
+mirror setting. Switching Back to its own image and back again preserves its
+previous image and edits. **Empty** leaves a solid face in the plate material;
+switching back restores the stored artwork and refinements.
+
+**Mirror horizontally** changes only the selected face. The 2D preview shows
+that face from outside, with the keyring at the top, matching the 3D model and
+export. For compatibility, the initial same-image setup repeats the original
+plate coordinates: Back is marked mirrored. Uncheck Back's mirror toggle to
+make path-based text read normally from that side. Older saved sessions restore
+this same-image setup and their original orientation.
+
+Each image is centered independently and keeps its aspect ratio. A rectangle
+has the configured Width; each image fills the width remaining after Margin on
+both sides. The taller fitted image sets the shared plate height, including top
+and bottom margins, so the shorter image has extra vertical space. A circle
+keeps the configured diameter; each image's farthest outline point fits inside
+the radius remaining after Margin. Empty faces do not affect the plate size.
+
+Logo depth applies independently inward from each populated face and is capped
+at half the plate thickness. At that limit different inlays meet only where
+their outlines overlap; other regions keep plate material. Empty faces remain
+solid even at maximum depth. Turning off **Print logo** exports a solid base
+with the same dimensions.
+
+Download requires at least one valid image on a populated face. A failed import
+blocks export until repaired or that face is deliberately set to Empty (or its
+unused source is replaced by Same as Front). Imports and tracing continue on
+their original source when you switch face controls; downloads wait for all
+active sources and the current model. Failures are remembered across reloads.
 
 ## Preparing artwork
 
