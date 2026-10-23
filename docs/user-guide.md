@@ -77,6 +77,14 @@ for your printer's available slots. Downloads use the artwork filename when
 available. **Start over** in the header clears both images and resets keychain
 and printer settings after confirmation.
 
+With independent Front and Back images, each color row offers **Match Front**
+or **Match Back**. Choose a color from the other face (closest shades appear
+first) to use the same exact filament color on both faces. Every source color
+merged into that row is updated; the other face's artwork and edits stay intact.
+**Shared with Front/Back** confirms a match. Matching is a saved color edit,
+not a permanent link: later recolors remain independent. Use **Restore original
+color** to undo it. Empty faces and Back's **Same as Front** mode need no matching.
+
 ## Preparing artwork
 
 Try the [curated example gallery](examples.md) for four small, reusable SVGs

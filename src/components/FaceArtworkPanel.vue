@@ -15,6 +15,7 @@ const props = defineProps<{
   face: Face
   artwork: FaceArtwork
   frontArtwork: FaceArtwork
+  otherColors: string[]
   baseColor: string
   showLogo: boolean
   printer: PrinterSettings
@@ -189,6 +190,8 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
           :groups="colorGroups"
           :sources="colorSources"
           :refinements="refinements"
+          :otherColors="otherColors"
+          :otherFace="face === 'front' ? 'Back' : 'Front'"
           @update:refinements="(value: Refinements) => refinements = value"
         />
       </div>

@@ -146,4 +146,35 @@ for (const [name, expectedColors] of [['ui-blank', ['#ffffff']], ['ui-five-color
   results.push(result)
   console.log(result)
 }
+for (const matched of [false, true]) {
+  const name = matched ? 'colors-after-match' : 'colors-before-match'
+  const { colors, layers } = await slice(name, `test-output/${name}.3mf`)
+  const backColor = matched ? '#ff0000' : '#fe0000'
+  const expectedColors = ['#ffffff', '#ff0000', '#0000ff', '#00ff00', ...(matched ? [] : ['#fe0000'])]
+  assert.deepEqual([...colors].sort(), expectedColors.sort(), `${name}: shared colors must use one filament slot`)
+  assert.equal(layers.length, 25)
+  for (const layer of layers) {
+    const used = new Set(layer.segments.map(segment => segment.color))
+    const front = layer.z > 4.4 + 1e-4
+    const back = layer.z <= 0.6 + 1e-4
+    assert.ok(used.has('#ffffff'), `${name} Z=${layer.z}: missing base material`)
+    assert.equal(used.has('#0000ff'), front, `${name}: unchanged Front blue in wrong layer`)
+    assert.equal(used.has('#00ff00'), back, `${name}: unchanged Back green in wrong layer`)
+    assert.equal(used.has('#ff0000'), front || (matched && back), `${name}: shared red in wrong layer`)
+    if (!matched) assert.equal(used.has(backColor), back, `${name}: original Back red in wrong layer`)
+  }
+  const frontPoints = layers.at(-1)!.segments.filter(s => s.color === '#ff0000').flatMap(s => [s.from, s.to])
+  const backPoints = layers[0].segments.filter(s => s.color === backColor).flatMap(s => [s.from, s.to])
+  const cx = (Math.min(...frontPoints.map(p => p[0])) + Math.max(...frontPoints.map(p => p[0]))) / 2
+  const cy = (Math.min(...frontPoints.map(p => p[1])) + Math.max(...frontPoints.map(p => p[1]))) / 2
+  const frontStem = frontPoints.filter(p => p[1] < cy - 25)
+  const backStem = backPoints.filter(p => p[1] > cy + 3)
+  assert.ok(frontStem.length && frontStem.every(p => p[0] < cx - 9), `${name}: Front F must retain its outside orientation`)
+  assert.ok(backStem.length && backStem.every(p => p[0] > cx + 14), `${name}: Back L must retain its outside orientation`)
+  const result = { name, layers: layers.length, filaments: colors.length,
+    frontLayers: layers.filter(l => l.segments.some(s => s.color === '#0000ff')).length,
+    backLayers: layers.filter(l => l.segments.some(s => s.color === '#00ff00')).length }
+  results.push(result)
+  console.log(result)
+}
 await writeFile(join(out, 'results.json'), JSON.stringify(results, null, 2))

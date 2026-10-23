@@ -52,6 +52,15 @@ restricted to the last three (or two) layers; Back color to the first three
 independent mirror state. The script also writes first/last-layer toolpath
 SVGs with the Back reflected into an outside view, keyring at the top.
 
+Issue [#34](https://github.com/andzhik/keychain-maker/issues/34) adds matching
+filament colors between independent faces. Two additional browser downloads
+use Front red (`#ff0000`) and Back near-red (`#fe0000`), with separate blue and
+green details. Bambu Studio CLI confirms **5 filaments before matching, 4
+afterward**. Both files retain 25 layers, with each face's colors in its three
+surface layers, unchanged blue/green details and correctly oriented F/L stems.
+The matched red uses one filament on both surfaces. Together with the blank
+plate and five-color export checks, the slicer script now covers **19 cases**.
+
 ```powershell
 bun run test:browser
 bun run test:slicer

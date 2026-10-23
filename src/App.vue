@@ -25,6 +25,12 @@ const frontActive = computed(() => frontSettings.value.mode !== 'empty' || backS
 const backActive = computed(() => backSettings.value.mode === 'artwork')
 const front = useFaceArtwork('front', frontSettings, effectiveConfig, printer, frontActive)
 const back = useFaceArtwork('back', backSettings, effectiveConfig, printer, backActive)
+const matchingColors = computed(() => ({
+  front: backSettings.value.mode === 'artwork' && !back.importing.value && !back.error.value
+    ? back.refined.groups.value.map(group => group.color) : [],
+  back: frontSettings.value.mode === 'artwork' && !front.importing.value && !front.error.value
+    ? front.refined.groups.value.map(group => group.color) : [],
+}))
 const expandedFace = ref<Face | null>(null)
 const emptyGroups: ColorGroup[] = []
 const artwork = computed<KeychainArtwork>(() => ({
@@ -153,6 +159,7 @@ const dev = import.meta.env.DEV
         :face="face"
         :artwork="face === 'front' ? front : back"
         :frontArtwork="front"
+        :otherColors="matchingColors[face]"
         :baseColor="config.baseColor"
         :showLogo="showLogo"
         :printer="printer"

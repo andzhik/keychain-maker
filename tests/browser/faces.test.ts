@@ -29,6 +29,121 @@ const upload = (page: Page, face: 'front' | 'back', svg: string) =>
 const ready = (page: Page) => page.getByText('Ready to export.', { exact: true }).waitFor()
 const settings = (page: Page, face: string) => page.evaluate(face => JSON.parse(localStorage.getItem(`keychain-maker:${face}:v1`)!), face)
 
+test('#34 matching face colors updates previews, saved edits, filament count and actual exports', async () => {
+  const page = await browser.newPage({ viewport: { width: 1024, height: 900 } })
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const frontSvg = fSvg.replace('</svg>', '<rect fill="blue" x="10" y="20" width="5" height="5"/></svg>')
+  const backSvg = lSvg.replace('blue', '#fe0000').replace('</svg>', '<rect fill="lime" x="10" y="0" width="5" height="4"/></svg>')
+  const preview = () => page.evaluate(() => {
+    const root = (document.querySelector('canvas')!.parentElement as any).__vueParentComponent.exposed.getCurrentGroup()
+    const meshes: { name: string; color: string; vertices: number[] }[] = []
+    root.traverse((node: any) => {
+      if (node.isMesh) meshes.push({ name: node.name, color: node.material.color.getHexString(),
+        vertices: Array.from(node.geometry.attributes.position.array) })
+    })
+    return meshes
+  })
+  async function downloadColors(name: string) {
+    const downloaded = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download .3mf', exact: true }).click()
+    const file = (await (await downloaded).path())!
+    const zip = await JSZip.loadAsync(readFileSync(file))
+    const exported = JSON.parse(await zip.file('Metadata/project_settings.config')!.async('string'))
+    copyFileSync(file, `test-output/${name}.3mf`)
+    return exported.filament_colour.map((color: string) => color.toLowerCase()).sort()
+  }
+  try {
+    await page.goto(url)
+    const front = facePanel(page, 'Front')
+    const back = facePanel(page, 'Back')
+    await upload(page, 'front', frontSvg)
+    await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await upload(page, 'back', backSvg)
+    await ready(page)
+    await page.getByText('Filaments: 5', { exact: false }).waitFor()
+    assert.equal(await page.getByText('More than 4 filaments:', { exact: false }).count(), 1)
+    const savedFront = await settings(page, 'front')
+    const savedBack = await settings(page, 'back')
+    const originalPreview = await preview()
+    assert.deepEqual(await downloadColors('colors-before-match'), ['#0000ff', '#00ff00', '#fe0000', '#ff0000', '#ffffff'])
+    const match = back.getByRole('combobox', { name: 'Match #fe0000 to Front', exact: true })
+    assert.deepEqual(await match.locator('option:not([disabled])').evaluateAll(options => options.map(o => (o as HTMLOptionElement).value)),
+      ['#ff0000', '#0000ff'], 'closest shade comes first')
+    await match.selectOption('#ff0000')
+    await ready(page)
+    await page.getByText('Filaments: 4', { exact: false }).waitFor()
+    assert.equal(await page.getByText('More than 4 filaments:', { exact: false }).count(), 0)
+    assert.deepEqual(await settings(page, 'front'), savedFront)
+    assert.deepEqual(await settings(page, 'back'), { ...savedBack,
+      refinements: { ...savedBack.refinements, recolor: { '#fe0000': '#ff0000' } } })
+    for (const panel of [front, back]) {
+      await panel.locator('svg.logo-preview path[fill="#ff0000"]').waitFor()
+      assert.equal(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), true)
+    }
+    assert.equal(await back.getByLabel('Print color for #00ff00', { exact: true }).inputValue(), '#00ff00')
+    const matchedPreview = await preview()
+    assert.deepEqual(matchedPreview.map(({ color, ...mesh }) => mesh), originalPreview.map(({ color, ...mesh }) => mesh))
+    assert.deepEqual(matchedPreview.filter(mesh => mesh.name === 'back inlay').map(mesh => mesh.color).sort(), ['00ff00', 'ff0000'])
+    assert.deepEqual(await downloadColors('colors-after-match'), ['#0000ff', '#00ff00', '#ff0000', '#ffffff'])
+    await page.screenshot({ path: 'test-output/colors-matched-1024.png' })
+    await page.reload()
+    await ready(page)
+    await back.getByLabel('Print color for #ff0000', { exact: true }).waitFor()
+    assert.equal(await back.getByRole('combobox', { name: 'Match #ff0000 to Front', exact: true }).locator('option').first().textContent(), 'Shared with Front')
+    await back.getByRole('button', { name: 'Restore original color', exact: true }).click()
+    await ready(page)
+    await page.getByText('Filaments: 5', { exact: false }).waitFor()
+    await front.getByRole('combobox', { name: 'Match #ff0000 to Back', exact: true }).selectOption('#fe0000')
+    await ready(page)
+    await page.getByText('Filaments: 4', { exact: false }).waitFor()
+    assert.deepEqual(await settings(page, 'back'), savedBack, 'matching Front leaves Back intact')
+    for (const mode of ['empty', 'same']) {
+      await back.getByLabel('Face artwork', { exact: true }).selectOption(mode)
+      await ready(page)
+      assert.equal(await front.getByRole('combobox', { name: /^Match #/ }).count(), 0)
+      assert.equal(await back.getByRole('combobox', { name: /^Match #/ }).count(), 0)
+    }
+    await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await ready(page)
+    await upload(page, 'front', frontSvg)
+    await ready(page)
+    assert.deepEqual((await settings(page, 'front')).refinements.recolor, {}, 'replacement artwork clears matching edits')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+test('#34 matching a merged row recolors and restores every source, using current target colors', async () => {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
+  try {
+    await page.goto(url)
+    const front = facePanel(page, 'Front')
+    const back = facePanel(page, 'Back')
+    await upload(page, 'front', fSvg)
+    await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await upload(page, 'back', lSvg.replace('blue', '#fe0000').replace('</svg>', '<rect fill="#fd0000" x="10" y="0" width="5" height="4"/></svg>'))
+    await back.getByRole('slider', { name: 'Merge similar', exact: true }).fill('2')
+    await ready(page)
+    await back.getByRole('combobox', { name: 'Match #fe0000 to Front', exact: true }).selectOption('#ff0000')
+    await ready(page)
+    assert.deepEqual((await settings(page, 'back')).refinements.recolor, { '#fe0000': '#ff0000', '#fd0000': '#ff0000' })
+    await front.getByLabel('Print color for #ff0000', { exact: true }).fill('#ffaa00')
+    await ready(page)
+    assert.equal(await back.getByLabel('Print color for #ff0000', { exact: true }).inputValue(), '#ff0000', 'later edits remain independent')
+    const match = back.getByRole('combobox', { name: 'Match #ff0000 to Front', exact: true })
+    assert.deepEqual(await match.locator('option:not([disabled])').evaluateAll(options => options.map(o => (o as HTMLOptionElement).value)), ['#ffaa00'])
+    await match.selectOption('#ffaa00')
+    await ready(page)
+    assert.deepEqual((await settings(page, 'back')).refinements.recolor, { '#fe0000': '#ffaa00', '#fd0000': '#ffaa00' })
+    await back.getByRole('button', { name: 'Restore original color', exact: true }).click()
+    await ready(page)
+    assert.deepEqual((await settings(page, 'back')).refinements.recolor, {})
+    assert.equal((await settings(page, 'back')).refinements.mergeTolerance, 2)
+    await front.getByRole('button', { name: 'Remove #ffaa00', exact: true }).click()
+    assert.equal(await back.getByRole('combobox', { name: /^Match #/ }).count(), 0, 'removed colors cannot be matched')
+  } finally { await page.close() }
+})
+
 test('side-by-side editors preserve independent images and refinements through Empty, Same as Front and reload', async () => {
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
   const errors: string[] = []
