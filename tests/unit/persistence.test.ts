@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, DEFAULT_PRINTER } from '../../src/types/keychain'
-import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, saveFaceMetadata, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
+import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, saveFaceMetadata, sanitizeConfig, sanitizeRefinements, saveConfig, saveShowLogo } from '../../src/utils/persistence'
 
-function memoryStorage(quota = Infinity): Storage {
+function memoryStorage(): Storage {
   const data = new Map<string, string>()
   return {
     get length() { return data.size },
@@ -11,7 +11,6 @@ function memoryStorage(quota = Infinity): Storage {
     key: (i) => [...data.keys()][i] ?? null,
     removeItem: (key) => { data.delete(key) },
     setItem: (key, value) => {
-      if (value.length > quota) throw new Error('QuotaExceededError')
       data.set(key, value)
     },
   }
@@ -25,30 +24,20 @@ test('no storage at all loads the defaults', () => {
   expect(loadState(null)).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null, refinements: DEFAULT_REFINEMENTS })
 })
 
-test('saved state round-trips', () => {
+test('saved config and logo visibility round-trip', () => {
   const storage = memoryStorage()
   const config = { ...DEFAULT_CONFIG, basePlateShape: 'circle' as const, padding: 7, baseColor: '#112233', logoDepth: 0.8 }
   saveConfig(config, storage)
   saveShowLogo(false, storage)
-  saveSvg('<svg/>', storage)
-  const refinements = {
-    ...DEFAULT_REFINEMENTS,
-    recolor: { '#fe0101': '#ff0000' },
-    hiddenColors: ['#ffffff'],
-    hiddenShapes: ['#000000:3'],
-    maxColors: 4,
-    minSpeckSize: 0.5,
-  }
-  saveRefinements(refinements, storage)
 
-  expect(loadState(storage)).toEqual({ config, showLogo: false, svg: '<svg/>', refinements })
+  expect(loadState(storage)).toEqual({ config, showLogo: false, svg: null, refinements: DEFAULT_REFINEMENTS })
 })
 
 test('fresh faces are unmirrored and printer settings migrate from Front only', () => {
   const storage = memoryStorage()
   expect(loadFaces(storage).back.mirror).toBe(false)
   expect(loadPrinter(storage)).toEqual(DEFAULT_PRINTER)
-  saveRefinements({ ...DEFAULT_REFINEMENTS, nozzleDiameter: 0.25, thinWalls: true } as any, storage)
+  storage.setItem('keychain-maker:refinements:v1', JSON.stringify({ ...DEFAULT_REFINEMENTS, nozzleDiameter: 0.25, thinWalls: true }))
   expect(loadPrinter(storage)).toEqual({ nozzleDiameter: 0.25, thinWalls: true })
   storage.setItem('keychain-maker:front:v1', JSON.stringify({ refinements: { nozzleDiameter: 0.2, thinWalls: true } }))
   storage.setItem('keychain-maker:back:v1', JSON.stringify({ refinements: { nozzleDiameter: 0.8, thinWalls: false } }))
@@ -61,11 +50,19 @@ test('fresh faces are unmirrored and printer settings migrate from Front only', 
 
 test('old single-image sessions migrate to the same physical artwork and independent mirrors', () => {
   const storage = memoryStorage()
-  saveSvg('<svg/>', storage)
-  saveRefinements({ ...DEFAULT_REFINEMENTS, hiddenColors: ['#ffffff'] }, storage)
+  storage.setItem('keychain-maker:svg:v1', '<svg/>')
+  const refinements = {
+    ...DEFAULT_REFINEMENTS,
+    recolor: { '#fe0101': '#ff0000' },
+    hiddenColors: ['#ffffff'],
+    hiddenShapes: ['#000000:3'],
+    maxColors: 4,
+    minSpeckSize: 0.5,
+  }
+  storage.setItem('keychain-maker:refinements:v1', JSON.stringify(refinements))
   const faces = loadFaces(storage)
   expect(faces.front.svg).toBe('<svg/>')
-  expect(faces.front.refinements.hiddenColors).toEqual(['#ffffff'])
+  expect(faces.front.refinements).toEqual(refinements)
   expect(faces.front.mirror).toBe(false)
   expect(faces.back.mode).toBe('same')
   expect(faces.back.mirror).toBe(true)
@@ -87,7 +84,7 @@ test('separate sources, edits, failed imports and empty selections survive reloa
 
 test('a missing saved face SVG is a failure and cannot resurrect legacy artwork', () => {
   const storage = memoryStorage()
-  saveSvg('<svg>old</svg>', storage)
+  storage.setItem('keychain-maker:svg:v1', '<svg>old</svg>')
   const face = { ...loadFaces(storage).front, svg: '<svg>new</svg>' }
   saveFace('front', face, storage)
   storage.removeItem('keychain-maker:front:svg:v1')
@@ -134,8 +131,8 @@ for (const face of ['front', 'back'] as const) {
 
   test(`${face} SVG with missing or corrupt metadata takes precedence over legacy state`, () => {
     const storage = memoryStorage()
-    saveSvg('<svg>legacy</svg>', storage)
-    saveRefinements({ ...DEFAULT_REFINEMENTS, hiddenColors: ['#ffffff'] }, storage)
+    storage.setItem('keychain-maker:svg:v1', '<svg>legacy</svg>')
+    storage.setItem('keychain-maker:refinements:v1', JSON.stringify({ ...DEFAULT_REFINEMENTS, hiddenColors: ['#ffffff'] }))
     const svg = `<svg>${face}</svg>`
     storage.setItem(`keychain-maker:${face}:svg:v1`, svg)
     for (const metadata of [null, '{invalid json', 'null', 'false', '42', '"invalid"', '[]']) {
@@ -147,17 +144,6 @@ for (const face of ['front', 'back'] as const) {
     }
   })
 }
-
-test('an SVG over the quota is dropped without losing the config', () => {
-  const storage = memoryStorage(1000)
-  saveSvg('<svg/>', storage)
-  saveSvg('x'.repeat(2000), storage)
-  saveConfig({ ...DEFAULT_CONFIG, padding: 3 }, storage)
-
-  const state = loadState(storage)
-  expect(state.svg).toBeNull()
-  expect(state.config.padding).toBe(3)
-})
 
 test('corrupt config JSON falls back to the defaults', () => {
   const storage = memoryStorage()

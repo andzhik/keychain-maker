@@ -150,14 +150,6 @@ export function saveShowLogo(showLogo: boolean, storage: Storage | null = defaul
   write(storage, SHOW_LOGO_KEY, String(showLogo))
 }
 
-export function saveSvg(svg: string | null, storage: Storage | null = defaultStorage()) {
-  write(storage, SVG_KEY, svg)
-}
-
-export function saveRefinements(refinements: Refinements, storage: Storage | null = defaultStorage()) {
-  write(storage, REFINEMENTS_KEY, JSON.stringify(refinements))
-}
-
 export function loadFaces(storage: Storage | null = defaultStorage()): Record<Face, FaceSettings> {
   const legacy = loadState(storage)
   const front: FaceSettings = { mode: 'artwork', svg: legacy.svg, refinements: legacy.refinements, mirror: false, importFailed: false, fileName: null }
