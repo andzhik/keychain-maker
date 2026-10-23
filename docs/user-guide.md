@@ -16,8 +16,8 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (pick the maximum number of colors and whether to drop an opaque background, and tune how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
 - Refine the logo for printing: change, merge or remove colors, limit it to N filaments, remove small bits below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
-- Toggle the red thin-area overlay from either 2D preview; both previews share the setting, while printability warnings stay visible
-- Simplify outlines to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens over the settings and 3D view, so the logo and refine controls stay usable
+- Toggle each face's red thin-area overlay from its inline or enlarged preview; those two views share the setting, while printability warnings stay visible
+- Simplify outlines to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens in the right column, leaving both face editors usable
 - Choose a square or circle base plate
 - Tune base thickness, bevel, corner radius, margin, and target size
 - Set logo depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
@@ -26,20 +26,24 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Export a multi-color `.3mf` for modern slicers
 - See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
 - Configure the shared nozzle diameter and Thin walls behavior in the Printer card
-- Remember both images, face selections, mirror settings and refinements across reloads (browser localStorage)
+- Remember both images, artwork modes, mirror settings and refinements across reloads (browser localStorage)
 
 ## Front and Back artwork
 
-Select **Front** or **Back** in the Logo card. **Upload image** uses that face's
-own SVG or traced raster and its own refinements. Back initially uses **Same as
-Front**, sharing Front's image and refinements while keeping an independent
-mirror setting. Switching Back to its own image and back again preserves its
-previous image and edits. **Empty** leaves a solid face in the plate material;
-switching back restores the stored artwork and refinements.
-The shared Back preview is read-only: use **Edit on Front →** to change its
-colors or shapes. Mirroring remains independent on Back.
+Front and Back appear side by side on desktop, each with its own upload,
+preview, colors and refinements. **Upload image** uses that face's own SVG or
+traced raster. Back initially uses **Same as Front**, sharing Front's image,
+colors and refinements while keeping an independent mirror setting. Its preview
+is read-only; edit the visible Front controls to update both. Switching Back to
+its own image and back again preserves its previous image and edits. **Empty**
+leaves a solid face in the plate material; switching back restores the stored
+artwork and refinements.
 
-**Mirror horizontally** changes only the selected face. The 2D preview shows
+The narrower right column contains 3D inspection, downloads and
+**Shared settings**: plate dimensions, color, logo depth, keyring and printer
+settings apply to both faces.
+
+**Mirror horizontally** changes only that panel's face. The 2D preview shows
 that face from outside, with the keyring at the top, matching the 3D model and
 export. Fresh sessions leave Mirror off on both faces, so text reads normally
 on each side. Older single-image saved sessions keep Back mirrored to preserve
@@ -62,8 +66,8 @@ with the same dimensions.
 You can download a blank plate without uploading artwork. A failed import
 blocks export until repaired or that face is deliberately set to Empty (or its
 unused source is replaced by Same as Front). Imports and tracing continue on
-their original source when you switch face controls; downloads wait for all
-active sources and the current model. Failures are remembered across reloads.
+their original source while you edit the other face or change artwork modes.
+Downloads wait for all active sources and the current model. Failures are remembered across reloads.
 Reloading during a retrace restores the last valid artwork. Successful uploads
 collapse to a filename and **Replace** row, which still accepts dropped files.
 

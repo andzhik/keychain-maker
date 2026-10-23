@@ -1,3 +1,4 @@
+import { facePanel } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
@@ -39,18 +40,15 @@ const frontSave = {
   'keychain-maker:front:v1': JSON.stringify({ mode: 'artwork', mirror: false, hasArtwork: true, fileName: 'letter.svg' }),
   'keychain-maker:front:svg:v1': svg,
 }
-const face = (page: Page, name: string) => page.getByRole('group', { name: 'Artwork face', exact: true }).getByRole('button', { name, exact: true }).click()
 const card = (page: Page, name: string) => page.locator('section').filter({ has: page.getByRole('heading', { name, exact: true }) }).first()
 
 test('#26 fresh Back reads normally; legacy saved artwork retains its mirror', async () => {
   await check(async page => {
     await page.locator('input[type=file]').first().setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) })
-    await face(page, 'Back')
-    assert.equal(await page.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), false)
+    assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), false)
   })
   await check(async page => {
-    await face(page, 'Back')
-    assert.equal(await page.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), true)
+    assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), true)
   }, { 'keychain-maker:svg:v1': svg })
 })
 
@@ -58,11 +56,10 @@ test('#17 printer settings are shared, persisted and accessible on Empty faces',
   await check(async page => {
     await page.getByRole('slider', { name: 'Nozzle', exact: true }).fill('0.2')
     await page.getByRole('checkbox', { name: 'Thin walls', exact: true }).check()
-    await face(page, 'Back')
-    await page.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
     assert.equal(await page.getByRole('slider', { name: 'Nozzle', exact: true }).inputValue(), '0.2')
     assert.equal(await page.getByRole('checkbox', { name: 'Thin walls', exact: true }).isChecked(), true)
-    await page.getByLabel('Face artwork', { exact: true }).selectOption('empty')
+    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('empty')
     assert.equal(await card(page, 'Printer').getByRole('slider', { name: 'Nozzle', exact: true }).isVisible(), true)
     await page.reload()
     assert.equal(await page.getByRole('slider', { name: 'Nozzle', exact: true }).inputValue(), '0.2')
@@ -70,26 +67,28 @@ test('#17 printer settings are shared, persisted and accessible on Empty faces',
   }, frontSave)
 })
 
-test('#27 shared Back previews are read-only in both sizes with a route to Front', async () => {
+test('#27 shared Back previews are read-only in both sizes while Front stays editable', async () => {
   await check(async page => {
-    await face(page, 'Back')
-    assert.equal(await page.getByRole('heading', { name: 'Refine', exact: true }).count(), 0)
-    assert.equal(await page.getByLabel('Print color for #ff0000', { exact: true }).count(), 0)
+    assert.equal(await facePanel(page, 'Back').getByRole('heading', { name: 'Refine', exact: true }).count(), 0)
+    assert.equal(await facePanel(page, 'Back').getByLabel('Print color for #ff0000', { exact: true }).count(), 0)
     const before = await page.evaluate(() => localStorage.getItem('keychain-maker:front:v1'))
-    await page.locator('svg.logo-preview').first().locator('path').last().dispatchEvent('click')
-    await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+    await facePanel(page, 'Back').locator('svg.logo-preview').first().locator('path').last().dispatchEvent('click')
+    await facePanel(page, 'Back').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
     const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
     await panel.locator('svg.logo-preview path').last().dispatchEvent('click')
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:v1')), before)
     await panel.getByRole('button', { name: 'Close', exact: true }).click()
-    await page.getByRole('button', { name: 'Edit on Front', exact: false }).click()
-    assert.equal(await page.getByRole('heading', { name: 'Refine', exact: true }).isVisible(), true)
+    assert.equal(await facePanel(page, 'Front').getByRole('heading', { name: 'Refine', exact: true }).isVisible(), true)
+    await facePanel(page, 'Front').getByLabel('Print color for #ff0000', { exact: true }).fill('#00ff00')
+    await facePanel(page, 'Back').locator('svg.logo-preview path[fill="#00ff00"]').waitFor()
+    await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    assert.equal(await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), false)
   }, frontSave)
 })
 
 test('#24 toggling Mirror fits the enlarged preview again', async () => {
   await check(async page => {
-    await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+    await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
     const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
     const preview = panel.getByRole('img')
     const fitted = await preview.getAttribute('viewBox')
@@ -97,7 +96,7 @@ test('#24 toggling Mirror fits the enlarged preview again', async () => {
     await page.mouse.wheel(0, -600)
     await panel.getByRole('button', { name: 'Fit', exact: true }).waitFor()
     assert.notEqual(await preview.getAttribute('viewBox'), fitted)
-    await page.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
     assert.equal(await preview.getAttribute('viewBox'), fitted)
     assert.equal(await panel.getByRole('button', { name: 'Fit', exact: true }).count(), 0)
   }, frontSave)
@@ -121,7 +120,7 @@ test('#20 refining does not rewrite an unchanged SVG', async () => {
       }
     })
     for (const value of ['1', '2', '3']) {
-      await page.getByRole('slider', { name: 'Merge similar', exact: true }).fill(value)
+      await facePanel(page, 'Front').getByRole('slider', { name: 'Merge similar', exact: true }).fill(value)
     }
     assert.equal(await page.evaluate(() => (window as any).svgWrites), 0)
   }, frontSave)
@@ -169,7 +168,7 @@ test('#29 blank plates export directly and imported artwork names the download',
 
 test('#30-32 controls sit with their targets and the header can reset only app data', async () => {
   await check(async page => {
-    assert.equal(await card(page, 'Logo').getByRole('slider', { name: 'Logo depth', exact: true }).count(), 1)
+    assert.equal(await card(page, 'Plate').getByRole('slider', { name: 'Logo depth', exact: true }).count(), 1)
     assert.equal(await page.getByRole('heading', { name: 'Edge', level: 2, exact: true }).count(), 0)
     assert.equal(await card(page, 'Plate').getByRole('slider', { name: 'Bevel', exact: true }).count(), 1)
     await page.getByRole('radio', { name: 'Circle', exact: true }).click()
@@ -178,11 +177,11 @@ test('#30-32 controls sit with their targets and the header can reset only app d
     await page.evaluate(() => localStorage.setItem('unrelated-app', 'keep'))
     await page.getByRole('button', { name: 'Start over', exact: true }).click()
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-    assert.equal(await page.locator('svg.logo-preview').count(), 1)
+    assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview').count(), 1)
     await page.getByRole('button', { name: 'Start over', exact: true }).click()
     await page.getByRole('button', { name: 'Reset everything', exact: true }).click()
     await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
-    assert.equal(await page.locator('svg.logo-preview').count(), 0)
+    assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview').count(), 0)
     assert.equal(await page.getByRole('radio', { name: 'Rectangle', exact: true }).getAttribute('aria-checked'), 'true')
     assert.equal(await page.evaluate(() => localStorage.getItem('unrelated-app')), 'keep')
   }, frontSave)
@@ -190,14 +189,14 @@ test('#30-32 controls sit with their targets and the header can reset only app d
 
 test('#31 successful uploads collapse, invalid replacements keep the full uploader', async () => {
   await check(async page => {
-    assert.equal(await page.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).count(), 0)
+    assert.equal(await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).count(), 0)
     const input = page.locator('input[type=file]').first()
     await input.setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) })
     await page.getByText('Ready to export.', { exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Replace letter.svg', exact: true }).isVisible(), true)
     assert.equal(await page.getByText('For best results', { exact: false }).first().isVisible(), false)
     await input.setInputFiles({ name: 'broken.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg') })
-    await page.getByRole('alert').waitFor()
+    await facePanel(page, 'Front').getByRole('alert').waitFor()
     assert.equal(await page.getByRole('button', { name: 'Replace broken.svg', exact: true }).count(), 0)
     assert.equal(await page.getByText('For best results', { exact: false }).first().isVisible(), true)
   })
@@ -208,13 +207,11 @@ test('#19 inactive stored artwork cannot show complexity advice', async () => {
   await check(async page => {
     const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
     assert.equal(await advice.count(), 0)
-    await face(page, 'Back')
-    assert.equal(await advice.count(), 0)
-    await page.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
     await advice.waitFor()
-    assert.equal(await card(page, 'Refine').getByRole('status').filter({ hasText: 'Over 500 outline points' }).count(), 1)
+    assert.equal(await facePanel(page, 'Back').getByRole('status').filter({ hasText: 'Over 500 outline points' }).count(), 1)
     for (const mode of ['same', 'empty']) {
-      await page.getByLabel('Face artwork', { exact: true }).selectOption(mode)
+      await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption(mode)
       assert.equal(await advice.count(), 0)
     }
   }, { ...frontSave,
@@ -238,10 +235,9 @@ test('#21 width changes skip unused refinement geometry and reactivation restore
     // Wait past the thin-feature debounce using actual page frames.
     await page.waitForTimeout(300)
     assert.equal(await page.evaluate(() => (window as any).unusedReads), 0)
-    await face(page, 'Back')
-    await page.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
     await page.waitForFunction(() => (window as any).unusedReads > 0)
-    assert.equal(await page.locator('svg.logo-preview').count(), 1)
+    assert.equal(await facePanel(page, 'Back').locator('svg.logo-preview').count(), 1)
   }, { ...frontSave,
     'keychain-maker:back:v1': JSON.stringify({ mode: 'same', hasArtwork: true }),
     'keychain-maker:back:svg:v1': svg.replace('red', 'blue') })
@@ -264,8 +260,7 @@ test('#29 filament counts match exported colors across both faces, refinements a
     await page.getByLabel('Plate color', { exact: true }).fill('#ff0000')
     assert.match(await summary.innerText(), /Filaments: 4/)
     assert.equal(await page.getByText('More than 4 filaments', { exact: false }).count(), 0)
-    await face(page, 'Back')
-    await page.getByLabel('Face artwork', { exact: true }).selectOption('same')
+    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('same')
     assert.match(await summary.innerText(), /Filaments: 2/)
     await page.getByRole('checkbox', { name: 'Print logo', exact: true }).uncheck()
     await page.getByText('Ready to export the base only.', { exact: true }).waitFor()

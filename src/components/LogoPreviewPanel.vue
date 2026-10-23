@@ -28,7 +28,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   <!-- Not a modal: the controls beside it stay usable, and edits show here as they're made. -->
   <section class="flex flex-col gap-2 p-3 bg-white border border-gray-200 rounded-lg" aria-label="Logo preview">
     <header class="flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Logo preview</h2>
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">{{ preview.faceLabel }} preview</h2>
       <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
         <input v-model="showEdges" type="checkbox" class="accent-emerald-600" />
         <span>Edges and points <span class="inline-block w-3 h-0.5 align-middle bg-emerald-600" /></span>
@@ -69,6 +69,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       :showThinFeatures="showThinFeatures"
       @toggleShape="(id: string) => emit('toggleShape', id)"
     />
-    <p class="text-[11px] text-gray-400 shrink-0">{{ preview.faceLabel }} outside view · keyring at top{{ preview.mirror ? ' · mirrored' : '' }}. Scroll to zoom, drag to pan, double-click to fit. {{ preview.readOnly ? 'Shared artwork: edit shapes on Front.' : 'Click a shape to remove it.' }}</p>
+    <p class="text-[11px] text-gray-400 shrink-0">Scroll to zoom, drag to pan, double-click to fit.</p>
   </section>
 </template>

@@ -13,8 +13,8 @@ logo counters, front-only/back-only artwork, independently mirrored outlines,
 The columns must fill the whole thickness exactly once. Mirrored triangle
 winding must agree with outward normals, with positive node determinants.
 
-Browser tests exercise both uploaders, delayed raster decoding across face
-switches, failures scoped to a source, persistence of each source and edits,
+Browser tests exercise both uploaders, delayed raster decoding while editing the other face or changing artwork
+modes, failures scoped to a source, persistence of each source and edits,
 reversible Empty/Same as Front selections, old-session migration, independent
 mirror toggles and actual downloads. Exported triangles must exactly match the
 preview; asymmetric path-based F/L glyphs verify outside-view X orientation.

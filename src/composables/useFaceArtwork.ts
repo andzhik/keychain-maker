@@ -4,7 +4,7 @@ import { useSvgParser } from './useSvgParser'
 import { useLogoRefinement } from './useLogoRefinement'
 import { saveFace, saveFaceMetadata, saveFaceSvg } from '../utils/persistence'
 
-/** One source owns parsing, refinements and import state, independently of the selected editor. */
+/** One source owns parsing, refinements and import state, independently of the other face. */
 export function useFaceArtwork(face: Face, settings: Ref<FaceSettings>, config: Ref<KeychainConfig>, printer: Ref<PrinterSettings>, active: Ref<boolean>) {
   const saved = settings.value
   // Older versions marked an in-progress retrace failed while retaining its
@@ -57,3 +57,5 @@ export function useFaceArtwork(face: Face, settings: Ref<FaceSettings>, config: 
   return { settings, sourceKey, importing, importError, parser, refined, refinements,
     error: computed(() => importError.value ?? parser.error.value), loaded, started, failed }
 }
+
+export type FaceArtwork = ReturnType<typeof useFaceArtwork>

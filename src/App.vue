@@ -2,15 +2,14 @@
 import { ref, computed, watch } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ExportButton from './components/ExportButton.vue'
-import LogoPreviewPanel from './components/LogoPreviewPanel.vue'
-import type { LogoPreviewData } from './components/LogoPreview.vue'
+import FaceArtworkPanel from './components/FaceArtworkPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import { useFaceArtwork } from './composables/useFaceArtwork'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
 import { fitFaces } from './utils/logoFit'
 import { loadState, loadFaces, loadPrinter, saveConfig, saveShowLogo, savePrinter, clearSession } from './utils/persistence'
-import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Face, type FaceMode, type ColorGroup, type KeychainArtwork } from './types/keychain'
+import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Face, type ColorGroup, type KeychainArtwork } from './types/keychain'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 const saved = loadState()
@@ -26,22 +25,8 @@ const frontActive = computed(() => frontSettings.value.mode !== 'empty' || backS
 const backActive = computed(() => backSettings.value.mode === 'artwork')
 const front = useFaceArtwork('front', frontSettings, effectiveConfig, printer, frontActive)
 const back = useFaceArtwork('back', backSettings, effectiveConfig, printer, backActive)
-const uploads = computed(() => ({
-  front: { imported: front.parser.colorGroups.value.length > 0, fileName: front.settings.value.fileName },
-  back: { imported: back.parser.colorGroups.value.length > 0, fileName: back.settings.value.fileName },
-}))
-const selectedFace = ref<Face>('front')
-const selectedSettings = computed(() => selectedFace.value === 'front' ? front.settings.value : back.settings.value)
-const source = computed(() => selectedFace.value === 'front' || back.settings.value.mode === 'same' ? front : back)
-const mode = computed({ get: () => selectedSettings.value.mode, set: (value: FaceMode) => { selectedSettings.value.mode = value } })
-const mirror = computed({ get: () => selectedSettings.value.mirror, set: value => { selectedSettings.value.mirror = value } })
+const expandedFace = ref<Face | null>(null)
 const emptyGroups: ColorGroup[] = []
-const parsedGroups = computed(() => mode.value === 'empty' ? emptyGroups : source.value.parser.colorGroups.value)
-const colorGroups = computed(() => mode.value === 'empty' ? emptyGroups : source.value.refined.groups.value)
-const refinements = computed({ get: () => source.value.refinements.value, set: value => { source.value.refinements.value = value } })
-const refined = computed(() => source.value.refined)
-const importReport = computed(() => mode.value === 'empty' ? null : source.value.parser.report.value)
-const artworkError = computed(() => mode.value === 'empty' ? null : source.value.error.value)
 const artwork = computed<KeychainArtwork>(() => ({
   front: { groups: front.settings.value.mode !== 'empty' ? front.refined.groups.value : emptyGroups,
     mirror: front.settings.value.mirror },
@@ -91,30 +76,6 @@ const readiness = computed(() => {
 function handleBuildStatus(status: BuildStatus, message?: string) {
   buildStatus.value = status
   modelError.value = message ?? null
-}
-function handleImportStarted(face: Face, retraced: boolean) {
-  exportError.value = null
-  ;(face === 'front' ? front : back).started(retraced)
-}
-const previewData = computed<LogoPreviewData>(() => ({
-  sourceKey: `${selectedFace.value}:${mode.value}:${source.value.sourceKey.value}`,
-  parsed: parsedGroups.value,
-  groups: colorGroups.value,
-  hiddenColors: refinements.value.hiddenColors,
-  hiddenShapes: refinements.value.hiddenShapes,
-  thinPath: refined.value.thinFeatures.value.path,
-  plateColor: config.value.baseColor,
-  mirror: mirror.value,
-  faceLabel: selectedFace.value === 'front' ? 'Front' : 'Back',
-  readOnly: mode.value === 'same',
-}))
-const previewExpanded = ref(false)
-const showThinFeatures = ref(true)
-const showPreviewPanel = computed(() => previewExpanded.value && parsedGroups.value.length > 0)
-function toggleShape(id: string) {
-  if (mode.value !== 'artwork') return
-  const hidden = refinements.value.hiddenShapes
-  refinements.value = { ...refinements.value, hiddenShapes: hidden.includes(id) ? hidden.filter(h => h !== id) : [...hidden, id] }
 }
 watch(config, value => saveConfig(value), { deep: true })
 watch(showLogo, value => saveShowLogo(value))
@@ -185,90 +146,75 @@ const dev = import.meta.env.DEV
       </div>
     </dialog>
 
-    <!-- Desktop keeps three columns; narrower screens scroll vertically. -->
-    <main class="workspace relative gap-3 p-3">
-      <ControlPanel
-        :parsedGroups="parsedGroups"
-        :colorGroups="colorGroups"
-        :preview="previewData"
-        :uploads="uploads"
-        v-model:printer="printer"
-        v-model:previewExpanded="previewExpanded"
-        v-model:showThinFeatures="showThinFeatures"
-        :colorSources="refined.sources.value"
-        :specksRemoved="refined.specksRemoved.value"
-        :outlinePoints="refined.outlinePoints.value"
-        :thinFeatures="refined.thinFeatures.value"
-        :tinyIslands="refined.tinyIslands.value"
-        :minFeatureWidth="refined.minFeatureWidth.value"
-        :error="artworkError"
-        :importReport="importReport"
-        v-model:showLogo="showLogo"
-        v-model:config="config"
-        v-model:refinements="refinements"
-        :adjustments="validation.adjustments"
-        :configMessages="validation.messages"
-        :effectiveConfig="validation.config"
-        v-model:selectedFace="selectedFace"
-        v-model:faceMode="mode"
-        v-model:mirror="mirror"
-        @svgLoaded="(face: Face, text: string, retraced?: boolean, fileName?: string) => (face === 'front' ? front : back).loaded(text, retraced, fileName)"
-        @importStarted="handleImportStarted"
-        @importFailed="(face: Face, message: string) => (face === 'front' ? front : back).failed(message)"
-        @toggleShape="toggleShape"
+    <main class="workspace gap-3 p-3">
+      <FaceArtworkPanel
+        v-for="face in (['front', 'back'] as const)"
+        :key="face"
+        :face="face"
+        :artwork="face === 'front' ? front : back"
+        :frontArtwork="front"
+        :baseColor="config.baseColor"
+        :showLogo="showLogo"
+        :printer="printer"
+        :expanded="expandedFace === face"
+        @update:expanded="value => expandedFace = value ? face : null"
+        @importStarted="exportError = null"
       />
 
-      <aside class="model-preview min-w-0 flex flex-col gap-2" aria-label="3D preview and export">
-        <div class="three-frame relative bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-          <ThreeViewer
-            ref="viewerRef"
-            :artwork="artwork"
-            :fitKey="fitKey"
-            :config="validation.config"
-            :configError="configError"
-            @buildStatus="handleBuildStatus"
+      <div class="inspection-column relative min-w-0 min-h-0">
+        <div class="inspection-scroll flex flex-col gap-4">
+          <aside class="model-preview min-w-0 flex flex-col gap-2" aria-label="3D preview and export">
+            <div class="three-frame relative bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+              <ThreeViewer
+                ref="viewerRef"
+                :artwork="artwork"
+                :fitKey="fitKey"
+                :config="validation.config"
+                :configError="configError"
+                @buildStatus="handleBuildStatus"
+              />
+              <div class="absolute top-2 right-2 flex items-center gap-2">
+                <button type="button" aria-label="Front view" class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50" @click="viewerRef?.showFace('front')">Front</button>
+                <button type="button" aria-label="Back view" class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50" @click="viewerRef?.showFace('back')">Back</button>
+                <button
+                  class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
+                  @click="viewerRef?.resetView()"
+                >
+                  Reset View
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
+                <p>Dimensions: {{ dimText }}</p>
+                <p v-if="dev">Build time: {{ buildTimeText }}</p>
+              </div>
+              <div class="w-44 shrink-0">
+                <ExportButton
+                  :disabled="!canExport"
+                  :exporting="exporting"
+                  :label="exportLabel"
+                  @export="handleExport"
+                />
+              </div>
+            </div>
+            <p class="text-xs text-gray-500">Filaments: {{ filamentCount }} (plate + {{ filamentCount - 1 }} logo color{{ filamentCount - 1 !== 1 ? 's' : '' }})</p>
+            <p v-if="filamentCount > 4" role="status" class="text-xs text-amber-700">More than 4 filaments: check your printer's available slots or merge logo colors.</p>
+            <p role="status" aria-live="polite" class="text-xs shrink-0" :class="modelError ? 'text-red-600' : 'text-gray-500'">{{ readiness }}</p>
+            <p v-if="exportError" class="text-xs text-red-500 shrink-0">{{ exportError }}</p>
+          </aside>
+
+          <ControlPanel
+            v-model:printer="printer"
+            v-model:showLogo="showLogo"
+            v-model:config="config"
+            :adjustments="validation.adjustments"
+            :configMessages="validation.messages"
+            :effectiveConfig="validation.config"
           />
-          <div class="absolute top-2 right-2 flex items-center gap-2">
-            <button type="button" aria-label="Front view" class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50" @click="viewerRef?.showFace('front')">Front</button>
-            <button type="button" aria-label="Back view" class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50" @click="viewerRef?.showFace('back')">Back</button>
-            <button
-              class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 active:bg-gray-100"
-              @click="viewerRef?.resetView()"
-            >
-              Reset View
-            </button>
-          </div>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
-            <p>Dimensions: {{ dimText }}</p>
-            <p v-if="dev">Build time: {{ buildTimeText }}</p>
-          </div>
-          <div class="w-full sm:w-48 shrink-0">
-            <ExportButton
-              :disabled="!canExport"
-              :exporting="exporting"
-              :label="exportLabel"
-              @export="handleExport"
-            />
-          </div>
-        </div>
-        <p class="text-xs text-gray-500">Filaments: {{ filamentCount }} (plate + {{ filamentCount - 1 }} logo color{{ filamentCount - 1 !== 1 ? 's' : '' }})</p>
-        <p v-if="filamentCount > 4" role="status" class="text-xs text-amber-700">More than 4 filaments: check your printer's available slots or merge logo colors.</p>
-        <p role="status" aria-live="polite" class="text-xs shrink-0" :class="modelError ? 'text-red-600' : 'text-gray-500'">{{ readiness }}</p>
-        <p v-if="exportError" class="text-xs text-red-500 shrink-0">{{ exportError }}</p>
-      </aside>
-
-      <!-- The enlarged logo preview covers the settings and the 3D view, leaving
-           the logo and refine controls next to it usable. -->
-      <LogoPreviewPanel
-        v-if="showPreviewPanel"
-        class="expanded-preview z-10 shadow-xl"
-        :preview="previewData"
-        v-model:showThinFeatures="showThinFeatures"
-        @close="previewExpanded = false"
-        @toggleShape="toggleShape"
-      />
+        <div id="enlarged-preview" />
+      </div>
     </main>
   </div>
 </template>

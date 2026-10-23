@@ -135,7 +135,7 @@ function onFileChange(e: Event) {
       @keydown.enter.prevent="fileInput?.click()"
       @keydown.space.prevent="fileInput?.click()"
     >
-      <svg class="w-5 h-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg aria-hidden="true" class="w-5 h-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
@@ -160,8 +160,7 @@ function onFileChange(e: Event) {
 
     <!-- Trace options, for a raster upload -->
     <div v-if="raster" class="flex flex-col gap-1.5 text-xs text-gray-600">
-      <p class="truncate text-gray-500" :title="raster.name">Traced from {{ raster.name }}</p>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <span class="flex items-center gap-1">
         <label class="flex items-center gap-1.5">
           Colors

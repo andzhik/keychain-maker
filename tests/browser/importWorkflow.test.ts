@@ -1,3 +1,4 @@
+import { facePanel } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
@@ -39,7 +40,7 @@ test('a failed raster replacement removes stale artwork and disables export', as
     assert.equal(await download.isEnabled(), true)
 
     await input.setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('broken') })
-    await page.getByText('Could not read "broken.png".', { exact: true }).waitFor()
+    await facePanel(page, 'Front').getByText('Could not read "broken.png".', { exact: true }).waitFor()
     assert.equal(await download.isDisabled(), true, 'failed replacement must disable export')
     assert.equal(await page.locator('svg.logo-preview').count(), 0, 'stale artwork must leave the preview')
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), null)
@@ -67,7 +68,7 @@ test('SVG errors are actionable, clear persisted artwork, and allow recovery', a
       ['broken.svg', Buffer.from('<svg'), 'not a valid SVG'],
     ] as const) {
       await input.setInputFiles({ name, mimeType: 'image/svg+xml', buffer })
-      await page.getByRole('alert').filter({ hasText: message }).waitFor()
+      await facePanel(page, 'Front').getByRole('alert').filter({ hasText: message }).waitFor()
       assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
       assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), null)
     }
@@ -153,8 +154,7 @@ test('logo depth persists and the exported surface shells match the preview for 
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path fill="red" fill-rule="evenodd" d="M0 0H10V20H0Z M3 7H7V13H3Z"/><path fill="blue" d="M10 0H20V20H10Z"/></svg>') })
     // Exercise the legacy equivalent-face shell optimization explicitly;
     // fresh Back defaults now read normally from outside instead of mirroring.
-    await page.getByRole('button', { name: 'Back', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
     for (const [bevel, depth, thickness] of [[0.6, 0.6, 5], [0, 0.8, 5], [0, 0.6, 0.8]]) {
       for (const [label, value] of [['Bevel', bevel], ['Logo depth', depth], ['Thickness', thickness]] as const) {
         const input = page.getByRole('spinbutton', { name: label, exact: true })
@@ -212,7 +212,7 @@ test('invalid restored artwork is reported and removed from persistence', async 
   try {
     await page.addInitScript(() => localStorage.setItem('keychain-maker:svg:v1', '<svg><text>Old logo</text></svg>'))
     await page.goto(url)
-    await page.getByRole('alert').filter({ hasText: 'Convert text to paths' }).waitFor()
+    await facePanel(page, 'Front').getByRole('alert').filter({ hasText: 'Convert text to paths' }).waitFor()
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), null)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
   } finally {
@@ -227,12 +227,12 @@ test('the SVG import report shows safe cleanup and reports unsupported replaceme
     const input = page.locator('input[type="file"]').first()
     const source = '<svg xmlns="http://www.w3.org/2000/svg"><metadata>Editor data</metadata><path fill="black" style="fill:#ffffff;fill-rule:evenodd" d="M0 0H20V20H0Z M5 5H15V15H5Z"/></svg>'
     await input.setInputFiles({ name: 'prepared.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(source) })
-    const report = page.getByRole('region', { name: 'Import', exact: true })
+    const report = facePanel(page, 'Front').getByRole('region', { name: 'Import', exact: true })
     await report.getByText('Ready: 1 colors, 1 filled shapes.', { exact: true }).waitFor()
     await report.getByText('Removed 1 non-rendering metadata elements.', { exact: true }).waitFor()
     await report.getByText('Normalized inline fills/styles on 1 elements.', { exact: true }).waitFor()
     await page.getByText('Ready to export.', { exact: true }).waitFor()
-    assert.equal(await page.locator('svg.logo-preview path[fill="#ffffff"]').count(), 1)
+    assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview path[fill="#ffffff"]').count(), 1)
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), source)
     await input.setInputFiles({ name: 'text.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><text>Convert me</text></svg>') })
     await report.getByRole('alert').filter({ hasText: 'Convert text to paths' }).waitFor()
@@ -267,7 +267,6 @@ test('outline complexity advice starts above 500 refined points, including holes
   try {
     await page.goto(url)
     const simplify = page.getByRole('slider', { name: 'Simplify', exact: true })
-    await simplify.fill('0')
     const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
     const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
     const ring = (count: number, radius: number) => Array.from({ length: count }, (_, i) => {
@@ -278,6 +277,7 @@ test('outline complexity advice starts above 500 refined points, including holes
     for (const points of [500, 501]) {
       await page.locator('input[type="file"]').first().setInputFiles({ name: `outline-${points}.svg`, mimeType: 'image/svg+xml',
         buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="${ring(250, 50)}${ring(points - 250, 25)}"/></svg>`) })
+      await simplify.fill('0')
       await page.getByText(`${points} outline points.`, { exact: true }).waitFor()
       await page.getByText('Ready to export.', { exact: true }).waitFor()
       assert.equal(await advice.count(), points > 500 ? 1 : 0)
@@ -345,14 +345,14 @@ for (const width of [1024, 1400]) {
       await page.locator('input[type="file"]').first().setInputFiles({ name: 'thin.svg', mimeType: 'image/svg+xml',
         buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0H100V49H120V51H100V100H0Z"/></svg>') })
       const inline = page.locator('svg.logo-preview').first()
-      const inlineToggle = page.locator('.control-panel').getByRole('checkbox', { name: 'Thin areas', exact: true })
+      const inlineToggle = facePanel(page, 'Front').getByRole('checkbox', { name: 'Thin areas', exact: true })
       await inline.locator('path.thin').waitFor()
       await page.getByText('Ready to export.', { exact: true }).waitFor()
       assert.equal(await inlineToggle.isChecked(), true)
 
       await inlineToggle.uncheck()
       await inline.locator('path.thin').waitFor({ state: 'hidden' })
-      await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+      await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
       const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
       const enlarged = panel.getByRole('img')
       const panelToggle = panel.getByRole('checkbox', { name: 'Thin areas', exact: true })
@@ -373,11 +373,13 @@ for (const width of [1024, 1400]) {
       await panel.getByRole('checkbox', { name: 'Original outline' }).check()
       await panelToggle.uncheck()
       assert.equal(await inlineToggle.isChecked(), false)
-      assert.equal(await page.locator('svg.logo-preview path.thin').count(), 0)
+      assert.equal(await inline.locator('path.thin').count(), 0)
+      assert.equal(await enlarged.locator('path.thin').count(), 0)
+      assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Thin areas', exact: true }).isChecked(), true)
       assert.equal(await enlarged.getAttribute('viewBox'), zoomedView)
       assert.equal(await enlarged.locator('path.edges').count(), 1)
       assert.equal(await enlarged.locator('path.original').count(), 1)
-      const nozzleWarning = page.getByRole('button', { name: 'Nozzle warning', exact: true })
+      const nozzleWarning = facePanel(page, 'Front').getByRole('button', { name: 'Nozzle warning', exact: true })
       assert.equal(await nozzleWarning.count(), 1, 'hiding the overlay must preserve nozzle advice')
 
       await panel.getByRole('button', { name: 'Close', exact: true }).click()
@@ -393,7 +395,7 @@ for (const width of [1024, 1400]) {
       await nozzleTooltip.waitFor({ state: 'hidden' })
       await inlineToggle.check()
       await inline.locator('path.thin').waitFor()
-      await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+      await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
       assert.equal(await panelToggle.isChecked(), true, 'reopening must preserve overlay visibility')
       await enlarged.locator('path.thin').waitFor()
       assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isEnabled(), true)
@@ -458,7 +460,7 @@ for (const width of [1024, 1400, 1920]) {
       const reachable = await download.boundingBox()
       assert.ok(reachable && reachable.y >= 0 && reachable.y + reachable.height <= 900)
       await page.locator('input[type="file"]').first().setInputFiles('test-svg/c1.svg')
-      await page.getByRole('button', { name: 'Enlarge preview', exact: true }).click()
+      await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
       const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
       const enlarged = await panel.boundingBox()
       assert.ok(enlarged && enlarged.width > 100 && enlarged.x >= 0 && enlarged.x + enlarged.width <= width)
