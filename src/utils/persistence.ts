@@ -167,9 +167,17 @@ export function loadFaces(storage: Storage | null = defaultStorage()): Record<Fa
   const faces = { front, back }
   for (const face of ['front', 'back'] as const) {
     const raw = parseJson(read(storage, `keychain-maker:${face}:v1`))
-    if (!raw || typeof raw !== 'object') continue
-    const value = raw as Record<string, unknown>
     const svg = read(storage, `keychain-maker:${face}:svg:v1`)
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      // A quota failure can remove metadata after the SVG was saved. Recover
+      // that source independently; only genuinely missing faces use legacy data.
+      if (svg !== null) {
+        faces[face] = { mode: 'artwork', svg, refinements: sanitizeRefinements(null),
+          mirror: false, importFailed: false, fileName: null }
+      }
+      continue
+    }
+    const value = raw as Record<string, unknown>
     faces[face] = {
       mode: value.mode === 'empty' || (value.mode === 'same' && face === 'back') ? value.mode : 'artwork',
       svg,

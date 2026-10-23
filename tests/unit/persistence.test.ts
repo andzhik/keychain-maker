@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, DEFAULT_PRINTER } from '../../src/types/keychain'
-import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
+import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, saveFaceMetadata, sanitizeConfig, sanitizeRefinements, saveConfig, saveRefinements, saveShowLogo, saveSvg } from '../../src/utils/persistence'
 
 function memoryStorage(quota = Infinity): Storage {
   const data = new Map<string, string>()
@@ -94,6 +94,59 @@ test('a missing saved face SVG is a failure and cannot resurrect legacy artwork'
   expect(loadFaces(storage).front.svg).toBeNull()
   expect(loadFaces(storage).front.importFailed).toBe(true)
 })
+
+for (const face of ['front', 'back'] as const) {
+  test(`${face} artwork survives a metadata write failure after its SVG is saved`, () => {
+    const storage = memoryStorage()
+    const faces = loadFaces(storage)
+    faces.front.svg = '<svg>front</svg>'
+    faces.back = { ...faces.back, mode: 'artwork', svg: '<svg>back</svg>' }
+    saveFace('front', faces.front, storage)
+    saveFace('back', faces.back, storage)
+    const other = face === 'front' ? 'back' : 'front'
+    const updated = { ...faces[face], svg: `<svg>new ${face}</svg>` }
+    const setItem = storage.setItem
+    storage.setItem = (key, value) => {
+      if (key === `keychain-maker:${face}:v1`) throw new Error('QuotaExceededError')
+      setItem(key, value)
+    }
+
+    saveFace(face, updated, storage)
+
+    expect(storage.getItem(`keychain-maker:${face}:svg:v1`)).toBe(updated.svg)
+    const restored = loadFaces(storage)
+    expect(restored[face].svg).toBe(updated.svg)
+    expect(restored[face].mode).toBe('artwork')
+    expect(restored[other]).toEqual(faces[other])
+  })
+
+  test(`${face} artwork survives a metadata-only save failure`, () => {
+    const storage = memoryStorage()
+    const settings = { ...loadFaces(storage)[face], mode: 'artwork' as const, svg: `<svg>${face}</svg>` }
+    saveFace(face, settings, storage)
+    storage.setItem = () => { throw new Error('QuotaExceededError') }
+
+    saveFaceMetadata(face, { ...settings, fileName: 'new-name.svg' }, storage)
+
+    expect(loadFaces(storage)[face].svg).toBe(settings.svg)
+    expect(loadFaces(storage)[face].mode).toBe('artwork')
+  })
+
+  test(`${face} SVG with missing or corrupt metadata takes precedence over legacy state`, () => {
+    const storage = memoryStorage()
+    saveSvg('<svg>legacy</svg>', storage)
+    saveRefinements({ ...DEFAULT_REFINEMENTS, hiddenColors: ['#ffffff'] }, storage)
+    const svg = `<svg>${face}</svg>`
+    storage.setItem(`keychain-maker:${face}:svg:v1`, svg)
+    for (const metadata of [null, '{invalid json', 'null', 'false', '42', '"invalid"', '[]']) {
+      if (metadata === null) storage.removeItem(`keychain-maker:${face}:v1`)
+      else storage.setItem(`keychain-maker:${face}:v1`, metadata)
+
+      expect(loadFaces(storage)[face]).toEqual({ mode: 'artwork', svg,
+        refinements: DEFAULT_REFINEMENTS, mirror: false, importFailed: false, fileName: null })
+    }
+  })
+}
 
 test('an SVG over the quota is dropped without losing the config', () => {
   const storage = memoryStorage(1000)

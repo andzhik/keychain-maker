@@ -29,6 +29,45 @@ const upload = (page: Page, face: 'front' | 'back', svg: string) =>
 const ready = (page: Page) => page.getByText('Ready to export.', { exact: true }).waitFor()
 const settings = (page: Page, face: string) => page.evaluate(face => JSON.parse(localStorage.getItem(`keychain-maker:${face}:v1`)!), face)
 
+for (const face of ['front', 'back'] as const) {
+  test(`#16 ${face} artwork remains visible after a metadata quota failure and reload`, async () => {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    try {
+      await page.goto(url)
+      await upload(page, 'front', fSvg)
+      await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+      await upload(page, 'back', lSvg)
+      await ready(page)
+      await page.addInitScript(face => {
+        const setItem = Storage.prototype.setItem
+        Storage.prototype.setItem = function (key, value) {
+          if (key === `keychain-maker:${face}:v1`) throw new DOMException('Storage full', 'QuotaExceededError')
+          setItem.call(this, key, value)
+        }
+      }, face)
+
+      // Startup saves the SVG successfully, then loses its metadata. The next
+      // reload must still restore both independent images and allow export.
+      await page.reload()
+      await ready(page)
+      assert.equal(await page.evaluate(face => localStorage.getItem(`keychain-maker:${face}:v1`), face), null)
+      await page.reload()
+      await ready(page)
+      for (const [name, svg, color] of [['Front', fSvg, '#ff0000'], ['Back', lSvg, '#0000ff']] as const) {
+        const panel = facePanel(page, name)
+        assert.equal(await panel.getByLabel('Face artwork', { exact: true }).inputValue(), 'artwork')
+        await panel.locator(`svg.logo-preview path[fill="${color}"]`).waitFor()
+        assert.equal(await page.evaluate(face => localStorage.getItem(`keychain-maker:${face}:svg:v1`), name.toLowerCase()), svg)
+      }
+      assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isEnabled(), true)
+      assert.equal(await page.getByRole('alert').count(), 0)
+      assert.deepEqual(errors, [])
+    } finally { await page.close() }
+  })
+}
+
 test('#34 matching face colors updates previews, saved edits, filament count and actual exports', async () => {
   const page = await browser.newPage({ viewport: { width: 1024, height: 900 } })
   const errors: string[] = []
