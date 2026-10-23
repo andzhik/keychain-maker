@@ -196,7 +196,7 @@ test('#31 successful uploads collapse, invalid replacements keep the full upload
     assert.equal(await page.getByRole('button', { name: 'Replace letter.svg', exact: true }).isVisible(), true)
     assert.equal(await page.getByText('For best results', { exact: false }).first().isVisible(), false)
     await input.setInputFiles({ name: 'broken.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg') })
-    await facePanel(page, 'Front').getByRole('alert').waitFor()
+    await page.getByRole('alert').filter({ hasText: 'Front artwork needs attention' }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Replace broken.svg', exact: true }).count(), 0)
     assert.equal(await page.getByText('For best results', { exact: false }).first().isVisible(), true)
   })

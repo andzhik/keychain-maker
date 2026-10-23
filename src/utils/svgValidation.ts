@@ -155,14 +155,14 @@ export function validateGroupComplexity(groups: ColorGroup[]): SvgParseError | n
     paths += group.pathCount
     shapes += group.shapes.length
     if (paths > SVG_LIMITS.paths || shapes > SVG_LIMITS.shapes) {
-      return complexityError(`Use at most ${SVG_LIMITS.paths} paths and ${SVG_LIMITS.shapes} filled shapes.`)
+      return complexityError(`Found ${paths} paths and ${shapes} filled shapes; the limit is ${SVG_LIMITS.paths} paths and ${SVG_LIMITS.shapes} filled shapes.`)
     }
     for (const shape of group.shapes) {
       for (const ring of [shape, ...shape.holes]) {
         // Count before allocating tessellated points. Ellipses use twice the divisions.
         for (const curve of ring.curves) points += curve.type === 'LineCurve' ? 1 : curve.type === 'EllipseCurve' ? 32 : 16
         points++
-        if (points > SVG_LIMITS.points) return complexityError(`Use at most ${SVG_LIMITS.points} outline points.`)
+        if (points > SVG_LIMITS.points) return complexityError(`Found at least ${points} outline points; the limit is ${SVG_LIMITS.points}.`)
       }
     }
   }

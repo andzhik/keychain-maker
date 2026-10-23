@@ -71,6 +71,13 @@ Downloads wait for all active sources and the current model. Failures are rememb
 Reloading during a retrace restores the last valid artwork. Successful uploads
 collapse to a filename and **Replace** row, which still accepts dropped files.
 
+Blocking errors appear in red panels above the 3D preview, with the affected
+source and an **Edit Front/Back artwork** button. A failed independent face
+leaves the other face inspectable. **Partial preview** identifies omitted artwork;
+its dimensions describe the displayed preview, and Download stays disabled until
+all populated faces are valid. If both images together exceed the geometry budget,
+Front stays visible while Back is omitted. Reduce detail on either image to recover.
+
 The filament summary counts distinct colors across the plate and both faces;
 matching colors share a filament. A warning above four colors helps you plan
 for your printer's available slots. Downloads use the artwork filename when
@@ -97,6 +104,11 @@ For the cleanest geometry, use simple SVG artwork made from filled paths.
 - Avoid gradients, filters, clip paths, masks, and embedded images
 - Prefer logos with clear color regions and moderate path complexity
 - A traced PNG works best for flat logos with a few solid colors; photos and gradients come out posterized. With an opaque background, white details touching the background are removed with it
+
+**Remove background** starts enabled for each face's raster uploader. Turn it off
+to keep the border-connected background as printed artwork. Each uploader keeps
+its own choice while open. Changing trace options rebuilds the artwork; a failed
+trace shows a source-specific error while keeping the valid opposite face visible.
 
 ## Import validation and limits
 
@@ -131,6 +143,9 @@ polygon clipping; resolved geometry is checked again, and the builder independen
 checks its input before outline unions, extrusion, or CSG. Degenerate/nonfinite
 geometry and filled bounds of 0.0000001 SVG units or less are rejected. Simplify
 the source artwork or trace a smaller image with fewer colors when a limit is reached.
+The builder checks independent Front and Back geometry against a combined budget;
+Back using **Same as Front** counts the shared source once. Complexity errors report
+the measured count (or a lower bound for outline points) and the applicable limit.
 
 ## Printability warnings
 
@@ -139,7 +154,10 @@ Simplify explains that updates may be slow and recommends increasing it.
 The warning follows the artwork being edited, excludes unused sources, and
 does not block building or export; the hard safety budgets above still apply.
 
-Thin-area advice appears in a warning tooltip beside Thin areas. The warning icons
+Amber warning panels identify filament capacity, thin areas, small pieces,
+slow artwork, and fragile plate/keyring settings near the relevant controls.
+Warnings do not block Download. Thin-area advice remains visible when its red
+overlay is turned off. Warning and information icons
 show their explanations on hover, keyboard focus, or tap. Every setting keeps a
 short label; an info icon beside it explains what it does the same way.
 

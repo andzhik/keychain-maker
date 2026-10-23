@@ -7,6 +7,7 @@ import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import SvgUploader from './SvgUploader.vue'
 import IconTooltip from './IconTooltip.vue'
+import FeedbackNotice from './FeedbackNotice.vue'
 import type { FaceArtwork } from '../composables/useFaceArtwork'
 import { DEFAULT_REFINEMENTS, type Face, type FaceMode, type Refinements, type PrinterSettings } from '../types/keychain'
 import { outlinePointsNote } from '../utils/simplify'
@@ -107,7 +108,7 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
 </script>
 
 <template>
-  <section class="face-editor flex flex-col gap-3" :aria-label="`${faceLabel} artwork`">
+  <section :id="`${face}-artwork`" class="face-editor flex flex-col gap-3" :aria-label="`${faceLabel} artwork`">
     <PanelCard :title="faceLabel">
       <label class="flex items-center justify-between text-xs text-gray-600 gap-2">
         Artwork
@@ -129,7 +130,11 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
         @importFailed="artwork.failed"
       />
       <div v-if="error || importReport" role="region" aria-label="Import" class="text-xs text-gray-500 space-y-1">
-        <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
+        <FeedbackNotice v-if="error" severity="error" :title="`${faceLabel} artwork unavailable`" :announce="false">
+          <p>{{ error }}</p>
+          <p v-if="faceMode === 'same'">Edit the source artwork on Front, or choose another artwork mode.</p>
+          <p v-else>Adjust the trace options above, upload simpler artwork, or choose Empty.</p>
+        </FeedbackNotice>
         <template v-else-if="importReport">
           <p>Ready: {{ parsedGroups.length }} colors, {{ parsedGroups.reduce((n, group) => n + group.shapes.length, 0) }} filled shapes.</p>
           <p v-if="importReport.removedMetadata">Removed {{ importReport.removedMetadata }} non-rendering metadata elements.</p>
@@ -178,6 +183,10 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
           <IconTooltip kind="info" label="About Thin areas" :message="thinAreasInfo" align="left" />
           <IconTooltip v-if="thinFeatures.count" label="Nozzle warning" :message="nozzleWarning" align="left" placement="above" />
         </div>
+        <FeedbackNotice v-if="showLogo && thinFeatures.count" class="mt-2" severity="warning" title="Thin areas may not print">
+          <p>{{ thinFeatures.count }} thin area{{ thinFeatures.count !== 1 ? 's' : '' }} under {{ minWidth }} may not print.
+            {{ showThinFeatures ? 'Highlighted in red in the image preview.' : 'Turn on Thin areas to see them.' }}</p>
+        </FeedbackNotice>
       </div>
 
       <div v-if="faceMode === 'artwork' && parsedGroups.length">
@@ -245,18 +254,20 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
           @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
         />
         <p v-if="pointsNote" class="mt-0.5 text-xs text-gray-500">{{ pointsNote }}</p>
-        <p v-if="outlineWarning" role="status" class="mt-1 text-xs text-amber-700">{{ outlineWarning }}</p>
+        <FeedbackNotice v-if="outlineWarning" class="mt-2" severity="warning" title="Artwork may update slowly"><p>{{ outlineWarning }}</p></FeedbackNotice>
       </div>
       <div>
         <p v-if="!thinFeatures.count && parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
           No thin areas detected at {{ minWidth }}.
         </p>
-        <p v-if="showLogo && tinyIslands.count" role="status" class="mt-0.5 text-xs text-amber-600">
+        <FeedbackNotice v-if="showLogo && tinyIslands.count" class="mt-2" severity="warning" title="Small pieces may not print">
+          <p>
           {{ tinyIslands.count }} tiny logo island{{ tinyIslands.count !== 1 ? 's' : '' }}
           smaller than {{ fmtMm(minFeatureWidth) }} mm across may not print.
           Increase Width, merge colors, or
           <button type="button" class="underline hover:text-amber-800" @click="removeTinyIslands">remove them</button>.
-        </p>
+          </p>
+        </FeedbackNotice>
       </div>
     </PanelCard>
     <Teleport v-if="expanded && parsedGroups.length" to="#enlarged-preview">

@@ -10,9 +10,10 @@ const props = defineProps<{
   fitKey?: unknown
   config: KeychainConfig
   configError?: string | null
+  previewOnly?: boolean
 }>()
 
-const emit = defineEmits<{ buildStatus: [status: BuildStatus, message?: string] }>()
+const emit = defineEmits<{ buildStatus: [status: BuildStatus, message?: string, omittedFaces?: Face[]] }>()
 
 const containerRef = ref<HTMLElement | null>(null)
 const webglUnavailable = ref(false)
@@ -21,6 +22,7 @@ const { init, dispose: disposeScene, getScene, fitCamera, requestRender } = useT
 const { build, dispose: disposeBuilder, dimensions, buildMs, buildError } = useKeychainBuilder(getScene)
 
 let currentGroup: ReturnType<typeof build> = null
+let incomplete = false
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 // Sticky until the debounced rebuild runs, so a config change landing within
 // the debounce window of a new SVG doesn't cancel the camera refit.
@@ -28,6 +30,7 @@ let refitPending = false
 
 function rebuild() {
   debounceTimer = null
+  incomplete = false
   if (props.configError) {
     currentGroup = null
     disposeBuilder()
@@ -47,9 +50,23 @@ function rebuild() {
     }
   } catch {
     currentGroup = null
-    disposeBuilder()
+    // A CSG failure on one face must not hide an independently buildable face.
+    // These are current inputs, never the stale group from before the failure.
+    const faces: Face[] = ['front', 'back']
+    let omittedFaces: Face[] = []
+    for (const face of faces) {
+      if (!props.artwork[face].groups.length) continue
+      const other = face === 'front' ? 'back' : 'front'
+      try {
+        currentGroup = build({ ...props.artwork, [other]: { ...props.artwork[other], groups: [] } }, props.config)
+        if (currentGroup) { omittedFaces = [other]; break }
+      } catch { /* Try the other independent face. */ }
+    }
+    incomplete = true
+    if (currentGroup) fitCamera(currentGroup)
+    else disposeBuilder()
     requestRender()
-    emit('buildStatus', 'error', 'Could not build the model. Try simplifying the artwork or reducing the bevel.')
+    emit('buildStatus', 'error', 'Could not build the complete model. Try simplifying the artwork or reducing the bevel.', omittedFaces)
   } finally {
     refitPending = false
   }
@@ -76,7 +93,10 @@ function showFace(face: Face) {
   if (currentGroup) fitCamera(currentGroup, face)
 }
 
-defineExpose({ dimensions, buildMs, resetView, showFace, getCurrentGroup: () => currentGroup })
+defineExpose({ dimensions, buildMs, resetView, showFace,
+  getCurrentGroup: () => props.previewOnly || incomplete ? null : currentGroup,
+  getPreviewGroup: () => currentGroup,
+})
 
 onMounted(() => {
   if (!containerRef.value) return

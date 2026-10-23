@@ -68,7 +68,7 @@ test('SVG errors are actionable, clear persisted artwork, and allow recovery', a
       ['broken.svg', Buffer.from('<svg'), 'not a valid SVG'],
     ] as const) {
       await input.setInputFiles({ name, mimeType: 'image/svg+xml', buffer })
-      await facePanel(page, 'Front').getByRole('alert').filter({ hasText: message }).waitFor()
+      await facePanel(page, 'Front').getByText(message, { exact: false }).waitFor()
       assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
       assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), null)
     }
@@ -212,7 +212,7 @@ test('invalid restored artwork is reported and removed from persistence', async 
   try {
     await page.addInitScript(() => localStorage.setItem('keychain-maker:svg:v1', '<svg><text>Old logo</text></svg>'))
     await page.goto(url)
-    await facePanel(page, 'Front').getByRole('alert').filter({ hasText: 'Convert text to paths' }).waitFor()
+    await facePanel(page, 'Front').getByText('Convert text to paths', { exact: false }).waitFor()
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), null)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
   } finally {
@@ -235,7 +235,7 @@ test('the SVG import report shows safe cleanup and reports unsupported replaceme
     assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview path[fill="#ffffff"]').count(), 1)
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), source)
     await input.setInputFiles({ name: 'text.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><text>Convert me</text></svg>') })
-    await report.getByRole('alert').filter({ hasText: 'Convert text to paths' }).waitFor()
+    await report.getByText('Convert text to paths', { exact: false }).waitFor()
     assert.equal(await report.getByText(/Normalized inline/).count(), 0)
   } finally {
     await page.close()
@@ -416,7 +416,7 @@ test('WebGL unavailability prevents export even when artwork parses', async () =
     })
     await page.goto(url)
     await page.locator('input[type="file"]').first().setInputFiles('test-svg/c1.svg')
-    await page.getByRole('status').filter({ hasText: 'WebGL is unavailable' }).waitFor()
+    await page.getByRole('alert').filter({ hasText: 'WebGL is unavailable' }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
   } finally {
     await page.close()

@@ -4,10 +4,12 @@ import ControlPanel from './components/ControlPanel.vue'
 import ExportButton from './components/ExportButton.vue'
 import FaceArtworkPanel from './components/FaceArtworkPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
+import FeedbackNotice from './components/FeedbackNotice.vue'
 import { useFaceArtwork } from './composables/useFaceArtwork'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
 import { fitFaces } from './utils/logoFit'
+import { planArtworkPreview } from './utils/artworkPreview'
 import { loadState, loadFaces, loadPrinter, saveConfig, saveShowLogo, savePrinter, clearSession } from './utils/persistence'
 import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Face, type ColorGroup, type KeychainArtwork } from './types/keychain'
 
@@ -42,6 +44,7 @@ const artwork = computed<KeychainArtwork>(() => ({
   showLogo: showLogo.value,
 }))
 const fitKey = computed(() => [front.parser.colorGroups.value, back.parser.colorGroups.value])
+const preview = computed(() => planArtworkPreview(artwork.value))
 const validation = computed(() => constrained.value.valid
   ? constrainConfig(config.value, fitFaces(artwork.value.front.groups, artwork.value.back.groups, constrained.value.config))
   : constrained.value)
@@ -50,6 +53,7 @@ const exporting = ref(false)
 const exportError = ref<string | null>(null)
 const buildStatus = ref<BuildStatus>('pending')
 const modelError = ref<string | null>(null)
+const modelOmissions = ref<Face[]>([])
 const usedSources = computed(() => {
   const sources = []
   if (front.settings.value.mode !== 'empty' || back.settings.value.mode === 'same') sources.push(front)
@@ -59,8 +63,42 @@ const usedSources = computed(() => {
 const importing = computed(() => usedSources.value.some(s => s.importing.value))
 const failedSource = computed(() => usedSources.value.find(s => s.error.value))
 const faceError = computed(() => failedSource.value?.error.value ?? null)
+const sourceFailures = computed(() => usedSources.value.filter(s => s.error.value).map(source => ({
+  face: (source === front ? 'front' : 'back') as Face,
+  label: source === front ? 'Front' : 'Back',
+  message: source.error.value!,
+})))
+const omittedFaces = computed(() => (['front', 'back'] as const).filter(face => {
+  const source = face === 'back' && backSettings.value.mode === 'same' ? front : face === 'front' ? front : back
+  return (face === 'front' ? frontSettings : backSettings).value.mode !== 'empty' && !!source.error.value
+    || preview.value.omittedFaces.includes(face) || modelOmissions.value.includes(face)
+}))
+const partialPreview = computed(() => omittedFaces.value.length > 0 && (buildStatus.value === 'ready' || modelOmissions.value.length > 0))
+const partialDescription = computed(() => {
+  const visible = (['front', 'back'] as const).filter(face => !omittedFaces.value.includes(face) && preview.value.artwork[face].groups.length)
+  const label = (face: Face) => face === 'front' ? 'Front' : 'Back'
+  return `Showing ${visible.length ? `${visible.map(label).join(' and ')} and the base` : 'the base only'}. ${omittedFaces.value.map(label).join(' and ')} artwork omitted. Download is disabled.`
+})
+const complexityTitle = computed(() => preview.value.error?.faces.length === 2
+  ? backSettings.value.mode === 'same' ? 'Shared Front artwork is too complex' : 'Combined artwork is too complex'
+  : `${preview.value.error?.faces[0] === 'front' ? 'Front' : 'Back'} artwork is too complex`)
+const hasBlockingFeedback = computed(() => !!(faceError.value || preview.value.error || configError.value || modelError.value || exportError.value))
+function editArtwork(face: Face) {
+  expandedFace.value = null
+  const panel = document.getElementById(`${face}-artwork`)
+  panel?.scrollTo({ top: 0, behavior: 'smooth' })
+  const control = panel?.querySelector('select')
+  control?.focus({ preventScroll: true })
+}
+function editSharedSettings() {
+  expandedFace.value = null
+  const settings = document.getElementById('shared-settings')
+  settings?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  const control = settings?.querySelector<HTMLElement>('button, input')
+  control?.focus({ preventScroll: true })
+}
 const hasPrintedLogo = computed(() => showLogo.value && (artwork.value.front.groups.length > 0 || artwork.value.back.groups.length > 0))
-const canExport = computed(() => !faceError.value && validation.value.valid
+const canExport = computed(() => !faceError.value && !preview.value.error && validation.value.valid
   && !importing.value && buildStatus.value === 'ready' && !exporting.value)
 const exportLabel = computed(() => hasPrintedLogo.value || faceError.value || importing.value ? 'Download .3mf' : 'Download .3mf (base only)')
 const logoColors = computed(() => new Set(showLogo.value
@@ -79,10 +117,12 @@ const readiness = computed(() => {
   if (buildStatus.value === 'pending') return 'Updating model\u2026'
   return hasPrintedLogo.value ? 'Ready to export.' : 'Ready to export the base only.'
 })
-function handleBuildStatus(status: BuildStatus, message?: string) {
+function handleBuildStatus(status: BuildStatus, message?: string, omitted?: Face[]) {
   buildStatus.value = status
   modelError.value = message ?? null
+  modelOmissions.value = omitted ?? []
 }
+watch(hasBlockingFeedback, blocked => { if (blocked) expandedFace.value = null })
 watch(config, value => saveConfig(value), { deep: true })
 watch(showLogo, value => saveShowLogo(value))
 savePrinter(printer.value)
@@ -171,15 +211,57 @@ const dev = import.meta.env.DEV
       <div class="inspection-column relative min-w-0 min-h-0">
         <div class="inspection-scroll flex flex-col gap-4">
           <aside class="model-preview min-w-0 flex flex-col gap-2" aria-label="3D preview and export">
+            <FeedbackNotice v-for="failure in sourceFailures" :key="failure.face" severity="error" :title="`${failure.label} artwork needs attention`">
+              <p>{{ failure.message }}</p>
+              <p v-if="failure.face === 'front' && backSettings.mode === 'same'">Back uses this artwork too.</p>
+              <p>Download is disabled until this artwork is fixed or set to Empty.</p>
+              <button type="button" class="font-medium underline underline-offset-2" @click="editArtwork(failure.face)">Edit {{ failure.label }} artwork</button>
+            </FeedbackNotice>
+            <FeedbackNotice v-if="preview.error" severity="error" :title="complexityTitle">
+              <p>{{ preview.error.message }}</p>
+              <p v-if="backSettings.mode === 'same'">Back uses Front's artwork too. Reduce detail on Front to update both faces.</p>
+              <p v-else-if="preview.error.faces.length === 2">The limit applies to both independent images together. Reduce detail on either face.</p>
+              <p>Download is disabled until the artwork fits the limit.</p>
+              <div class="flex flex-wrap gap-x-4 gap-y-1">
+                <button v-for="face in preview.error.faces.filter(face => face !== 'back' || backSettings.mode !== 'same')" :key="face" type="button" class="font-medium underline underline-offset-2" @click="editArtwork(face)">Edit {{ face === 'front' ? 'Front' : 'Back' }} artwork</button>
+              </div>
+            </FeedbackNotice>
+            <FeedbackNotice v-if="configError" severity="error" title="Plate settings need attention">
+              <p>{{ configError }}</p>
+              <p>Preview and Download are unavailable until these settings are fixed.</p>
+              <button type="button" class="font-medium underline underline-offset-2" @click="editSharedSettings">Edit shared settings</button>
+            </FeedbackNotice>
+            <FeedbackNotice v-if="modelError && !configError" severity="error" :title="buildStatus === 'unavailable' ? '3D preview unavailable' : 'Model could not be built'">
+              <p>{{ modelError }}</p>
+              <p>Download is disabled.</p>
+              <button v-if="buildStatus !== 'unavailable'" type="button" class="font-medium underline underline-offset-2" @click="editSharedSettings">Edit shared settings</button>
+            </FeedbackNotice>
+            <FeedbackNotice v-if="exportError" severity="error" title="Download failed">
+              <p>{{ exportError }}</p>
+              <button type="button" :disabled="!canExport" class="font-medium underline underline-offset-2 disabled:opacity-50" @click="handleExport">Retry download</button>
+            </FeedbackNotice>
+            <FeedbackNotice v-if="filamentCount > 4" severity="warning" title="Check filament capacity">
+              <p>More than 4 filaments: check your printer's available slots or merge logo colors.</p>
+              <p>This warning does not block Download.</p>
+            </FeedbackNotice>
             <div class="three-frame relative bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
               <ThreeViewer
                 ref="viewerRef"
-                :artwork="artwork"
+                :artwork="preview.artwork"
+                :previewOnly="!!faceError || !!preview.error || importing"
                 :fitKey="fitKey"
                 :config="validation.config"
                 :configError="configError"
                 @buildStatus="handleBuildStatus"
               />
+              <div v-if="partialPreview" class="absolute inset-x-2 bottom-2 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-sm text-amber-950">
+                <p class="font-semibold">Partial preview</p>
+                <p class="mt-0.5 text-xs">{{ partialDescription }}</p>
+              </div>
+              <div v-else-if="buildStatus === 'error' || buildStatus === 'unavailable'" class="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-gray-700 bg-gray-100">
+                <p class="font-semibold">Preview unavailable</p>
+                <p class="text-sm">See the error above for next steps.</p>
+              </div>
               <div class="absolute top-2 right-2 flex items-center gap-2">
                 <button type="button" aria-label="Front view" class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50" @click="viewerRef?.showFace('front')">Front</button>
                 <button type="button" aria-label="Back view" class="px-2 py-1 text-xs bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50" @click="viewerRef?.showFace('back')">Back</button>
@@ -206,9 +288,7 @@ const dev = import.meta.env.DEV
               </div>
             </div>
             <p class="text-xs text-gray-500">Filaments: {{ filamentCount }} (plate + {{ filamentCount - 1 }} logo color{{ filamentCount - 1 !== 1 ? 's' : '' }})</p>
-            <p v-if="filamentCount > 4" role="status" class="text-xs text-amber-700">More than 4 filaments: check your printer's available slots or merge logo colors.</p>
-            <p role="status" aria-live="polite" class="text-xs shrink-0" :class="modelError ? 'text-red-600' : 'text-gray-500'">{{ readiness }}</p>
-            <p v-if="exportError" class="text-xs text-red-500 shrink-0">{{ exportError }}</p>
+            <p v-if="!hasBlockingFeedback" role="status" aria-live="polite" class="text-xs shrink-0 text-gray-500">{{ readiness }}</p>
           </aside>
 
           <ControlPanel

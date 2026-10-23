@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import PanelCard from './PanelCard.vue'
 import SliderField from './SliderField.vue'
 import IconTooltip from './IconTooltip.vue'
+import FeedbackNotice from './FeedbackNotice.vue'
 import type { BasePlateShape, KeychainConfig, PrinterSettings } from '../types/keychain'
 import type { ConfigAdjustment, ConfigMessage } from '../utils/configConstraints'
 import { printabilityWarnings } from '../utils/printability'
@@ -54,11 +55,11 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
 </script>
 
 <template>
-  <section class="control-panel flex flex-col gap-3" aria-label="Shared settings">
+  <section id="shared-settings" class="control-panel flex flex-col gap-3" aria-label="Shared settings">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Shared settings</h2>
     <!-- Plate: shape, size, thickness, color -->
     <PanelCard title="Plate">
-      <p v-for="message in configMessages.filter(m => m.severity === 'error')" :key="message.field + message.code" role="alert" class="text-xs text-red-600">{{ message.message }}</p>
+      <FeedbackNotice v-for="message in configMessages.filter(m => m.severity === 'error')" :key="message.field + message.code" severity="error" title="Invalid plate setting" :announce="false"><p>{{ message.message }}</p></FeedbackNotice>
       <div class="flex items-center justify-between gap-3">
         <span class="inline-flex items-center gap-1 text-sm text-gray-700">
           Shape<IconTooltip kind="info" label="About Shape" :message="INFO.shape" align="left" />
@@ -89,9 +90,9 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       <SliderField
         label="Thickness" unit="mm" field="baseThickness" :info="INFO.thickness"
         :modelValue="config.baseThickness" :min="0.4" :max="10" :step="0.1"
-        :note="warning('baseThickness')"
         @update:modelValue="v => updateField('baseThickness', v)"
       />
+      <FeedbackNotice v-if="warning('baseThickness')" severity="warning" title="Thin base may be fragile"><p>{{ warning('baseThickness') }}</p></FeedbackNotice>
       <SliderField
         label="Margin" unit="mm" field="padding" :info="INFO.margin"
         :modelValue="config.padding" :min="0" :max="20" :step="0.5"
@@ -189,7 +190,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         label="Hole diameter" unit="mm" field="keyringHoleDiameter" :info="INFO.hole"
         :modelValue="config.keyringHoleDiameter" :min="2" :max="10" :step="0.5"
         :disabled="!config.keyringEnabled"
-        :note="config.keyringEnabled ? [adjustment('keyringHoleDiameter'), warning('keyringHoleDiameter')].filter(Boolean).join(' ') : undefined"
+        :note="config.keyringEnabled ? adjustment('keyringHoleDiameter') : undefined"
         @update:modelValue="v => updateField('keyringHoleDiameter', v)"
       />
       <SliderField
@@ -198,6 +199,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         :disabled="!config.keyringEnabled"
         @update:modelValue="v => updateField('keyringRingDiameter', v)"
       />
+      <FeedbackNotice v-if="warning('keyringHoleDiameter')" severity="warning" title="Keyring wall may be fragile"><p>{{ warning('keyringHoleDiameter') }}</p></FeedbackNotice>
     </PanelCard>
   </section>
 </template>
