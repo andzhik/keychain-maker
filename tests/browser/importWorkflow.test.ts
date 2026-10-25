@@ -1,3 +1,4 @@
+import { waitForExportReady } from './exportReady.ts'
 import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
@@ -60,7 +61,7 @@ test('SVG errors are actionable, clear persisted artwork, and allow recovery', a
     await page.goto(url)
     const input = page.locator('input[type="file"]').first()
     await input.setInputFiles('test-svg/c1.svg')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     for (const [name, buffer, message] of [
       ['text.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><text>Logo</text></svg>'), 'Convert text to paths'],
       ['stroke.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/><path fill="none" stroke="red" d="M20 0H30"/></svg>'), 'Convert strokes to filled outlines'],
@@ -73,7 +74,7 @@ test('SVG errors are actionable, clear persisted artwork, and allow recovery', a
       assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), null)
     }
     await input.setInputFiles('test-svg/c1.svg')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.getByRole('alert').count(), 0)
   } finally {
     await page.close()
@@ -101,7 +102,7 @@ for (const outcome of ['success', 'failure']) {
         buffer: outcome === 'success' ? readFileSync('test-images/logo-white.png') : Buffer.from('broken') })
       await page.waitForFunction(() => typeof (window as any).__releaseDecode === 'function')
       await input.setInputFiles('test-svg/c1.svg')
-      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      await waitForExportReady(page)
       const svg = await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1'))
       await page.evaluate(() => (window as any).__releaseDecode())
       await page.waitForFunction(() => (window as any).__decodeFinished === true)
@@ -119,7 +120,7 @@ test('export waits for current settings to build and produces a 3MF download', a
   try {
     await page.goto(url)
     await page.locator('input[type="file"]').first().setInputFiles('test-svg/c1.svg')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const pending = await page.evaluate(async () => {
       const slider = document.querySelector('input[data-field="targetWidth"]') as HTMLInputElement
       slider.value = '60'
@@ -130,7 +131,7 @@ test('export waits for current settings to build and produces a 3MF download', a
       return { disabled: download.disabled, pending: document.body.textContent?.includes('Updating model…') }
     })
     assert.deepEqual(pending, { disabled: true, pending: true })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const downloaded = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Download .3mf', exact: true }).click()
     const download = await downloaded
@@ -162,7 +163,7 @@ test('logo depth persists and the exported surface shells match the preview for 
         await input.fill(String(value))
         await input.press('Tab')
       }
-      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      await waitForExportReady(page)
       const preview = await page.evaluate(() => {
         const root = (document.querySelector('canvas')!.parentElement as any).__vueParentComponent.exposed.getCurrentGroup()
         const meshes: number[][][] = []
@@ -200,7 +201,7 @@ test('logo depth persists and the exported surface shells match the preview for 
     }
     await page.getByText('Limited to 0.4 mm per face (half the plate thickness).', { exact: true }).waitFor()
     await page.reload()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.getByRole('slider', { name: 'Inlay depth', exact: true }).inputValue(), '0.6')
     await page.getByText('Limited to 0.4 mm per face (half the plate thickness).', { exact: true }).waitFor()
   } finally {
@@ -233,7 +234,7 @@ test('the SVG import report shows safe cleanup and reports unsupported replaceme
     await report.getByText('Imported 1 color, 1 shape.', { exact: true }).waitFor()
     await report.getByText('Removed 1 non-rendering metadata elements.', { exact: true }).waitFor()
     await report.getByText('Normalized inline fills/styles on 1 elements.', { exact: true }).waitFor()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview path[fill="#ffffff"]').count(), 1)
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), source)
     await input.setInputFiles({ name: 'text.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><text>Convert me</text></svg>') })
@@ -258,7 +259,7 @@ test('printability advice appears near settings and does not block a valid expor
     await ring.press('Tab')
     await page.getByText(/The base is thin/).waitFor()
     await page.getByText(/The keyring wall is 1.0 mm/).waitFor()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isEnabled(), true)
   } finally {
     await page.close()
@@ -283,7 +284,7 @@ test('outline complexity advice starts above 500 refined points, including holes
         buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="${ring(250, 50)}${ring(points - 250, 25)}"/></svg>`) })
       await simplify.fill('0')
       await page.getByText(`${points} outline points.`, { exact: true }).waitFor()
-      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      await waitForExportReady(page)
       assert.equal(await advice.count(), points > 500 ? 1 : 0)
       assert.equal(await download.isEnabled(), true, 'complexity advice must allow valid exports')
     }
@@ -298,7 +299,7 @@ test('outline complexity advice starts above 500 refined points, including holes
     await page.locator('input[type="file"]').first().setInputFiles({ name: 'simple.svg', mimeType: 'image/svg+xml',
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/></svg>') })
     await advice.waitFor({ state: 'hidden' })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await download.isEnabled(), true)
   } finally {
     await page.close()
@@ -316,7 +317,7 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
     const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
     await advice.waitFor()
     assert.match(await advice.innerText(), /1 tiny logo island\s+smaller than 0.8 mm across/)
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await download.isEnabled(), true)
 
     const width = page.getByRole('spinbutton', { name: 'Width', exact: true })
@@ -335,7 +336,7 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
     await advice.getByRole('button', { name: 'remove them' }).click()
     await advice.waitFor({ state: 'hidden' })
     assert.equal(await page.getByRole('spinbutton', { name: 'Remove specks', exact: true }).inputValue(), '1.60')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await download.isEnabled(), true)
   } finally {
     await page.close()
@@ -352,7 +353,7 @@ for (const width of [1024, 1400]) {
       const inline = page.locator('svg.logo-preview').first()
       const inlineToggle = facePanel(page, 'Front').getByRole('checkbox', { name: 'Thin areas', exact: true })
       await inline.locator('path.thin').waitFor()
-      await page.getByText('Ready to export.', { exact: true }).waitFor()
+      await waitForExportReady(page)
       assert.equal(await inlineToggle.isChecked(), true)
       const thinInfo = facePanel(page, 'Front').getByRole('button', { name: 'About Thin areas', exact: true })
       const thinAdvice = facePanel(page, 'Front').getByRole('tooltip').filter({ hasText: 'thin area' })
@@ -446,7 +447,7 @@ test('invalid restored settings block model generation and recover when correcte
     await thickness.fill('0.4')
     await thickness.press('Tab')
     await page.getByText('Limited to 0.15 mm to fit the base thickness.', { exact: true }).waitFor()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.getByRole('alert').count(), 0)
   } finally {
     await page.close()

@@ -114,7 +114,7 @@ const readiness = computed(() => {
   if (configError.value) return configError.value
   if (modelError.value) return modelError.value
   if (buildStatus.value === 'pending') return 'Updating model\u2026'
-  return hasPrintedLogo.value ? 'Ready to export.' : 'Ready to export the base only.'
+  return null
 })
 function handleBuildStatus(status: BuildStatus, message?: string, omitted?: Face[]) {
   buildStatus.value = status
@@ -168,7 +168,6 @@ const buildTimeText = computed(() => {
   const ms = viewerRef.value?.buildMs
   return ms == null ? '— ms' : `${Math.round(ms)} ms`
 })
-const dev = import.meta.env.DEV
 </script>
 
 <template>
@@ -277,7 +276,7 @@ const dev = import.meta.env.DEV
             <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
               <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
                 <p>Dimensions: {{ dimText }}</p>
-                <p v-if="dev">Build time: {{ buildTimeText }}</p>
+                <p v-if="advanced">Build time: {{ buildTimeText }}</p>
               </div>
               <div class="w-44 shrink-0">
                 <ExportButton
@@ -289,7 +288,7 @@ const dev = import.meta.env.DEV
               </div>
             </div>
             <p class="text-xs text-gray-500">Filaments: {{ filamentCount }} (plate + {{ filamentCount - 1 }} logo color{{ filamentCount - 1 !== 1 ? 's' : '' }})</p>
-            <p v-if="!hasBlockingFeedback" role="status" aria-live="polite" class="text-xs shrink-0 text-gray-500">{{ readiness }}</p>
+            <p v-if="!hasBlockingFeedback && readiness" role="status" aria-live="polite" class="text-xs shrink-0 text-gray-500">{{ readiness }}</p>
           </aside>
 
           <ControlPanel

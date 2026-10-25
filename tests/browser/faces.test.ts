@@ -1,3 +1,4 @@
+import { waitForExportReady } from './exportReady.ts'
 import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
@@ -26,7 +27,7 @@ const upload = (page: Page, face: 'front' | 'back', svg: string) =>
   page.locator(`[aria-label="${face} image upload"] input[type="file"]`).setInputFiles({
     name: `${face}.svg`, mimeType: 'image/svg+xml', buffer: Buffer.from(svg),
   })
-const ready = (page: Page) => page.getByText('Ready to export.', { exact: true }).waitFor()
+const ready = (page: Page) => waitForExportReady(page)
 const settings = (page: Page, face: string) => page.evaluate(face => JSON.parse(localStorage.getItem(`keychain-maker:${face}:v1`)!), face)
 
 for (const face of ['front', 'back'] as const) {
@@ -340,7 +341,7 @@ test('different, front-only and back-only 3MF files preserve colors, outside ori
       }
     }
     await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
-    await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
+    await waitForExportReady(page, true)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf (base only)', exact: true }).isEnabled(), true)
   } finally { await page.close() }
 })

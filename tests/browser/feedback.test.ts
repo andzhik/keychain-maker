@@ -1,3 +1,4 @@
+import { waitForExportReady } from './exportReady.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { mkdirSync, copyFileSync } from 'node:fs'
@@ -52,7 +53,7 @@ test('#35 combined complexity keeps an explicitly partial preview, blocks export
     const back = facePanel(page, 'Back')
     assert.equal(await back.evaluate(el => el.contains(document.activeElement)), true)
     await page.locator('[aria-label="back image upload"] input').setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(letter) })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await inspection.getByRole('alert').count(), 0)
     assert.equal(await inspection.getByText('Partial preview', { exact: true }).count(), 0)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isEnabled(), true)
@@ -72,7 +73,7 @@ test('#35 an invalid Front leaves the current Back preview visible, names shared
     await page.locator('[aria-label="front image upload"] input').setInputFiles('test-svg/coffee-badge.svg')
     await back.getByLabel('Image', { exact: true }).selectOption('artwork')
     await page.locator('[aria-label="back image upload"] input').setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(letter) })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     await page.locator('[aria-label="front image upload"] input').setInputFiles({ name: 'unsupported.svg', mimeType: 'image/svg+xml',
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><text>Logo</text></svg>') })
     const alert = inspection.getByRole('alert', { name: 'Front artwork needs attention' })
@@ -99,7 +100,7 @@ test('#35 an invalid Front leaves the current Back preview visible, names shared
     await alert.getByText('Back uses this artwork too.', { exact: true }).waitFor()
     assert.equal(await page.getByRole('alert').count(), 1)
     await page.locator('[aria-label="front image upload"] input').setInputFiles('test-svg/coffee-badge.svg')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await inspection.getByRole('alert').count(), 0)
     assert.equal(await inspection.getByText('Partial preview', { exact: true }).count(), 0)
     assert.deepEqual(errors, [])
@@ -113,7 +114,7 @@ test('#35 filament warnings stay above the preview and allow actual downloads', 
     await page.locator('[aria-label="front image upload"] input').setInputFiles({ name: 'four-colors.svg', mimeType: 'image/svg+xml',
       buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg">${['#2563eb', '#dc2626', '#16a34a', '#f59e0b'].map((fill, i) =>
         `<rect fill="${fill}" x="${(i % 2) * 20}" y="${Math.floor(i / 2) * 20}" width="18" height="18"/>`).join('')}</svg>`) })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const inspection = page.getByRole('complementary', { name: '3D preview and export' })
     const warning = inspection.getByRole('status', { name: 'Check filament capacity' })
     await warning.waitFor()
@@ -128,7 +129,7 @@ test('#35 filament warnings stay above the preview and allow actual downloads', 
     copyFileSync((await download.path())!, 'test-output/feedback-warning.3mf')
     await page.screenshot({ path: 'test-output/feedback-warning.png' })
     await facePanel(page, 'Front').getByLabel('Max colors', { exact: true }).selectOption('3')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await warning.count(), 0, 'resolved warnings disappear')
   } finally { await page.close() }
 })
@@ -138,25 +139,25 @@ test('#35 Remove background defaults on for both uploaders and retracing recover
   try {
     await page.goto(url)
     await page.locator('[aria-label="front image upload"] input').setInputFiles('test-images/logo-white.png')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const front = facePanel(page, 'Front'), back = facePanel(page, 'Back')
     const remove = front.getByRole('checkbox', { name: 'Remove background', exact: true })
     assert.equal(await remove.isChecked(), true)
     const removedSvg = await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1'))
     await remove.uncheck()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.notEqual(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), removedSvg)
     await remove.check()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:svg:v1')), removedSvg)
     await back.getByLabel('Image', { exact: true }).selectOption('artwork')
     await page.locator('[aria-label="back image upload"] input').setInputFiles('test-images/logo-white.png')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await back.getByRole('checkbox', { name: 'Remove background', exact: true }).isChecked(), true)
     assert.equal(await page.getByRole('alert').count(), 0)
     await page.screenshot({ path: 'test-output/feedback-background-default.png' })
     await back.getByRole('checkbox', { name: 'Remove background', exact: true }).uncheck()
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await remove.isChecked(), true, 'each uploader retains its own choice')
   } finally { await page.close() }
 })
@@ -188,7 +189,7 @@ test('#35 a complete-model CSG failure falls back to current geometry without pe
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     await page.screenshot({ path: 'test-output/feedback-build-failure-1024.png' })
     await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await inspection.getByRole('alert').count(), 0)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isEnabled(), true)
   } finally { await page.close() }
@@ -199,7 +200,7 @@ test('#35 download failures are prominent and allow retrying the current model',
   try {
     await page.goto(url)
     await page.locator('[aria-label="front image upload"] input').setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(letter) })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
     await page.getByRole('region', { name: 'Logo preview', exact: true }).waitFor()
     await page.evaluate(() => {
@@ -220,7 +221,7 @@ test('#35 download failures are prominent and allow retrying the current model',
     const downloaded = page.waitForEvent('download')
     await alert.getByRole('button', { name: 'Retry download', exact: true }).click()
     assert.equal(await (await downloaded).failure(), null)
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await alert.count(), 0)
   } finally { await page.close() }
 })

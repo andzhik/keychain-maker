@@ -1,3 +1,4 @@
+import { waitForExportReady } from './exportReady.ts'
 import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
@@ -109,7 +110,7 @@ test('#24 toggling Mirror fits the enlarged preview again', async () => {
 
 test('#18 interrupted retracing restores the last valid artwork and export', async () => {
   await check(async page => {
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.getByRole('alert').count(), 0)
   }, { ...frontSave, 'keychain-maker:front:v1': JSON.stringify({ mode: 'artwork', hasArtwork: true, importFailed: true }) })
 })
@@ -134,7 +135,7 @@ test('#20 refining does not rewrite an unchanged SVG', async () => {
 
 test('#28 Front and Back views change the camera without rebuilding or showing helpers', async () => {
   await check(async page => {
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const viewer = page.getByRole('complementary', { name: '3D preview and export' })
     await viewer.getByRole('button', { name: 'Front view', exact: true }).click()
     const group = await page.locator('canvas').evaluateHandle(element => (element.parentElement as any).__vueParentComponent.exposed.getCurrentGroup())
@@ -156,13 +157,13 @@ test('#29 blank plates export directly and imported artwork names the download',
   await check(async page => {
     const downloadButton = page.getByRole('button', { name: 'Download .3mf (base only)', exact: true })
     await downloadButton.waitFor()
-    await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
+    await waitForExportReady(page, true)
     assert.equal(await downloadButton.isEnabled(), true)
     const blankDownload = page.waitForEvent('download')
     await downloadButton.click()
     copyFileSync((await (await blankDownload).path())!, 'test-output/ui-blank.3mf')
     await page.locator('input[type=file]').first().setInputFiles({ name: 'my-letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const download = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Download .3mf', exact: true }).click()
     assert.equal((await download).suggestedFilename(), 'my-letter-keychain.3mf')
@@ -187,7 +188,7 @@ test('#30-32 controls sit with their targets and the header can reset only app d
     assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview').count(), 1)
     await page.getByRole('button', { name: 'Start over', exact: true }).click()
     await page.getByRole('button', { name: 'Reset everything', exact: true }).click()
-    await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
+    await waitForExportReady(page, true)
     assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview').count(), 0)
     assert.equal(await page.getByRole('radio', { name: 'Rectangle', exact: true }).getAttribute('aria-checked'), 'true')
     assert.equal(await page.evaluate(() => localStorage.getItem('unrelated-app')), 'keep')
@@ -201,7 +202,7 @@ test('#31 successful uploads collapse, invalid replacements keep the full upload
     assert.equal(await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).count(), 0)
     const input = page.locator('input[type=file]').first()
     await input.setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) })
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     assert.equal(await page.getByRole('button', { name: 'Replace letter.svg', exact: true }).isVisible(), true)
     assert.equal(await page.getByText('For best results', { exact: false }).first().isVisible(), false)
     await input.setInputFiles({ name: 'broken.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg') })
@@ -230,7 +231,7 @@ test('#19 inactive stored artwork cannot show complexity advice', async () => {
 
 test('#21 width changes skip unused refinement geometry and reactivation restores it', async () => {
   await check(async page => {
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     await page.evaluate(() => {
       const back = (document.querySelector('#app') as any).__vue_app__._instance.setupState.back
       ;(window as any).unusedReads = 0
@@ -240,7 +241,7 @@ test('#21 width changes skip unused refinement geometry and reactivation restore
       }
     })
     await page.getByRole('slider', { name: 'Width', exact: true }).fill('60')
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     // Wait past the thin-feature debounce using actual page frames.
     await page.waitForTimeout(300)
     assert.equal(await page.evaluate(() => (window as any).unusedReads), 0)
@@ -255,7 +256,7 @@ test('#21 width changes skip unused refinement geometry and reactivation restore
 test('#29 filament counts match exported colors across both faces, refinements and base-only mode', async () => {
   const blocks = (colors: string[]) => `<svg xmlns="http://www.w3.org/2000/svg">${colors.map((color, i) => `<rect x="${i * 20}" width="20" height="20" fill="${color}"/>`).join('')}</svg>`
   await check(async page => {
-    await page.getByText('Ready to export.', { exact: true }).waitFor()
+    await waitForExportReady(page)
     const summary = page.getByText(/^Filaments:/)
     assert.match(await summary.innerText(), /Filaments: 5/)
     await page.getByText('More than 4 filaments', { exact: false }).waitFor()
@@ -274,7 +275,7 @@ test('#29 filament counts match exported colors across both faces, refinements a
     await page.screenshot({ path: 'test-output/ui-shared-back.png' })
     // Both faces None replaces the old Print logo toggle.
     for (const face of ['Back', 'Front'] as const) await facePanel(page, face).getByLabel('Image', { exact: true }).selectOption('empty')
-    await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
+    await waitForExportReady(page, true)
     assert.match(await summary.innerText(), /Filaments: 1/)
   }, { ...frontSave,
     'keychain-maker:front:svg:v1': blocks(['#ff0000', '#00ff00']),
