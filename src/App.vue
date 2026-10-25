@@ -276,6 +276,7 @@ const buildTimeText = computed(() => {
             <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
               <div class="text-xs text-gray-500 tabular-nums whitespace-nowrap">
                 <p>Dimensions: {{ dimText }}</p>
+                <p>Filaments: {{ filamentCount }} (plate + {{ filamentCount - 1 }} logo color{{ filamentCount - 1 !== 1 ? 's' : '' }})</p>
                 <p v-if="advanced">Build time: {{ buildTimeText }}</p>
               </div>
               <div class="w-44 shrink-0">
@@ -287,7 +288,6 @@ const buildTimeText = computed(() => {
                 />
               </div>
             </div>
-            <p class="text-xs text-gray-500">Filaments: {{ filamentCount }} (plate + {{ filamentCount - 1 }} logo color{{ filamentCount - 1 !== 1 ? 's' : '' }})</p>
             <p v-if="!hasBlockingFeedback && readiness" role="status" aria-live="polite" class="text-xs shrink-0 text-gray-500">{{ readiness }}</p>
           </aside>
 
