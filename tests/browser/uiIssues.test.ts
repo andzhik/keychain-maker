@@ -282,6 +282,37 @@ test('#29 filament counts match exported colors across both faces, refinements a
     'keychain-maker:back:svg:v1': blocks(['#ff0000', '#0000ff', '#ffff00']) })
 })
 
+test('Remove specks stays exclusive to advanced options on both faces', async () => {
+  const tiny = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/><rect x="101" width="0.6" height="0.6"/></svg>'
+  await check(async page => {
+    const advanced = page.getByRole('checkbox', { name: 'Advanced options', exact: true })
+    const sliders = page.getByRole('slider', { name: 'Remove specks', exact: true })
+    await advanced.check()
+    for (const face of ['Front', 'Back'] as const) {
+      await facePanel(page, face).getByRole('slider', { name: 'Remove specks', exact: true }).fill('1')
+    }
+    await advanced.uncheck()
+    assert.equal(await sliders.count(), 0, 'nonzero speck thresholds must not keep the sliders in basic view')
+    await page.reload()
+    await page.locator('canvas').waitFor()
+    assert.equal(await sliders.count(), 0, 'saved nonzero thresholds stay hidden in basic view')
+    await advanced.check()
+    for (const face of ['Front', 'Back'] as const) {
+      const panel = facePanel(page, face)
+      const slider = panel.getByRole('slider', { name: 'Remove specks', exact: true })
+      assert.equal(await slider.inputValue(), '1', 'hiding the slider preserves its setting')
+      await slider.fill('0')
+      assert.equal(await slider.isVisible(), true, 'resetting to zero keeps the slider in advanced view')
+      await panel.getByRole('status').filter({ hasText: 'tiny logo island' }).waitFor()
+    }
+    await advanced.uncheck()
+    assert.equal(await sliders.count(), 0, 'tiny-island warnings must not reveal the sliders in basic view')
+  }, { ...frontSave,
+    'keychain-maker:front:svg:v1': tiny,
+    'keychain-maker:back:v1': JSON.stringify({ mode: 'artwork', hasArtwork: true }),
+    'keychain-maker:back:svg:v1': tiny })
+})
+
 test('basic view hides advanced options until they matter', async () => {
   await check(async page => {
     const advanced = page.getByRole('checkbox', { name: 'Advanced options', exact: true })

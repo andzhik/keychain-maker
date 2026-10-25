@@ -96,10 +96,9 @@ const shapeCount = computed(() => parsedGroups.value.reduce((n, group) => n + gr
 const minWidth = computed(() => `${fmtMm(minFeatureWidth.value)} mm (${props.printer.thinWalls ? '1 nozzle width' : '2 nozzle widths'})`)
 const outlineWarning = computed(() => outlinePoints.value.after > 500
   ? 'Over 500 outline points: updates may be slow. Increase Simplify outlines to reduce complexity.' : '')
-// Advanced options also show when changed, or when a warning points at them.
+// Most advanced options also show when changed, or when a warning points at them.
 const showMirror = computed(() => advanced.value || mirror.value)
 const showMerge = computed(() => advanced.value || refinements.value.mergeTolerance > 0)
-const showSpecks = computed(() => advanced.value || refinements.value.minSpeckSize > 0 || tinyIslands.value.count > 0)
 const showSimplify = computed(() => advanced.value || !!outlineWarning.value
   || refinements.value.simplifyTolerance !== DEFAULT_REFINEMENTS.simplifyTolerance)
 const INFO = {
@@ -252,8 +251,8 @@ const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower tha
     </PanelCard>
 
     <!-- Cleanup: print-oriented geometry fixes -->
-    <PanelCard v-if="faceMode === 'artwork' && parsedGroups.length && (showSpecks || showSimplify)" title="Cleanup">
-      <div v-if="showSpecks">
+    <PanelCard v-if="faceMode === 'artwork' && parsedGroups.length && (advanced || showSimplify)" title="Cleanup">
+      <div v-if="advanced">
         <SliderField
           label="Remove specks" unit="mm" field="minSpeckSize" :info="specksInfo"
           :modelValue="refinements.minSpeckSize" :min="0" :max="3" :step="0.05"

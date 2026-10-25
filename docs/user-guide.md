@@ -60,7 +60,8 @@ in the header to show the rest; the choice is remembered in this browser and
 A hidden setting still appears when it matters: when it differs from its
 default, when a warning or automatic adjustment refers to it (for example,
 Inlay depth when it is limited by a thin plate), or, for tracing options, after
-a trace fails.
+a trace fails. **Remove specks** is available only with **Advanced options** on;
+its saved setting still applies when advanced options are off.
 
 **Mirror horizontally** changes only that panel's face. The 2D preview shows
 that face from outside, with the keyring at the top, matching the 3D model and
