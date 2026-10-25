@@ -6,7 +6,7 @@ withDefaults(defineProps<{
   message: string
   /** A warning (amber triangle) or a description of a control (grey circled i). */
   kind?: 'warning' | 'info'
-  align?: 'left' | 'right'
+  align?: 'left' | 'center' | 'right'
   placement?: 'above' | 'below'
 }>(), { kind: 'warning', align: 'right', placement: 'below' })
 
@@ -50,7 +50,7 @@ const visible = computed(() => !dismissed.value && (hovered.value || focused.val
       :id="tooltipId"
       role="tooltip"
       class="absolute z-20 w-56 text-left text-xs font-normal leading-relaxed normal-case tracking-normal whitespace-normal"
-      :class="[align === 'left' ? 'left-0' : 'right-0', placement === 'above' ? 'bottom-full pb-1.5' : 'top-full pt-1.5']"
+      :class="[align === 'center' ? 'left-1/2 -translate-x-1/2' : align === 'left' ? 'left-0' : 'right-0', placement === 'above' ? 'bottom-full pb-1.5' : 'top-full pt-1.5']"
     >
       <span class="block rounded bg-gray-800 px-2.5 py-2 text-white shadow-lg">{{ message }}</span>
     </span>

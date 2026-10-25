@@ -110,7 +110,10 @@ const INFO = {
   simplify: 'Reduces outline detail so the model builds faster. '
     + 'The default is finer than a printer can resolve; raise it only if updates feel slow.',
 }
-const thinAreasInfo = computed(() => `Highlights in red the parts narrower than ${minWidth.value}, which may not print.`)
+const thinAreasInfo = computed(() => thinFeatures.value.count
+  ? `${plural(thinFeatures.value.count, 'thin area')} under ${minWidth.value} may not print. `
+    + (showThinFeatures.value ? 'Highlighted in red in the image preview.' : 'Turn on Thin areas to see them.')
+  : `Highlights in red the parts narrower than ${minWidth.value}, which may not print.`)
 const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower than this. Pieces under ${minWidth.value} may not print. 0 = off.`)
 </script>
 
@@ -197,13 +200,9 @@ const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower tha
             <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
             <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
           </label>
-          <IconTooltip kind="info" label="About Thin areas" :message="thinAreasInfo" align="left" />
+          <IconTooltip kind="info" label="About Thin areas" :message="thinAreasInfo" align="center" />
           <span v-if="!thinFeatures.count" class="ml-auto text-[11px] text-gray-400">None under {{ minWidth }}</span>
         </div>
-        <FeedbackNotice v-if="thinFeatures.count" class="mt-2" severity="warning" title="Thin areas may not print">
-          <p>{{ plural(thinFeatures.count, 'thin area') }} under {{ minWidth }} may not print.
-            {{ showThinFeatures ? 'Highlighted in red in the image preview.' : 'Turn on Thin areas to see them.' }}</p>
-        </FeedbackNotice>
         <div v-if="showMirror" class="mt-1 flex items-center gap-1">
           <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
             <input v-model="mirror" type="checkbox" />

@@ -174,10 +174,11 @@ advice shows Simplify outlines even in basic view.
 The warning follows the artwork being edited, excludes unused sources, and
 does not block building or export; the hard safety budgets above still apply.
 
-Amber warning panels identify filament capacity, thin areas, small pieces,
+Amber warning panels identify filament capacity, small pieces,
 slow artwork, and fragile plate/keyring settings near the relevant controls.
-Warnings do not block Download. Thin-area advice remains visible when its red
-overlay is turned off. Warning and information icons
+Warnings do not block Download. The info icon beside **Thin areas** shows the
+detected count, minimum printable width, and overlay guidance in its tooltip,
+including when the red overlay is turned off. Warning and information icons
 show their explanations on hover, keyboard focus, or tap. Every setting keeps a
 short label; an info icon beside it explains what it does the same way.
 
