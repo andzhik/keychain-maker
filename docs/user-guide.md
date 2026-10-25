@@ -16,7 +16,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Mirror each populated face horizontally, with previews labeled as outside views with the keyring at the top
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (choose whether to drop an opaque background; advanced options set the maximum number of printed colors, how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
-- Prepare the logo for printing: change, merge or remove colors, limit it to **Max colors**, remove specks below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
+- Prepare the logo for printing: change, merge or remove colors, limit it to **Max colors**, remove small details below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
 - Toggle each face's red thin-area overlay from its inline or enlarged preview; those two views share the setting, while printability warnings stay visible
 - **Simplify outlines** to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens in the right column, leaving both face editors usable
 - Choose a square or circle base plate
@@ -54,13 +54,13 @@ in the header to show the rest; the choice is remembered in this browser and
 
 | Always shown | Advanced |
 | --- | --- |
-| Face: Image, upload, Remove background (pictures), preview, Thin areas, colors, Max colors | Face: tracing Colors, Smoothing, Corner rounding, Straighten edges; Mirror horizontally; Merge similar; Match Front/Back; Cleanup (Remove specks, Simplify outlines); import cleanup details |
+| Face: Image, upload, Remove background (pictures), preview, Thin areas, colors, Max colors | Face: tracing Colors, Smoothing, Corner rounding, Straighten edges; Mirror horizontally; Merge similar; Match Front/Back; Cleanup (Remove small details, Simplify outlines); import cleanup details |
 | Keychain: Shape, Width or Diameter, Thickness, Plate color, Keyring loop | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
 
 A hidden setting still appears when it matters: when it differs from its
 default, when a warning or automatic adjustment refers to it (for example,
 Inlay depth when it is limited by a thin plate), or, for tracing options, after
-a trace fails. **Remove specks** is available only with **Advanced options** on;
+a trace fails. **Remove small details** is available only with **Advanced options** on;
 its saved setting still applies when advanced options are off.
 
 **Mirror horizontally** changes only that panel's face. The 2D preview shows
@@ -198,7 +198,7 @@ than a disc the minimum printable width across. This complements the raster thin
 overlay, which can miss very small pieces. The check uses the final refined logo
 at its fitted print size, follows size/nozzle/cleanup changes, and does not block
 export. Increase Width, merge colors, or use the warning's "remove them" link,
-which sets Remove specks to that width. Remove specks is set as a width too: pieces and
+which sets Remove small details to that width. Remove small details is set as a width too: pieces and
 holes with less area than a disc that wide are removed.
 
 ## Dimension validation

@@ -254,12 +254,12 @@ const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower tha
     <PanelCard v-if="faceMode === 'artwork' && parsedGroups.length && (advanced || showSimplify)" title="Cleanup">
       <div v-if="advanced">
         <SliderField
-          label="Remove specks" unit="mm" field="minSpeckSize" :info="specksInfo"
+          label="Remove small details" unit="mm" field="minSpeckSize" :info="specksInfo"
           :modelValue="refinements.minSpeckSize" :min="0" :max="3" :step="0.05"
           @update:modelValue="v => updateRefinement('minSpeckSize', v)"
         />
         <p v-if="refinements.minSpeckSize > 0" class="mt-0.5 text-xs text-gray-500">
-          {{ specksRemoved ? `Removed ${plural(specksRemoved, 'speck')}.` : 'No specks this small.' }}
+          {{ specksRemoved ? `Removed ${plural(specksRemoved, 'small detail')}.` : 'No details this small.' }}
         </p>
         <FeedbackNotice v-if="tinyIslands.count" class="mt-2" severity="warning" title="Small pieces may not print">
           <p>

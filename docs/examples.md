@@ -26,7 +26,7 @@ using these settings for **each** example:
 | Keyring loop | On; 5 mm hole size, 10 mm loop size |
 | Colors | Original colors |
 | Nozzle size | 0.4 mm |
-| Merge similar / max colors / remove specks | 0 / No limit / 0 mm |
+| Merge similar / max colors / remove small details | 0 / No limit / 0 mm |
 | Simplify outlines | 0 mm for an exact render-harness comparison; the app's usual 0.02 mm is also suitable |
 
 Plate and cleanup settings carry over between uploads; recolors and hidden
@@ -104,7 +104,7 @@ gold ring, teal mountains, and cream details. The ring's counter exposes dark
 blue, while later-painted mountains cover part of the ring. Cream peaks and a
 small sun remain separate details. There should be no through-hole in the badge.
 
-**Recommended:** start with the common settings, with **Min speck: 0** and
+**Recommended:** start with the common settings, with **Remove small details: 0 mm** and
 **Max colors: No limit** so all detail survives. For a larger print, try Width
 60–70 mm, then inspect the thin-area overlay again.
 

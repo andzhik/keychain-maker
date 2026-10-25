@@ -335,7 +335,7 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
     await advice.waitFor()
     await advice.getByRole('button', { name: 'remove them' }).click()
     await advice.waitFor({ state: 'hidden' })
-    assert.equal(await page.getByRole('spinbutton', { name: 'Remove specks', exact: true }).inputValue(), '1.60')
+    assert.equal(await page.getByRole('spinbutton', { name: 'Remove small details', exact: true }).inputValue(), '1.60')
     await waitForExportReady(page)
     assert.equal(await download.isEnabled(), true)
   } finally {
