@@ -3,3 +3,4 @@
 - when adding comments to github, prefix them with "[AI <model>]" if you do not know the currently used model, specify AI provider
 - use bambu studio cli for real slicer testing
 - ignore mobile and tablet layouts. only desktop for now
+- ignore accessibility
