@@ -200,7 +200,7 @@ const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower tha
             <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
             <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
           </label>
-          <IconTooltip kind="info" label="About Thin areas" :message="thinAreasInfo" align="center" />
+          <IconTooltip :kind="thinFeatures.count ? 'warning' : 'info'" label="About Thin areas" :message="thinAreasInfo" align="center" />
           <span v-if="!thinFeatures.count" class="ml-auto text-[11px] text-gray-400">None under {{ minWidth }}</span>
         </div>
         <div v-if="showMirror" class="mt-1 flex items-center gap-1">

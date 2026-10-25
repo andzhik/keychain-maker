@@ -176,8 +176,9 @@ does not block building or export; the hard safety budgets above still apply.
 
 Amber warning panels identify filament capacity, small pieces,
 slow artwork, and fragile plate/keyring settings near the relevant controls.
-Warnings do not block Download. The info icon beside **Thin areas** shows the
-detected count, minimum printable width, and overlay guidance in its tooltip,
+Warnings do not block Download. The icon beside **Thin areas** changes to an amber
+warning triangle when thin areas are detected. Its tooltip shows the detected
+count, minimum printable width, and overlay guidance,
 including when the red overlay is turned off. Warning and information icons
 show their explanations on hover, keyboard focus, or tap. Every setting keeps a
 short label; an info icon beside it explains what it does the same way.
