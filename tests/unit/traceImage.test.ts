@@ -64,6 +64,14 @@ test('traceImage removes an opaque background but keeps the same color inside th
   expect(areas(kept)).toEqual({ '#000000': 900, '#ffffff': 1600 - 900 })
 })
 
+test('traceImage counts printed colors, not a background it removes', () => {
+  // Red and blue squares on a white page: two printed colors.
+  const picture = image(40, 40, (x, y) => (inBox(x, y, 5, 5, 18, 35) ? RED : inBox(x, y, 22, 5, 35, 35) ? BLUE : WHITE))
+  expect(Object.keys(areas(traceImage(picture, { colors: 2, removeBackground: true }))).sort()).toEqual(['#143cc8', '#dc1e28'])
+  // Kept, the background is one of the colors.
+  expect(Object.keys(areas(traceImage(picture, { colors: 2, removeBackground: false })))).toHaveLength(2)
+})
+
 test('traceImage keeps a frame drawn to the edge of a transparent image', () => {
   // Opaque everywhere on the border except the corners, as a rounded badge.
   const svg = traceImage(image(30, 30, (x, y) => {

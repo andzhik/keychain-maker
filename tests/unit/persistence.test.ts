@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, DEFAULT_PRINTER } from '../../src/types/keychain'
-import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, saveFaceMetadata, sanitizeConfig, sanitizeRefinements, saveConfig, saveShowLogo } from '../../src/utils/persistence'
+import { loadState, loadFaces, loadPrinter, savePrinter, saveFace, saveFaceMetadata, sanitizeConfig, sanitizeRefinements, saveConfig, loadAdvanced, saveAdvanced, clearSession } from '../../src/utils/persistence'
 
 function memoryStorage(): Storage {
   const data = new Map<string, string>()
@@ -17,20 +17,30 @@ function memoryStorage(): Storage {
 }
 
 test('empty storage loads the defaults', () => {
-  expect(loadState(memoryStorage())).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null, refinements: DEFAULT_REFINEMENTS })
+  expect(loadState(memoryStorage())).toEqual({ config: DEFAULT_CONFIG, svg: null, refinements: DEFAULT_REFINEMENTS })
 })
 
 test('no storage at all loads the defaults', () => {
-  expect(loadState(null)).toEqual({ config: DEFAULT_CONFIG, showLogo: true, svg: null, refinements: DEFAULT_REFINEMENTS })
+  expect(loadState(null)).toEqual({ config: DEFAULT_CONFIG, svg: null, refinements: DEFAULT_REFINEMENTS })
 })
 
-test('saved config and logo visibility round-trip', () => {
+test('saved config round-trips', () => {
   const storage = memoryStorage()
   const config = { ...DEFAULT_CONFIG, basePlateShape: 'circle' as const, padding: 7, baseColor: '#112233', logoDepth: 0.8 }
   saveConfig(config, storage)
-  saveShowLogo(false, storage)
 
-  expect(loadState(storage)).toEqual({ config, showLogo: false, svg: null, refinements: DEFAULT_REFINEMENTS })
+  expect(loadState(storage)).toEqual({ config, svg: null, refinements: DEFAULT_REFINEMENTS })
+})
+
+test('advanced options default to hidden and survive Start over', () => {
+  const storage = memoryStorage()
+  expect(loadAdvanced(storage)).toBe(false)
+  expect(loadAdvanced(null)).toBe(false)
+  saveAdvanced(true, storage)
+  storage.setItem('keychain-maker:showLogo:v1', 'false')
+  clearSession(storage)
+  expect(loadAdvanced(storage)).toBe(true)
+  expect(storage.getItem('keychain-maker:showLogo:v1')).toBeNull()
 })
 
 test('fresh faces are unmirrored and printer settings migrate from Front only', () => {

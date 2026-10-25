@@ -12,7 +12,7 @@ export type FaceMode = 'artwork' | 'same' | 'empty'
 
 /** Mirror is relative to looking at this face from outside, keyring at the top. */
 export interface FaceArtwork { groups: ColorGroup[]; mirror: boolean }
-export interface KeychainArtwork { front: FaceArtwork; back: FaceArtwork; showLogo?: boolean }
+export interface KeychainArtwork { front: FaceArtwork; back: FaceArtwork }
 
 /** An empty face retains its source and edits so switching back is reversible. */
 export interface FaceSettings {

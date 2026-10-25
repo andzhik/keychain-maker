@@ -1,4 +1,4 @@
-import { facePanel } from './facePanel.ts'
+import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
@@ -150,13 +150,14 @@ test('logo depth persists and the exported surface shells match the preview for 
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   try {
     await page.goto(url)
+    await showAdvanced(page)
     await page.locator('input[type="file"]').first().setInputFiles({ name: 'two-colors.svg', mimeType: 'image/svg+xml',
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path fill="red" fill-rule="evenodd" d="M0 0H10V20H0Z M3 7H7V13H3Z"/><path fill="blue" d="M10 0H20V20H10Z"/></svg>') })
     // Exercise the legacy equivalent-face shell optimization explicitly;
     // fresh Back defaults now read normally from outside instead of mirroring.
     await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
     for (const [bevel, depth, thickness] of [[0.6, 0.6, 5], [0, 0.8, 5], [0, 0.6, 0.8]]) {
-      for (const [label, value] of [['Bevel', bevel], ['Logo depth', depth], ['Thickness', thickness]] as const) {
+      for (const [label, value] of [['Edge chamfer', bevel], ['Inlay depth', depth], ['Thickness', thickness]] as const) {
         const input = page.getByRole('spinbutton', { name: label, exact: true })
         await input.fill(String(value))
         await input.press('Tab')
@@ -200,7 +201,7 @@ test('logo depth persists and the exported surface shells match the preview for 
     await page.getByText('Limited to 0.4 mm per face (half the plate thickness).', { exact: true }).waitFor()
     await page.reload()
     await page.getByText('Ready to export.', { exact: true }).waitFor()
-    assert.equal(await page.getByRole('slider', { name: 'Logo depth', exact: true }).inputValue(), '0.6')
+    assert.equal(await page.getByRole('slider', { name: 'Inlay depth', exact: true }).inputValue(), '0.6')
     await page.getByText('Limited to 0.4 mm per face (half the plate thickness).', { exact: true }).waitFor()
   } finally {
     await page.close()
@@ -224,11 +225,12 @@ test('the SVG import report shows safe cleanup and reports unsupported replaceme
   const page = await browser.newPage()
   try {
     await page.goto(url)
+    await showAdvanced(page)
     const input = page.locator('input[type="file"]').first()
     const source = '<svg xmlns="http://www.w3.org/2000/svg"><metadata>Editor data</metadata><path fill="black" style="fill:#ffffff;fill-rule:evenodd" d="M0 0H20V20H0Z M5 5H15V15H5Z"/></svg>'
     await input.setInputFiles({ name: 'prepared.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(source) })
     const report = facePanel(page, 'Front').getByRole('region', { name: 'Import', exact: true })
-    await report.getByText('Ready: 1 colors, 1 filled shapes.', { exact: true }).waitFor()
+    await report.getByText('Imported 1 color, 1 shape.', { exact: true }).waitFor()
     await report.getByText('Removed 1 non-rendering metadata elements.', { exact: true }).waitFor()
     await report.getByText('Normalized inline fills/styles on 1 elements.', { exact: true }).waitFor()
     await page.getByText('Ready to export.', { exact: true }).waitFor()
@@ -246,11 +248,12 @@ test('printability advice appears near settings and does not block a valid expor
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   try {
     await page.goto(url)
+    await showAdvanced(page)
     await page.locator('input[type="file"]').first().setInputFiles('test-svg/c1.svg')
     const thickness = page.getByRole('spinbutton', { name: 'Thickness', exact: true })
     await thickness.fill('0.4')
     await thickness.press('Tab')
-    const ring = page.getByRole('spinbutton', { name: 'Ring diameter', exact: true })
+    const ring = page.getByRole('spinbutton', { name: 'Loop size', exact: true })
     await ring.fill('7')
     await ring.press('Tab')
     await page.getByText(/The base is thin/).waitFor()
@@ -266,7 +269,8 @@ test('outline complexity advice starts above 500 refined points, including holes
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   try {
     await page.goto(url)
-    const simplify = page.getByRole('slider', { name: 'Simplify', exact: true })
+    await showAdvanced(page)
+    const simplify = page.getByRole('slider', { name: 'Simplify outlines', exact: true })
     const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
     const download = page.getByRole('button', { name: 'Download .3mf', exact: true })
     const ring = (count: number, radius: number) => Array.from({ length: count }, (_, i) => {
@@ -284,7 +288,7 @@ test('outline complexity advice starts above 500 refined points, including holes
       assert.equal(await download.isEnabled(), true, 'complexity advice must allow valid exports')
     }
     assert.match(await advice.innerText(), /Increase Simplify/)
-    assert.equal(await advice.locator('..').getByRole('slider', { name: 'Simplify', exact: true }).count(), 1)
+    assert.equal(await advice.locator('..').getByRole('slider', { name: 'Simplify outlines', exact: true }).count(), 1)
     await page.screenshot({ path: 'test-output/outline-warning.png' })
 
     await simplify.fill('0.02')
@@ -305,6 +309,7 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   try {
     await page.goto(url)
+    await showAdvanced(page)
     await page.locator('input[type="file"]').first().setInputFiles({ name: 'tiny.svg', mimeType: 'image/svg+xml',
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/><rect x="101" width="0.6" height="0.6"/></svg>') })
     const advice = page.getByRole('status').filter({ hasText: 'tiny logo island' })
@@ -318,18 +323,18 @@ test('tiny-island advice follows print size, nozzle, and cleanup without blockin
     await width.fill('150')
     await width.press('Tab')
     await advice.waitFor({ state: 'hidden' })
-    const nozzle = page.getByRole('spinbutton', { name: 'Nozzle', exact: true })
+    const nozzle = page.getByRole('spinbutton', { name: 'Nozzle size', exact: true })
     await nozzle.fill('0.8')
     await nozzle.press('Tab')
     await advice.waitFor()
 
-    await page.getByRole('checkbox', { name: 'Print logo' }).uncheck()
+    await facePanel(page, 'Front').getByLabel('Image', { exact: true }).selectOption('empty')
     await advice.waitFor({ state: 'hidden' })
-    await page.getByRole('checkbox', { name: 'Print logo' }).check()
+    await facePanel(page, 'Front').getByLabel('Image', { exact: true }).selectOption('artwork')
     await advice.waitFor()
     await advice.getByRole('button', { name: 'remove them' }).click()
     await advice.waitFor({ state: 'hidden' })
-    assert.equal(await page.getByRole('spinbutton', { name: 'Small bits', exact: true }).inputValue(), '1.60')
+    assert.equal(await page.getByRole('spinbutton', { name: 'Remove specks', exact: true }).inputValue(), '1.60')
     await page.getByText('Ready to export.', { exact: true }).waitFor()
     assert.equal(await download.isEnabled(), true)
   } finally {
@@ -379,20 +384,12 @@ for (const width of [1024, 1400]) {
       assert.equal(await enlarged.getAttribute('viewBox'), zoomedView)
       assert.equal(await enlarged.locator('path.edges').count(), 1)
       assert.equal(await enlarged.locator('path.original').count(), 1)
-      const nozzleWarning = facePanel(page, 'Front').getByRole('button', { name: 'Nozzle warning', exact: true })
-      assert.equal(await nozzleWarning.count(), 1, 'hiding the overlay must preserve nozzle advice')
+      const thinAdvice = facePanel(page, 'Front').getByRole('status', { name: 'Thin areas may not print' })
+      assert.equal(await thinAdvice.isVisible(), true, 'hiding the overlay must preserve nozzle advice')
+      assert.match(await thinAdvice.innerText(), /1 thin area under 0.8 mm \(2 nozzle widths\) may not print\.\s+Turn on Thin areas to see them\./)
 
       await panel.getByRole('button', { name: 'Close', exact: true }).click()
-      await nozzleWarning.focus()
-      const nozzleTooltip = page.getByRole('tooltip').filter({ hasText: '2 nozzle widths' })
-      await nozzleTooltip.waitFor()
-      assert.match(await nozzleTooltip.innerText(), /1 thin area under 0.8 mm.*may not print/)
       await page.screenshot({ path: `test-output/nozzle-warning-${width}.png` })
-      const tooltipBox = await nozzleTooltip.boundingBox()
-      assert.ok(tooltipBox && tooltipBox.x >= 0 && tooltipBox.x + tooltipBox.width <= width)
-      assert.ok(tooltipBox && tooltipBox.y >= 0 && tooltipBox.y + tooltipBox.height <= 900)
-      await nozzleWarning.press('Escape')
-      await nozzleTooltip.waitFor({ state: 'hidden' })
       await inlineToggle.check()
       await inline.locator('path.thin').waitFor()
       await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()

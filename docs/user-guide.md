@@ -11,37 +11,56 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 ## Controls and features
 
 - Upload an SVG logo and preview it immediately in 3D
-- Choose Front and Back artwork independently, reuse Front on Back, or leave either face Empty
+- Start with the basic controls; tick **Advanced options** in the header to see every setting (see [Basic and advanced options](#basic-and-advanced-options))
+- Choose Front and Back artwork independently, reuse Front on Back, or set either face's image to None
 - Mirror each populated face horizontally, with previews labeled as outside views with the keyring at the top
-- Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (pick the maximum number of colors and whether to drop an opaque background, and tune how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
+- Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (choose whether to drop an opaque background; advanced options set the maximum number of printed colors, how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
-- Refine the logo for printing: change, merge or remove colors, limit it to N filaments, remove small bits below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
+- Prepare the logo for printing: change, merge or remove colors, limit it to **Max colors**, remove specks below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
 - Toggle each face's red thin-area overlay from its inline or enlarged preview; those two views share the setting, while printability warnings stay visible
-- Simplify outlines to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens in the right column, leaving both face editors usable
+- **Simplify outlines** to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens in the right column, leaving both face editors usable
 - Choose a square or circle base plate
-- Tune base thickness, bevel, corner radius, margin, and target size
-- Set logo depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
-- Add or remove the keyring hole
+- Tune the plate's width (diameter for a circle), thickness and color; advanced options add corner rounding, border, edge chamfer and edge roundness
+- Set the inlay depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
+- Add or remove the keyring loop, and set its hole and loop size
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
 - See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
-- Configure the shared nozzle diameter and Thin walls behavior in the Printer card
+- Configure the shared nozzle size and Single-line walls behavior in the Printer card
 - Remember both images, artwork modes, mirror settings and refinements across reloads (browser localStorage)
 
 ## Front and Back artwork
 
 Front and Back appear side by side on desktop, each with its own upload,
-preview, colors and refinements. **Upload image** uses that face's own SVG or
+preview, colors and refinements. **Image: Own image** uses that face's own SVG or
 traced raster. Back initially uses **Same as Front**, sharing Front's image,
 colors and refinements while keeping an independent mirror setting. Its preview
 is read-only; edit the visible Front controls to update both. Switching Back to
-its own image and back again preserves its previous image and edits. **Empty**
+its own image and back again preserves its previous image and edits. **None**
 leaves a solid face in the plate material; switching back restores the stored
-artwork and refinements.
+artwork and refinements. **Reset edits** in a face's header undoes its color
+changes, removed shapes and cleanup.
 
-The narrower right column contains 3D inspection, downloads and
-**Shared settings**: plate dimensions, color, logo depth, keyring and printer
-settings apply to both faces.
+The narrower right column contains 3D inspection, downloads and the
+**Keychain** settings (plate shape, size, thickness, color, edges, inlay depth
+and keyring loop) plus, in advanced view, the **Printer** card. They apply to
+both faces.
+
+## Basic and advanced options
+
+The app starts with the settings most keychains need. Tick **Advanced options**
+in the header to show the rest; the choice is remembered in this browser and
+**Start over** keeps it.
+
+| Always shown | Advanced |
+| --- | --- |
+| Face: Image, upload, Remove background (pictures), preview, Thin areas, colors, Max colors | Face: tracing Colors, Smoothing, Corner rounding, Straighten edges; Mirror horizontally; Merge similar; Match Front/Back; Cleanup (Remove specks, Simplify outlines); import cleanup details |
+| Keychain: Shape, Width or Diameter, Thickness, Plate color, Keyring loop | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
+
+A hidden setting still appears when it matters: when it differs from its
+default, when a warning or automatic adjustment refers to it (for example,
+Inlay depth when it is limited by a thin plate), or, for tracing options, after
+a trace fails.
 
 **Mirror horizontally** changes only that panel's face. The 2D preview shows
 that face from outside, with the keyring at the top, matching the 3D model and
@@ -51,20 +70,20 @@ their original orientation. Use **Front** and **Back** above the 3D view to
 inspect either outside face; **Reset View** returns to the isometric view.
 
 Each image is centered independently and keeps its aspect ratio. A rectangle
-has the configured Width; each image fills the width remaining after Margin on
+has the configured Width; each image fills the width remaining after Border on
 both sides. The taller fitted image sets the shared plate height, including top
-and bottom margins, so the shorter image has extra vertical space. A circle
+and bottom borders, so the shorter image has extra vertical space. A circle
 keeps the configured diameter; each image's farthest outline point fits inside
-the radius remaining after Margin. Empty faces do not affect the plate size.
+the radius remaining after Border. Faces without an image do not affect the plate size.
 
-Logo depth applies independently inward from each populated face and is capped
+Inlay depth applies independently inward from each populated face and is capped
 at half the plate thickness. At that limit different inlays meet only where
-their outlines overlap; other regions keep plate material. Empty faces remain
-solid even at maximum depth. Turning off **Print logo** exports a solid base
-with the same dimensions.
+their outlines overlap; other regions keep plate material. Faces set to None remain
+solid even at maximum depth.
 
-You can download a blank plate without uploading artwork. A failed import
-blocks export until repaired or that face is deliberately set to Empty (or its
+You can download a blank plate without uploading artwork, or by setting both
+faces to None. A failed import
+blocks export until repaired or that face is deliberately set to None (or its
 unused source is replaced by Same as Front). Imports and tracing continue on
 their original source while you edit the other face or change artwork modes.
 Downloads wait for all active sources and the current model. Failures are remembered across reloads.
@@ -90,7 +109,7 @@ first) to use the same exact filament color on both faces. Every source color
 merged into that row is updated; the other face's artwork and edits stay intact.
 **Shared with Front/Back** confirms a match. Matching is a saved color edit,
 not a permanent link: later recolors remain independent. Use **Restore original
-color** to undo it. Empty faces and Back's **Same as Front** mode need no matching.
+color** to undo it. Matching is an advanced option. Faces set to None and Back's **Same as Front** mode need no matching.
 
 ## Preparing artwork
 
@@ -150,7 +169,8 @@ the measured count (or a lower bound for outline points) and the applicable limi
 ## Printability warnings
 
 Above 500 outline points after refinement (including holes), advice beside
-Simplify explains that updates may be slow and recommends increasing it.
+Simplify outlines explains that updates may be slow and recommends increasing it. The
+advice shows Simplify outlines even in basic view.
 The warning follows the artwork being edited, excludes unused sources, and
 does not block building or export; the hard safety budgets above still apply.
 
@@ -161,10 +181,10 @@ overlay is turned off. Warning and information icons
 show their explanations on hover, keyboard focus, or tap. Every setting keeps a
 short label; an info icon beside it explains what it does the same way.
 
-The minimum printable width is two nozzle widths, or one with **Thin walls** on
+The minimum printable width is two nozzle widths, or one with **Single-line walls** on
 (for slicers that print walls a single line wide, e.g. "Detect thin walls"). It
 drives the thin-area overlay and the tiny-island check.
-The Printer card applies to both faces, including when the selected face is Empty.
+The Printer card applies to both faces, including when the selected face's image is None.
 
 The base-thickness and keyring-wall messages are advisory: the base recommendation
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
@@ -175,7 +195,7 @@ than a disc the minimum printable width across. This complements the raster thin
 overlay, which can miss very small pieces. The check uses the final refined logo
 at its fitted print size, follows size/nozzle/cleanup changes, and does not block
 export. Increase Width, merge colors, or use the warning's "remove them" link,
-which sets Small bits to that width. Small bits is set as a width too: pieces and
+which sets Remove specks to that width. Remove specks is set as a width too: pieces and
 holes with less area than a disc that wide are removed.
 
 ## Dimension validation

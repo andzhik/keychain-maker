@@ -33,7 +33,6 @@ export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawC
   try {
     const fit = profiler.measure('logo outlines and fit', () => fitFaces(faces.front.groups, faces.back.groups, config))
     const { width, height } = fit
-    const printLogo = faces.showLogo !== false
     config = validateConfig(rawConfig, { width, height }).config
 
     // Parent group — rotation applied once to lay everything flat on XZ
@@ -46,8 +45,8 @@ export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawC
     // flat through-hole shortcuts. Empty or independently mirrored faces may not.
     const equivalent = faces.front.groups === faces.back.groups && flipX('front') === flipX('back')
     const cutouts = profiler.measure('cutout shapes', () => {
-      const create = (face: Face) => printLogo
-        ? createLogoCutouts(logoOutline(faces[face].groups).map(shape => shape.extractPoints(16)), fit[face], flipX(face)) : []
+      const create = (face: Face) =>
+        createLogoCutouts(logoOutline(faces[face].groups).map(shape => shape.extractPoints(16)), fit[face], flipX(face))
       const front = create('front')
       return { front, back: equivalent ? front : create('back') }
     })
@@ -59,7 +58,7 @@ export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawC
     root.add(basePlate)
 
     // Step 4: logo surface inlays — un-beveled, flush with both base faces
-    if (printLogo && (fit.front.hasLogo || fit.back.hasLogo)) {
+    if (fit.front.hasLogo || fit.back.hasLogo) {
       logoGroup = new THREE.Group()
       root.add(logoGroup)
       for (const face of equivalent ? ['front'] as const : faceNames) {

@@ -9,6 +9,7 @@ import SvgUploader from './SvgUploader.vue'
 import IconTooltip from './IconTooltip.vue'
 import FeedbackNotice from './FeedbackNotice.vue'
 import type { FaceArtwork } from '../composables/useFaceArtwork'
+import { useAdvanced } from '../composables/useAdvanced'
 import { DEFAULT_REFINEMENTS, type Face, type FaceMode, type Refinements, type PrinterSettings } from '../types/keychain'
 import { outlinePointsNote } from '../utils/simplify'
 
@@ -18,7 +19,6 @@ const props = defineProps<{
   frontArtwork: FaceArtwork
   otherColors: string[]
   baseColor: string
-  showLogo: boolean
   printer: PrinterSettings
   expanded: boolean
 }>()
@@ -26,6 +26,7 @@ const emit = defineEmits<{
   'update:expanded': [value: boolean]
   importStarted: []
 }>()
+const advanced = useAdvanced()
 const faceLabel = computed(() => props.face === 'front' ? 'Front' : 'Back')
 const faceMode = computed({
   get: () => props.artwork.settings.value.mode,
@@ -90,36 +91,53 @@ function removeTinyIslands() {
   updateRefinement('minSpeckSize', +(Math.ceil(minFeatureWidth.value / 0.05 - 1e-9) * 0.05).toFixed(2))
 }
 const fmtMm = (mm: number) => mm.toFixed(2).replace(/0$/, '')
+const plural = (n: number, word: string) => `${n} ${word}${n !== 1 ? 's' : ''}`
+const shapeCount = computed(() => parsedGroups.value.reduce((n, group) => n + group.shapes.length, 0))
 const minWidth = computed(() => `${fmtMm(minFeatureWidth.value)} mm (${props.printer.thinWalls ? '1 nozzle width' : '2 nozzle widths'})`)
-const nozzleWarning = computed(() => `${thinFeatures.value.count} thin area${thinFeatures.value.count !== 1 ? 's' : ''} under ${minWidth.value} may not print. Turn on Thin areas to see them.`)
-const outlineWarning = computed(() => props.showLogo && outlinePoints.value.after > 500
-  ? 'Over 500 outline points: updates may be slow. Increase Simplify to reduce complexity.' : '')
+const outlineWarning = computed(() => outlinePoints.value.after > 500
+  ? 'Over 500 outline points: updates may be slow. Increase Simplify outlines to reduce complexity.' : '')
+// Advanced options also show when changed, or when a warning points at them.
+const showMirror = computed(() => advanced.value || mirror.value)
+const showMerge = computed(() => advanced.value || refinements.value.mergeTolerance > 0)
+const showSpecks = computed(() => advanced.value || refinements.value.minSpeckSize > 0 || tinyIslands.value.count > 0)
+const showSimplify = computed(() => advanced.value || !!outlineWarning.value
+  || refinements.value.simplifyTolerance !== DEFAULT_REFINEMENTS.simplifyTolerance)
 const INFO = {
-  merge: 'Merges colors that look nearly the same, so near-duplicates don’t each need a filament. '
-    + 'Measured as color difference (ΔE): about 2 is barely visible, 10 or more is clearly different. 0 = off.',
-  colorLimit: 'Merges the most similar colors until at most this many remain, so the logo fits the filaments you have.',
-  simplify: 'Drops outline points while keeping every edge within this distance of the original. '
-    + 'Fewer points build faster; the default is far finer than a printer can resolve. '
-    + 'Borders shared by two colors may gain a few points, so the colors stay sealed.',
+  mirror: 'Flips this face left to right.',
+  merge: 'Combines colors that look almost the same, so they print with one filament. Higher merges more; 0 = off.',
+  maxColors: 'Merges the most similar colors until at most this many remain. '
+    + 'Set it to your free filament slots, minus one for the plate.',
+  simplify: 'Reduces outline detail so the model builds faster. '
+    + 'The default is finer than a printer can resolve; raise it only if updates feel slow.',
 }
-const thinAreasInfo = computed(() => `Marks in red the parts of the logo narrower than ${minWidth.value}, which may not print.`)
-const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smaller than this across (compared by area). '
-  + `Pieces under ${minWidth.value} may not print. 0 = off.`)
+const thinAreasInfo = computed(() => `Highlights in red the parts narrower than ${minWidth.value}, which may not print.`)
+const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower than this. Pieces under ${minWidth.value} may not print. 0 = off.`)
 </script>
 
 <template>
   <section :id="`${face}-artwork`" class="face-editor flex flex-col gap-3" :aria-label="`${faceLabel} artwork`">
     <PanelCard :title="faceLabel">
-      <label class="flex items-center justify-between text-xs text-gray-600 gap-2">
-        Artwork
-        <select v-model="faceMode" aria-label="Face artwork" class="border border-gray-300 rounded px-1 py-1 bg-white">
-          <option value="artwork">Upload image</option>
+      <template #action>
+        <button
+          v-if="faceMode === 'artwork' && parsedGroups.length && refined"
+          type="button"
+          class="text-xs text-gray-500 underline hover:text-gray-800"
+          title="Undo color changes, removed shapes and cleanup on this face"
+          @click="resetRefinements"
+        >
+          Reset edits
+        </button>
+      </template>
+      <label class="flex items-center justify-between text-sm text-gray-700 gap-2">
+        Image
+        <select v-model="faceMode" aria-label="Image" class="border border-gray-300 rounded px-1 py-1 text-xs bg-white">
+          <option value="artwork">Own image</option>
           <option v-if="face === 'back'" value="same">Same as Front</option>
-          <option value="empty">Empty</option>
+          <option value="empty">None</option>
         </select>
       </label>
-      <p v-if="faceMode === 'same'" class="text-xs text-gray-500">Image, colors and refinements follow Front.</p>
-      <p v-if="faceMode === 'empty'" class="text-xs text-gray-500">Solid plate; artwork kept.</p>
+      <p v-if="faceMode === 'same'" class="text-xs text-gray-500">Uses Front’s image and colors. Edit them on Front.</p>
+      <p v-if="faceMode === 'empty'" class="text-xs text-gray-500">Plain plate. Your image is kept if you switch back.</p>
       <!-- Keep this source's uploader mounted through mode changes and pending reads. -->
       <SvgUploader v-show="faceMode === 'artwork'"
         :aria-label="`${face} image upload`"
@@ -132,13 +150,15 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
       <div v-if="error || importReport" role="region" aria-label="Import" class="text-xs text-gray-500 space-y-1">
         <FeedbackNotice v-if="error" severity="error" :title="`${faceLabel} artwork unavailable`" :announce="false">
           <p>{{ error }}</p>
-          <p v-if="faceMode === 'same'">Edit the source artwork on Front, or choose another artwork mode.</p>
-          <p v-else>Adjust the trace options above, upload simpler artwork, or choose Empty.</p>
+          <p v-if="faceMode === 'same'">Edit the source artwork on Front, or choose another image option.</p>
+          <p v-else>Adjust the tracing options above, upload simpler artwork, or choose None.</p>
         </FeedbackNotice>
         <template v-else-if="importReport">
-          <p>Ready: {{ parsedGroups.length }} colors, {{ parsedGroups.reduce((n, group) => n + group.shapes.length, 0) }} filled shapes.</p>
-          <p v-if="importReport.removedMetadata">Removed {{ importReport.removedMetadata }} non-rendering metadata elements.</p>
-          <p v-if="importReport.normalizedStyles">Normalized inline fills/styles on {{ importReport.normalizedStyles }} elements.</p>
+          <p>Imported {{ plural(parsedGroups.length, 'color') }}, {{ plural(shapeCount, 'shape') }}.</p>
+          <template v-if="advanced">
+            <p v-if="importReport.removedMetadata">Removed {{ importReport.removedMetadata }} non-rendering metadata elements.</p>
+            <p v-if="importReport.normalizedStyles">Normalized inline fills/styles on {{ importReport.normalizedStyles }} elements.</p>
+          </template>
         </template>
       </div>
 
@@ -159,41 +179,61 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
             </svg>
           </button>
         </div>
-        <p class="mt-1 text-[11px] text-gray-500">Outside view · keyring at top{{ mirror ? ' · mirrored' : '' }}</p>
-        <p v-if="faceMode === 'artwork'" class="mt-1 flex items-center gap-1 text-[11px] text-gray-400">
-          <span>Click a shape to remove it.</span>
+        <p class="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
+          <span>Outside view · keyring at top{{ mirror ? ' · mirrored' : '' }}</span>
           <button
-            v-if="hiddenShapeCount"
+            v-if="faceMode === 'artwork' && hiddenShapeCount"
             type="button"
             class="ml-auto text-gray-500 underline hover:text-gray-800"
             @click="updateRefinement('hiddenShapes', [])"
           >
-            Restore {{ hiddenShapeCount }} shape{{ hiddenShapeCount !== 1 ? 's' : '' }}
+            Restore {{ plural(hiddenShapeCount, 'shape') }}
           </button>
         </p>
-        <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-          <input v-model="mirror" type="checkbox" />
-          Mirror horizontally
-        </label>
+        <p v-if="faceMode === 'artwork'" class="text-[11px] text-gray-400">Click a shape to remove it.</p>
+        <!-- A view option: it changes the preview, not the model. -->
         <div class="mt-1 flex items-center gap-1">
           <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
             <input v-model="showThinFeatures" type="checkbox" class="accent-red-500" />
             <span>Thin areas <span class="inline-block w-3 h-2 align-middle bg-red-500" aria-hidden="true" /></span>
           </label>
           <IconTooltip kind="info" label="About Thin areas" :message="thinAreasInfo" align="left" />
-          <IconTooltip v-if="thinFeatures.count" label="Nozzle warning" :message="nozzleWarning" align="left" placement="above" />
+          <span v-if="!thinFeatures.count" class="ml-auto text-[11px] text-gray-400">None under {{ minWidth }}</span>
         </div>
-        <FeedbackNotice v-if="showLogo && thinFeatures.count" class="mt-2" severity="warning" title="Thin areas may not print">
-          <p>{{ thinFeatures.count }} thin area{{ thinFeatures.count !== 1 ? 's' : '' }} under {{ minWidth }} may not print.
+        <FeedbackNotice v-if="thinFeatures.count" class="mt-2" severity="warning" title="Thin areas may not print">
+          <p>{{ plural(thinFeatures.count, 'thin area') }} under {{ minWidth }} may not print.
             {{ showThinFeatures ? 'Highlighted in red in the image preview.' : 'Turn on Thin areas to see them.' }}</p>
         </FeedbackNotice>
+        <div v-if="showMirror" class="mt-1 flex items-center gap-1">
+          <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+            <input v-model="mirror" type="checkbox" />
+            Mirror horizontally
+          </label>
+          <IconTooltip kind="info" label="About Mirror horizontally" :message="INFO.mirror" align="left" />
+        </div>
       </div>
 
-      <div v-if="faceMode === 'artwork' && parsedGroups.length">
-        <h3 class="text-sm text-gray-700 mb-1">
-          Colors
-          <span v-if="colorGroups.length" class="text-gray-400">({{ colorGroups.length }})</span>
-        </h3>
+      <div v-if="faceMode === 'artwork' && parsedGroups.length" class="space-y-2">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-sm text-gray-700">
+            Colors
+            <span v-if="colorGroups.length" class="text-gray-400">({{ colorGroups.length }})</span>
+          </h3>
+          <span class="inline-flex items-center gap-1.5 text-xs text-gray-600">
+            <label class="flex items-center gap-1.5">
+              Max colors
+              <select
+                :value="refinements.maxColors"
+                aria-label="Max colors"
+                class="px-1.5 py-0.5 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500"
+                @change="updateRefinement('maxColors', Number(($event.target as HTMLSelectElement).value))"
+              >
+                <option v-for="n in MAX_COLOR_OPTIONS" :key="n" :value="n">{{ n === 0 ? 'No limit' : n }}</option>
+              </select>
+            </label>
+            <IconTooltip kind="info" label="About Max colors" :message="INFO.maxColors" />
+          </span>
+        </div>
         <ColorList
           :parsed="parsedGroups"
           :groups="colorGroups"
@@ -203,71 +243,43 @@ const smallBitsInfo = computed(() => 'Removes logo pieces, and fills holes, smal
           :otherFace="face === 'front' ? 'Back' : 'Front'"
           @update:refinements="(value: Refinements) => refinements = value"
         />
+        <SliderField
+          v-if="showMerge"
+          label="Merge similar" field="mergeTolerance" :info="INFO.merge"
+          :modelValue="refinements.mergeTolerance" :min="0" :max="50" :step="1"
+          @update:modelValue="v => updateRefinement('mergeTolerance', v)"
+        />
       </div>
     </PanelCard>
 
-    <!-- Refine: print-oriented cleanup of the logo -->
-    <PanelCard v-if="faceMode === 'artwork' && parsedGroups.length" title="Refine">
-      <template #action>
-        <button
-          v-if="refined"
-          type="button"
-          class="text-xs text-gray-500 underline hover:text-gray-800"
-          @click="resetRefinements"
-        >
-          Reset
-        </button>
-      </template>
-
-      <SliderField
-        label="Merge similar" unit="ΔE" field="mergeTolerance" labelWidth="w-28" :info="INFO.merge"
-        :modelValue="refinements.mergeTolerance" :min="0" :max="50" :step="1"
-        @update:modelValue="v => updateRefinement('mergeTolerance', v)"
-      />
-      <div class="flex items-center justify-between gap-3">
-        <span class="inline-flex items-center gap-1 text-sm text-gray-700">
-          Color limit<IconTooltip kind="info" label="About Color limit" :message="INFO.colorLimit" align="left" />
-        </span>
-        <select
-          :value="refinements.maxColors"
-          aria-label="Color limit"
-          class="px-1.5 py-0.5 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:border-gray-500"
-          @change="updateRefinement('maxColors', Number(($event.target as HTMLSelectElement).value))"
-        >
-          <option v-for="n in MAX_COLOR_OPTIONS" :key="n" :value="n">{{ n === 0 ? 'No limit' : n }}</option>
-        </select>
-      </div>
-      <div>
+    <!-- Cleanup: print-oriented geometry fixes -->
+    <PanelCard v-if="faceMode === 'artwork' && parsedGroups.length && (showSpecks || showSimplify)" title="Cleanup">
+      <div v-if="showSpecks">
         <SliderField
-          label="Small bits" unit="mm" field="minSpeckSize" labelWidth="w-28" :info="smallBitsInfo"
+          label="Remove specks" unit="mm" field="minSpeckSize" :info="specksInfo"
           :modelValue="refinements.minSpeckSize" :min="0" :max="3" :step="0.05"
           @update:modelValue="v => updateRefinement('minSpeckSize', v)"
         />
         <p v-if="refinements.minSpeckSize > 0" class="mt-0.5 text-xs text-gray-500">
-          {{ specksRemoved ? `Removed ${specksRemoved} small bit${specksRemoved !== 1 ? 's' : ''}.` : 'No bits this small.' }}
+          {{ specksRemoved ? `Removed ${plural(specksRemoved, 'speck')}.` : 'No specks this small.' }}
         </p>
-      </div>
-      <div>
-        <SliderField
-          label="Simplify" unit="mm" field="simplifyTolerance" labelWidth="w-28" :info="INFO.simplify"
-          :modelValue="refinements.simplifyTolerance" :min="0" :max="0.2" :step="0.01"
-          @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
-        />
-        <p v-if="pointsNote" class="mt-0.5 text-xs text-gray-500">{{ pointsNote }}</p>
-        <FeedbackNotice v-if="outlineWarning" class="mt-2" severity="warning" title="Artwork may update slowly"><p>{{ outlineWarning }}</p></FeedbackNotice>
-      </div>
-      <div>
-        <p v-if="!thinFeatures.count && parsedGroups.length" class="mt-0.5 text-xs text-gray-500">
-          No thin areas detected at {{ minWidth }}.
-        </p>
-        <FeedbackNotice v-if="showLogo && tinyIslands.count" class="mt-2" severity="warning" title="Small pieces may not print">
+        <FeedbackNotice v-if="tinyIslands.count" class="mt-2" severity="warning" title="Small pieces may not print">
           <p>
-          {{ tinyIslands.count }} tiny logo island{{ tinyIslands.count !== 1 ? 's' : '' }}
+          {{ plural(tinyIslands.count, 'tiny logo island') }}
           smaller than {{ fmtMm(minFeatureWidth) }} mm across may not print.
           Increase Width, merge colors, or
           <button type="button" class="underline hover:text-amber-800" @click="removeTinyIslands">remove them</button>.
           </p>
         </FeedbackNotice>
+      </div>
+      <div v-if="showSimplify">
+        <SliderField
+          label="Simplify outlines" unit="mm" field="simplifyTolerance" :info="INFO.simplify"
+          :modelValue="refinements.simplifyTolerance" :min="0" :max="0.2" :step="0.01"
+          @update:modelValue="v => updateRefinement('simplifyTolerance', v)"
+        />
+        <p v-if="pointsNote" class="mt-0.5 text-xs text-gray-500">{{ pointsNote }}</p>
+        <FeedbackNotice v-if="outlineWarning" class="mt-2" severity="warning" title="Artwork may update slowly"><p>{{ outlineWarning }}</p></FeedbackNotice>
       </div>
     </PanelCard>
     <Teleport v-if="expanded && parsedGroups.length" to="#enlarged-preview">

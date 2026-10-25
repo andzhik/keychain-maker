@@ -3,14 +3,15 @@ import { DEFAULT_CONFIG, DEFAULT_REFINEMENTS, DEFAULT_PRINTER, type KeychainConf
 // Separate keys so an SVG too big for the storage quota doesn't take the
 // (tiny) config down with it.
 const CONFIG_KEY = 'keychain-maker:config:v1'
+// Retired with the Print logo toggle; still cleared by Start over.
 const SHOW_LOGO_KEY = 'keychain-maker:showLogo:v1'
 const SVG_KEY = 'keychain-maker:svg:v1'
 const REFINEMENTS_KEY = 'keychain-maker:refinements:v1'
 const PRINTER_KEY = 'keychain-maker:printer:v1'
+const ADVANCED_KEY = 'keychain-maker:advanced:v1'
 
 export interface PersistedState {
   config: KeychainConfig
-  showLogo: boolean
   svg: string | null
   refinements: Refinements
 }
@@ -136,7 +137,6 @@ function parseJson(text: string | null): unknown {
 export function loadState(storage: Storage | null = defaultStorage()): PersistedState {
   return {
     config: sanitizeConfig(parseJson(read(storage, CONFIG_KEY))),
-    showLogo: read(storage, SHOW_LOGO_KEY) !== 'false',
     svg: read(storage, SVG_KEY),
     refinements: sanitizeRefinements(parseJson(read(storage, REFINEMENTS_KEY))),
   }
@@ -146,8 +146,13 @@ export function saveConfig(config: KeychainConfig, storage: Storage | null = def
   write(storage, CONFIG_KEY, JSON.stringify(config))
 }
 
-export function saveShowLogo(showLogo: boolean, storage: Storage | null = defaultStorage()) {
-  write(storage, SHOW_LOGO_KEY, String(showLogo))
+/** Whether advanced options are shown. A view preference, so Start over keeps it. */
+export function loadAdvanced(storage: Storage | null = defaultStorage()): boolean {
+  return read(storage, ADVANCED_KEY) === 'true'
+}
+
+export function saveAdvanced(advanced: boolean, storage: Storage | null = defaultStorage()) {
+  write(storage, ADVANCED_KEY, String(advanced))
 }
 
 export function loadFaces(storage: Storage | null = defaultStorage()): Record<Face, FaceSettings> {

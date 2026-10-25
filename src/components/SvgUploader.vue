@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import IconTooltip from './IconTooltip.vue'
 import SliderField from './SliderField.vue'
+import { useAdvanced } from '../composables/useAdvanced'
 import { DEFAULT_TRACE_OPTIONS, TRACE_SIZE, traceImage, type RasterImage, type TraceOptions } from '../utils/traceImage'
 import { SVG_LIMITS, complexityError } from '../utils/svgValidation'
 
@@ -19,13 +20,20 @@ const fileInput = ref<HTMLInputElement | null>(null)
 // The last raster upload, kept so changing the trace options can re-trace it.
 const raster = shallowRef<{ name: string; image: RasterImage } | null>(null)
 const traceOptions = ref<TraceOptions>({ ...DEFAULT_TRACE_OPTIONS })
-const COLOR_OPTIONS = [2, 3, 4, 5, 6, 7, 8]
+// A failed trace suggests changing colors or smoothing, so it shows every option.
+const traceFailed = ref(false)
+const advanced = useAdvanced()
+/** Advanced trace options also show when changed from their default. */
+const shown = (field: keyof TraceOptions) => advanced.value || traceFailed.value
+  || traceOptions.value[field] !== DEFAULT_TRACE_OPTIONS[field]
+const showAny = computed(() => (['colors', 'smoothing', 'roundness', 'straighten'] as const).some(shown))
+const COLOR_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8]
 const INFO = {
-  colors: 'How many colors to split the image into, counting the background. With Remove background on, one fewer is printed.',
-  removeBackground: 'Drops the color around the image’s border, so the plate shows through there.',
-  smoothing: 'Evens out jagged pixel edges and wobbles. High values also soften small corners.',
-  roundness: 'How readily corners become curves. Low keeps more sharp corners; high rounds more of them.',
-  straighten: 'Snaps edges within a few degrees of horizontal or vertical to exactly straight.',
+  colors: 'The most colors to keep from the picture, not counting a removed background.',
+  removeBackground: 'Removes the color around the picture’s edge, so the plate shows there instead.',
+  smoothing: 'Smooths jagged pixel edges. Higher is smoother but softens small details.',
+  roundness: 'Low keeps sharp corners; high turns more corners into curves.',
+  straighten: 'Makes nearly horizontal and vertical edges exactly straight.',
 }
 // Slider changes re-trace once the slider rests: a trace takes ~0.2 s, and the
 // model rebuild after it longer.
@@ -88,7 +96,9 @@ function retrace(retraced = false) {
   if (!raster.value) return
   try {
     emit('svgLoaded', traceImage(raster.value.image, traceOptions.value), retraced, raster.value.name)
+    traceFailed.value = false
   } catch {
+    traceFailed.value = true
     emit('importFailed', `Could not trace "${raster.value.name}". Try fewer colors or more smoothing.`)
   }
 }
@@ -160,53 +170,59 @@ function onFileChange(e: Event) {
 
     <!-- Trace options, for a raster upload -->
     <div v-if="raster" class="flex flex-col gap-1.5 text-xs text-gray-600">
+      <h3 class="text-xs font-medium text-gray-500">Tracing</h3>
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <span class="flex items-center gap-1">
-        <label class="flex items-center gap-1.5">
-          Colors
-          <select
-            class="border border-gray-300 rounded px-1 py-0.5 bg-white"
-            :value="traceOptions.colors"
-            @change="setTraceOption('colors', Number(($event.target as HTMLSelectElement).value))"
-          >
-            <option v-for="n in COLOR_OPTIONS" :key="n" :value="n">{{ n }}</option>
-          </select>
-        </label>
-        <IconTooltip kind="info" label="About Colors" :message="INFO.colors" align="left" />
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              :checked="traceOptions.removeBackground"
+              @change="setTraceOption('removeBackground', ($event.target as HTMLInputElement).checked)"
+            />
+            Remove background
+          </label>
+          <IconTooltip kind="info" label="About Remove background" :message="INFO.removeBackground" align="left" />
         </span>
-        <span class="flex items-center gap-1">
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="checkbox"
-            :checked="traceOptions.removeBackground"
-            @change="setTraceOption('removeBackground', ($event.target as HTMLInputElement).checked)"
-          />
-          Remove background
-        </label>
-        <IconTooltip kind="info" label="About Remove background" :message="INFO.removeBackground" />
+        <span v-if="shown('colors')" class="flex items-center gap-1">
+          <label class="flex items-center gap-1.5">
+            Colors
+            <select
+              aria-label="Colors"
+              class="border border-gray-300 rounded px-1 py-0.5 bg-white"
+              :value="traceOptions.colors"
+              @change="setTraceOption('colors', Number(($event.target as HTMLSelectElement).value))"
+            >
+              <option v-for="n in COLOR_OPTIONS" :key="n" :value="n">{{ n }}</option>
+            </select>
+          </label>
+          <IconTooltip kind="info" label="About Colors" :message="INFO.colors" />
         </span>
       </div>
-      <SliderField
-        label="Smoothing" labelWidth="w-28" :info="INFO.smoothing"
-        :modelValue="traceOptions.smoothing" :min="0.5" :max="3" :step="0.25"
-        @update:modelValue="(v: number) => setTraceOption('smoothing', v, true)"
-      />
-      <SliderField
-        label="Round corners" labelWidth="w-28" :info="INFO.roundness"
-        :modelValue="traceOptions.roundness" :min="1" :max="10" :step="0.5"
-        @update:modelValue="(v: number) => setTraceOption('roundness', v, true)"
-      />
-      <span class="flex items-center gap-1">
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="checkbox"
-            :checked="traceOptions.straighten"
-            @change="setTraceOption('straighten', ($event.target as HTMLInputElement).checked)"
-          />
-          Straighten edges
-        </label>
-        <IconTooltip kind="info" label="About Straighten edges" :message="INFO.straighten" align="left" />
-      </span>
+      <template v-if="showAny">
+        <SliderField
+          v-if="shown('smoothing')"
+          label="Smoothing" labelWidth="w-32" :info="INFO.smoothing"
+          :modelValue="traceOptions.smoothing" :min="0.5" :max="3" :step="0.25"
+          @update:modelValue="(v: number) => setTraceOption('smoothing', v, true)"
+        />
+        <SliderField
+          v-if="shown('roundness')"
+          label="Corner rounding" labelWidth="w-32" :info="INFO.roundness"
+          :modelValue="traceOptions.roundness" :min="1" :max="10" :step="0.5"
+          @update:modelValue="(v: number) => setTraceOption('roundness', v, true)"
+        />
+        <span v-if="shown('straighten')" class="flex items-center gap-1">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              :checked="traceOptions.straighten"
+              @change="setTraceOption('straighten', ($event.target as HTMLInputElement).checked)"
+            />
+            Straighten edges
+          </label>
+          <IconTooltip kind="info" label="About Straighten edges" :message="INFO.straighten" align="left" />
+        </span>
+      </template>
     </div>
 
     <!-- UI note -->

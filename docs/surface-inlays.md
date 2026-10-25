@@ -1,7 +1,7 @@
 # Surface inlay validation
 
 Issue [#12](https://github.com/andzhik/keychain-maker/issues/12) limits colored
-inlays to the two faces. **Logo depth** is the depth on each face, in millimeters.
+inlays to the two faces. **Inlay depth** (an advanced option, formerly Logo depth) is the depth on each face, in millimeters.
 The default is 0.6 mm: three layers at a 0.2 mm layer height. The slicer still
 controls actual layer placement; choose a depth divisible by its layer height.
 
@@ -46,7 +46,7 @@ The generated G-code selects only the white plate filament for layers 4–22;
 logo colors appear on layers 1–3 and 23–25. The baseline changes filaments
 throughout all 25 layers.
 
-To repeat with the updated app, export `c1.svg` with **Logo depth** set to 2.5 mm
+To repeat with the updated app, export `c1.svg` with **Inlay depth** set to 2.5 mm
 for the through-inlay case, then 0.6 mm for the surface case, leaving all other
 settings unchanged. Apply the same printer, process, filament and flush settings
 to both files. This through-inlay case reproduces the old geometry behavior.

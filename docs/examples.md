@@ -20,19 +20,20 @@ using these settings for **each** example:
 | Control | Value |
 | --- | --- |
 | Plate shape / color | Square / white (`#ffffff`) |
-| Width / padding | 50 mm / 5 mm |
-| Thickness / corner radius | 5 mm / 5 mm |
-| Bevel / bevel segments | 0.6 mm / 2 |
-| Keyring | Enabled; 5 mm hole, 10 mm ring |
-| Logo | Shown; original colors |
-| Nozzle | 0.4 mm |
-| Merge similar / max colors / min speck | 0 / No limit / 0 mm² |
-| Simplify | 0 mm for an exact render-harness comparison; the app's usual 0.02 mm is also suitable |
+| Width / border | 50 mm / 5 mm |
+| Thickness / corner rounding | 5 mm / 5 mm |
+| Edge chamfer / edge roundness | 0.6 mm / 2 |
+| Keyring loop | On; 5 mm hole size, 10 mm loop size |
+| Colors | Original colors |
+| Nozzle size | 0.4 mm |
+| Merge similar / max colors / remove specks | 0 / No limit / 0 mm |
+| Simplify outlines | 0 mm for an exact render-harness comparison; the app's usual 0.02 mm is also suitable |
 
 Plate and cleanup settings carry over between uploads; recolors and hidden
 colors/shapes reset for a new upload. For screenshot comparisons, set the values
-above, use **Reset** in Refine, then set Simplify to 0. Reset keeps the current
-Nozzle value, so check that it is 0.4 mm too. The width is the nominal plate width:
+above (tick **Advanced options** to see them all), use **Reset edits** on the face,
+then set Simplify outlines to 0. Reset keeps the current Nozzle size, so check that
+it is 0.4 mm too. The width is the nominal plate width:
 the measured dimensions also include the bevel and keyring. Preview lighting can
 make the white base appear gray, and the 3D view is rotated relative to the SVG.
 

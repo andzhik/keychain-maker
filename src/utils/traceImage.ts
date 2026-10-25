@@ -29,7 +29,7 @@ export interface RasterImage {
 }
 
 export interface TraceOptions {
-  /** At most this many colors (background included, before it's removed). */
+  /** At most this many printed colors: a background that is removed doesn't count. */
   colors: number
   /** Drop the color that fills the image border. */
   removeBackground: boolean
@@ -49,7 +49,7 @@ export interface TraceOptions {
 }
 
 export const DEFAULT_TRACE_OPTIONS: TraceOptions = {
-  colors: 6,
+  colors: 5,
   removeBackground: true,
   smoothing: 1,
   roundness: 3,
@@ -64,7 +64,9 @@ const TRANSPARENT = -1
 export function traceImage(image: RasterImage, options: Partial<TraceOptions> = {}): string {
   const opts = { ...DEFAULT_TRACE_OPTIONS, ...options }
   const { width, height } = image
-  const { labels, palette } = quantize(image, Math.max(1, Math.round(opts.colors)))
+  // The background gets its own cluster when it's going to be dropped.
+  const dropsBackground = opts.removeBackground && !hasTransparentBorder(image)
+  const { labels, palette } = quantize(image, Math.max(1, Math.round(opts.colors)) + (dropsBackground ? 1 : 0))
   smoothLabels(labels, width, height)
   if (opts.removeBackground) removeBackground(labels, width, height)
 
@@ -301,6 +303,14 @@ function smoothLabels(labels: Int16Array, width: number, height: number) {
  * on a white page) stays. An image with any transparency on its border has
  * no background left to remove; a frame drawn to the edge there is the logo.
  */
+/** Whether a border pixel is transparent, in which case there is no background to remove. */
+function hasTransparentBorder({ width, height, data }: RasterImage): boolean {
+  const transparent = (x: number, y: number) => data[(y * width + x) * 4 + 3] < 128
+  for (let x = 0; x < width; x++) if (transparent(x, 0) || transparent(x, height - 1)) return true
+  for (let y = 1; y < height - 1; y++) if (transparent(0, y) || transparent(width - 1, y)) return true
+  return false
+}
+
 function removeBackground(labels: Int16Array, width: number, height: number) {
   const border: number[] = []
   for (let x = 0; x < width; x++) border.push(x, (height - 1) * width + x)

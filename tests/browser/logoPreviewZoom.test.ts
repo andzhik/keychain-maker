@@ -1,4 +1,4 @@
-import { facePanel } from './facePanel.ts'
+import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createServer } from 'vite'
@@ -17,6 +17,7 @@ test('changing smoothing preserves the logo preview zoom and pan', async () => {
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     await page.goto(`http://localhost:${server.config.server.port}/`)
+    await showAdvanced(page)
     await page.locator('input[type="file"]').first().setInputFiles('test-images/logo-white.png')
     await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
 

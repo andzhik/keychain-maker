@@ -48,13 +48,13 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
       error(field, 'OUT_OF_RANGE', `${field} must be ${nonnegative.includes(field as typeof nonnegative[number]) ? 'zero or greater' : 'greater than zero'}.`)
     }
   }
-  if (config.bevelSegments > 64) error('bevelSegments', 'TOO_MANY_SEGMENTS', 'Use at most 64 bevel segments.')
+  if (config.bevelSegments > 64) error('bevelSegments', 'TOO_MANY_SEGMENTS', 'Use an edge roundness of at most 64.')
   if (config.basePlateShape !== 'square' && config.basePlateShape !== 'circle') {
     error('basePlateShape', 'INVALID_SHAPE', 'Choose a square or circle plate.')
   }
   if (!/^#[\da-f]{6}$/i.test(config.baseColor)) error('baseColor', 'INVALID_COLOR', 'Choose a six-digit hex plate color.')
   if (config.keyringEnabled && config.keyringRingDiameter <= 2 * MIN_KEYRING_WALL) {
-    error('keyringRingDiameter', 'RING_TOO_SMALL', 'Increase the ring diameter above 2 mm to leave room for its hole and walls.')
+    error('keyringRingDiameter', 'RING_TOO_SMALL', 'Increase the loop size above 2 mm to leave room for its hole and walls.')
   }
   if (messages.length) return { config, adjustments, messages, valid: false }
 
@@ -103,7 +103,7 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
   const bevel = Math.max(0, Math.min(config.edgeBevel, config.baseThickness / 2 - 0.05))
   if (bevel !== config.edgeBevel) adjust('edgeBevel', bevel, `Limited to ${fmt(bevel)} mm to fit the base thickness.`)
   const segments = Math.max(1, Math.round(config.bevelSegments))
-  if (segments !== config.bevelSegments) adjust('bevelSegments', segments, `Rounded to ${segments} bevel segments.`)
+  if (segments !== config.bevelSegments) adjust('bevelSegments', segments, `Rounded to ${segments}.`)
   // The artwork determines square-plate height; callers with a logo supply its fitted size.
   if (plate && config.basePlateShape === 'square') {
     const radius = Math.min(config.cornerRadius, plate.width / 2, plate.height / 2)

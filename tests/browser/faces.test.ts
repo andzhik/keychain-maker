@@ -1,4 +1,4 @@
-import { facePanel } from './facePanel.ts'
+import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
@@ -37,7 +37,7 @@ for (const face of ['front', 'back'] as const) {
     try {
       await page.goto(url)
       await upload(page, 'front', fSvg)
-      await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+      await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
       await upload(page, 'back', lSvg)
       await ready(page)
       await page.addInitScript(face => {
@@ -57,7 +57,7 @@ for (const face of ['front', 'back'] as const) {
       await ready(page)
       for (const [name, svg, color] of [['Front', fSvg, '#ff0000'], ['Back', lSvg, '#0000ff']] as const) {
         const panel = facePanel(page, name)
-        assert.equal(await panel.getByLabel('Face artwork', { exact: true }).inputValue(), 'artwork')
+        assert.equal(await panel.getByLabel('Image', { exact: true }).inputValue(), 'artwork')
         await panel.locator(`svg.logo-preview path[fill="${color}"]`).waitFor()
         assert.equal(await page.evaluate(face => localStorage.getItem(`keychain-maker:${face}:svg:v1`), name.toLowerCase()), svg)
       }
@@ -94,10 +94,11 @@ test('#34 matching face colors updates previews, saved edits, filament count and
   }
   try {
     await page.goto(url)
+    await showAdvanced(page)
     const front = facePanel(page, 'Front')
     const back = facePanel(page, 'Back')
     await upload(page, 'front', frontSvg)
-    await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await back.getByLabel('Image', { exact: true }).selectOption('artwork')
     await upload(page, 'back', backSvg)
     await ready(page)
     await page.getByText('Filaments: 5', { exact: false }).waitFor()
@@ -138,12 +139,12 @@ test('#34 matching face colors updates previews, saved edits, filament count and
     await page.getByText('Filaments: 4', { exact: false }).waitFor()
     assert.deepEqual(await settings(page, 'back'), savedBack, 'matching Front leaves Back intact')
     for (const mode of ['empty', 'same']) {
-      await back.getByLabel('Face artwork', { exact: true }).selectOption(mode)
+      await back.getByLabel('Image', { exact: true }).selectOption(mode)
       await ready(page)
       assert.equal(await front.getByRole('combobox', { name: /^Match #/ }).count(), 0)
       assert.equal(await back.getByRole('combobox', { name: /^Match #/ }).count(), 0)
     }
-    await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await back.getByLabel('Image', { exact: true }).selectOption('artwork')
     await ready(page)
     await upload(page, 'front', frontSvg)
     await ready(page)
@@ -156,10 +157,11 @@ test('#34 matching a merged row recolors and restores every source, using curren
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
   try {
     await page.goto(url)
+    await showAdvanced(page)
     const front = facePanel(page, 'Front')
     const back = facePanel(page, 'Back')
     await upload(page, 'front', fSvg)
-    await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await back.getByLabel('Image', { exact: true }).selectOption('artwork')
     await upload(page, 'back', lSvg.replace('blue', '#fe0000').replace('</svg>', '<rect fill="#fd0000" x="10" y="0" width="5" height="4"/></svg>'))
     await back.getByRole('slider', { name: 'Merge similar', exact: true }).fill('2')
     await ready(page)
@@ -189,30 +191,31 @@ test('side-by-side editors preserve independent images and refinements through E
   page.on('pageerror', error => errors.push(error.message))
   try {
     await page.goto(url)
+    await showAdvanced(page)
     await upload(page, 'front', fSvg)
     await ready(page)
-    await facePanel(page, 'Front').getByRole('spinbutton', { name: 'Small bits', exact: true }).fill('0.5')
-    await facePanel(page, 'Front').getByRole('spinbutton', { name: 'Small bits', exact: true }).press('Tab')
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Front').getByRole('spinbutton', { name: 'Remove specks', exact: true }).fill('0.5')
+    await facePanel(page, 'Front').getByRole('spinbutton', { name: 'Remove specks', exact: true }).press('Tab')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     await upload(page, 'back', lSvg)
     await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).uncheck()
-    await facePanel(page, 'Back').getByRole('spinbutton', { name: 'Small bits', exact: true }).fill('0.8')
-    await facePanel(page, 'Back').getByRole('spinbutton', { name: 'Small bits', exact: true }).press('Tab')
+    await facePanel(page, 'Back').getByRole('spinbutton', { name: 'Remove specks', exact: true }).fill('0.8')
+    await facePanel(page, 'Back').getByRole('spinbutton', { name: 'Remove specks', exact: true }).press('Tab')
     await ready(page)
     const savedBack = await settings(page, 'back')
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('same')
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
-    assert.equal(await facePanel(page, 'Back').getByRole('spinbutton', { name: 'Small bits', exact: true }).inputValue(), '0.80')
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('empty')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('same')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
+    assert.equal(await facePanel(page, 'Back').getByRole('spinbutton', { name: 'Remove specks', exact: true }).inputValue(), '0.80')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
     await ready(page)
     assert.equal(await facePanel(page, 'Back').locator('svg.logo-preview').count(), 0)
     await page.reload()
     await ready(page)
-    assert.equal(await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).inputValue(), 'empty')
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    assert.equal(await facePanel(page, 'Back').getByLabel('Image', { exact: true }).inputValue(), 'empty')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     assert.deepEqual((await settings(page, 'back')).refinements, savedBack.refinements)
     assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), false)
-    assert.equal(await facePanel(page, 'Front').getByRole('spinbutton', { name: 'Small bits', exact: true }).inputValue(), '0.50')
+    assert.equal(await facePanel(page, 'Front').getByRole('spinbutton', { name: 'Remove specks', exact: true }).inputValue(), '0.50')
     await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
     await ready(page)
     assert.match((await facePanel(page, 'Front').locator('svg.logo-preview').getAttribute('aria-label'))!, /Front outside view.*mirrored/)
@@ -235,7 +238,7 @@ test('a late read stays with its source while editing the other face; a failed b
     await page.goto(url)
     await page.locator('[aria-label="front image upload"] input').setInputFiles({ name: 'slow.png', mimeType: 'image/png', buffer: readFileSync('test-images/logo-white.png') })
     await page.waitForFunction(() => typeof (window as any).__releaseDecode === 'function')
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     await upload(page, 'back', lSvg)
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
     await page.evaluate(() => (window as any).__releaseDecode())
@@ -248,7 +251,7 @@ test('a late read stays with its source while editing the other face; a failed b
     await page.reload()
     assert.equal(await page.getByRole('button', { name: 'Download .3mf', exact: true }).isDisabled(), true)
     await page.getByRole('alert').filter({ hasText: 'previous artwork import failed' }).waitFor()
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('empty')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
     await ready(page)
   } finally { await page.close() }
 })
@@ -258,9 +261,10 @@ test('old saves restore same-image coordinates and allow correcting only Back', 
   try {
     await page.addInitScript(svg => localStorage.setItem('keychain-maker:svg:v1', svg), fSvg)
     await page.goto(url)
+    await showAdvanced(page)
     await ready(page)
     assert.equal((await settings(page, 'front')).mirror, false)
-    assert.equal(await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).inputValue(), 'same')
+    assert.equal(await facePanel(page, 'Back').getByLabel('Image', { exact: true }).inputValue(), 'same')
     assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), true)
     await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).uncheck()
     await ready(page)
@@ -275,17 +279,18 @@ test('different, front-only and back-only 3MF files preserve colors, outside ori
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
   try {
     await page.goto(url)
+    await showAdvanced(page)
     await upload(page, 'front', fSvg)
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     await upload(page, 'back', lSvg)
     await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).uncheck()
     for (const scenario of ['different', 'front-mirrored', 'back-mirrored', 'front-only', 'back-only']) {
-      await facePanel(page, 'Front').getByLabel('Face artwork', { exact: true }).selectOption(scenario === 'back-only' ? 'empty' : 'artwork')
+      await facePanel(page, 'Front').getByLabel('Image', { exact: true }).selectOption(scenario === 'back-only' ? 'empty' : 'artwork')
       if (scenario !== 'back-only') await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).setChecked(scenario === 'front-mirrored')
-      await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption(scenario === 'front-only' ? 'empty' : 'artwork')
+      await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption(scenario === 'front-only' ? 'empty' : 'artwork')
       if (scenario !== 'front-only') await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).setChecked(scenario === 'back-mirrored')
       for (const [bevel, thickness] of [[0.6, 5], [0, 0.8], [0.3, 0.8]]) {
-        for (const [label, value] of [['Bevel', bevel], ['Thickness', thickness]] as const) {
+        for (const [label, value] of [['Edge chamfer', bevel], ['Thickness', thickness]] as const) {
           const input = page.getByRole('spinbutton', { name: label, exact: true })
           await input.fill(String(value)); await input.press('Tab')
         }
@@ -334,7 +339,7 @@ test('different, front-only and back-only 3MF files preserve colors, outside ori
         copyFileSync(file, `test-output/faces-${scenario}-${bevel}-${thickness}.3mf`)
       }
     }
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('empty')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
     await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Download .3mf (base only)', exact: true }).isEnabled(), true)
   } finally { await page.close() }
@@ -345,9 +350,10 @@ for (const width of [1024, 1280, 1440, 1920]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
     try {
       await page.goto(url)
+      await showAdvanced(page)
       const front = facePanel(page, 'Front')
       const back = facePanel(page, 'Back')
-      await back.getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+      await back.getByLabel('Image', { exact: true }).selectOption('artwork')
       await upload(page, 'front', fSvg)
       await upload(page, 'back', lSvg)
       await ready(page)
@@ -370,8 +376,8 @@ for (const width of [1024, 1280, 1440, 1920]) {
       assert.ok(canvas.width >= 280 && canvas.width <= 600 && canvas.height >= 260)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
       assert.equal(await page.getByRole('group', { name: 'Artwork face', exact: true }).count(), 0)
-      const shared = page.getByRole('region', { name: 'Shared settings', exact: true })
-      for (const name of ['Width', 'Logo depth', 'Nozzle']) {
+      const shared = page.getByRole('region', { name: 'Keychain settings', exact: true })
+      for (const name of ['Width', 'Inlay depth', 'Nozzle size']) {
         const slider = shared.getByRole('slider', { name, exact: true })
         assert.equal(await page.getByRole('slider', { name, exact: true }).count(), 1)
         await slider.scrollIntoViewIfNeeded()
@@ -398,7 +404,8 @@ test('#33 both raster uploaders keep visible, independent tracing controls at 10
   const page = await browser.newPage({ viewport: { width: 1024, height: 768 } })
   try {
     await page.goto(url)
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await showAdvanced(page)
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     await page.locator('[aria-label="front image upload"] input').setInputFiles('test-images/coffee-badge.png')
     await page.locator('[aria-label="back image upload"] input').setInputFiles('test-images/smile-heart.png')
     await ready(page)

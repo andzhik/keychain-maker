@@ -1,4 +1,4 @@
-import { facePanel } from './facePanel.ts'
+import { facePanel, showAdvanced } from './facePanel.ts'
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
@@ -44,32 +44,36 @@ const card = (page: Page, name: string) => page.locator('section').filter({ has:
 
 test('#26 fresh Back reads normally; legacy saved artwork retains its mirror', async () => {
   await check(async page => {
+    await showAdvanced(page)
     await page.locator('input[type=file]').first().setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) })
     assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), false)
   })
   await check(async page => {
+    // A mirrored face shows Mirror even with advanced options hidden.
     assert.equal(await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), true)
   }, { 'keychain-maker:svg:v1': svg })
 })
 
 test('#17 printer settings are shared, persisted and accessible on Empty faces', async () => {
   await check(async page => {
-    await page.getByRole('slider', { name: 'Nozzle', exact: true }).fill('0.2')
-    await page.getByRole('checkbox', { name: 'Thin walls', exact: true }).check()
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
-    assert.equal(await page.getByRole('slider', { name: 'Nozzle', exact: true }).inputValue(), '0.2')
-    assert.equal(await page.getByRole('checkbox', { name: 'Thin walls', exact: true }).isChecked(), true)
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('empty')
-    assert.equal(await card(page, 'Printer').getByRole('slider', { name: 'Nozzle', exact: true }).isVisible(), true)
+    await showAdvanced(page)
+    await page.getByRole('slider', { name: 'Nozzle size', exact: true }).fill('0.2')
+    await page.getByRole('checkbox', { name: 'Single-line walls', exact: true }).check()
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
+    assert.equal(await page.getByRole('slider', { name: 'Nozzle size', exact: true }).inputValue(), '0.2')
+    assert.equal(await page.getByRole('checkbox', { name: 'Single-line walls', exact: true }).isChecked(), true)
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
+    assert.equal(await card(page, 'Printer').getByRole('slider', { name: 'Nozzle size', exact: true }).isVisible(), true)
     await page.reload()
-    assert.equal(await page.getByRole('slider', { name: 'Nozzle', exact: true }).inputValue(), '0.2')
-    assert.equal(await page.getByRole('checkbox', { name: 'Thin walls', exact: true }).isChecked(), true)
+    assert.equal(await page.getByRole('slider', { name: 'Nozzle size', exact: true }).inputValue(), '0.2')
+    assert.equal(await page.getByRole('checkbox', { name: 'Single-line walls', exact: true }).isChecked(), true)
   }, frontSave)
 })
 
 test('#27 shared Back previews are read-only in both sizes while Front stays editable', async () => {
   await check(async page => {
-    assert.equal(await facePanel(page, 'Back').getByRole('heading', { name: 'Refine', exact: true }).count(), 0)
+    await showAdvanced(page)
+    assert.equal(await facePanel(page, 'Back').getByRole('heading', { name: 'Cleanup', exact: true }).count(), 0)
     assert.equal(await facePanel(page, 'Back').getByLabel('Print color for #ff0000', { exact: true }).count(), 0)
     const before = await page.evaluate(() => localStorage.getItem('keychain-maker:front:v1'))
     await facePanel(page, 'Back').locator('svg.logo-preview').first().locator('path').last().dispatchEvent('click')
@@ -78,7 +82,7 @@ test('#27 shared Back previews are read-only in both sizes while Front stays edi
     await panel.locator('svg.logo-preview path').last().dispatchEvent('click')
     assert.equal(await page.evaluate(() => localStorage.getItem('keychain-maker:front:v1')), before)
     await panel.getByRole('button', { name: 'Close', exact: true }).click()
-    assert.equal(await facePanel(page, 'Front').getByRole('heading', { name: 'Refine', exact: true }).isVisible(), true)
+    assert.equal(await facePanel(page, 'Front').getByRole('heading', { name: 'Cleanup', exact: true }).isVisible(), true)
     await facePanel(page, 'Front').getByLabel('Print color for #ff0000', { exact: true }).fill('#00ff00')
     await facePanel(page, 'Back').locator('svg.logo-preview path[fill="#00ff00"]').waitFor()
     await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
@@ -88,6 +92,7 @@ test('#27 shared Back previews are read-only in both sizes while Front stays edi
 
 test('#24 toggling Mirror fits the enlarged preview again', async () => {
   await check(async page => {
+    await showAdvanced(page)
     await facePanel(page, 'Front').getByRole('button', { name: 'Enlarge preview', exact: true }).click()
     const panel = page.getByRole('region', { name: 'Logo preview', exact: true })
     const preview = panel.getByRole('img')
@@ -111,6 +116,7 @@ test('#18 interrupted retracing restores the last valid artwork and export', asy
 
 test('#20 refining does not rewrite an unchanged SVG', async () => {
   await check(async page => {
+    await showAdvanced(page)
     await page.evaluate(() => {
       const original = Storage.prototype.setItem
       ;(window as any).svgWrites = 0
@@ -168,11 +174,12 @@ test('#29 blank plates export directly and imported artwork names the download',
 
 test('#30-32 controls sit with their targets and the header can reset only app data', async () => {
   await check(async page => {
-    assert.equal(await card(page, 'Plate').getByRole('slider', { name: 'Logo depth', exact: true }).count(), 1)
+    await showAdvanced(page)
+    assert.equal(await card(page, 'Keychain').getByRole('slider', { name: 'Inlay depth', exact: true }).count(), 1)
     assert.equal(await page.getByRole('heading', { name: 'Edge', level: 2, exact: true }).count(), 0)
-    assert.equal(await card(page, 'Plate').getByRole('slider', { name: 'Bevel', exact: true }).count(), 1)
+    assert.equal(await card(page, 'Keychain').getByRole('slider', { name: 'Edge chamfer', exact: true }).count(), 1)
     await page.getByRole('radio', { name: 'Circle', exact: true }).click()
-    assert.equal(await page.getByRole('slider', { name: 'Corner radius', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('slider', { name: 'Corner rounding', exact: true }).count(), 0)
     assert.equal(await page.getByRole('link', { name: 'User guide', exact: true }).getAttribute('href'), 'https://github.com/andzhik/keychain-maker/blob/master/docs/user-guide.md')
     await page.evaluate(() => localStorage.setItem('unrelated-app', 'keep'))
     await page.getByRole('button', { name: 'Start over', exact: true }).click()
@@ -184,11 +191,13 @@ test('#30-32 controls sit with their targets and the header can reset only app d
     assert.equal(await facePanel(page, 'Front').locator('svg.logo-preview').count(), 0)
     assert.equal(await page.getByRole('radio', { name: 'Rectangle', exact: true }).getAttribute('aria-checked'), 'true')
     assert.equal(await page.evaluate(() => localStorage.getItem('unrelated-app')), 'keep')
+    assert.equal(await page.getByRole('checkbox', { name: 'Advanced options', exact: true }).isChecked(), true, 'a view preference, not app data')
   }, frontSave)
 })
 
 test('#31 successful uploads collapse, invalid replacements keep the full uploader', async () => {
   await check(async page => {
+    await showAdvanced(page)
     assert.equal(await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).count(), 0)
     const input = page.locator('input[type=file]').first()
     await input.setInputFiles({ name: 'letter.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) })
@@ -207,11 +216,11 @@ test('#19 inactive stored artwork cannot show complexity advice', async () => {
   await check(async page => {
     const advice = page.getByRole('status').filter({ hasText: 'Over 500 outline points' })
     assert.equal(await advice.count(), 0)
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     await advice.waitFor()
     assert.equal(await facePanel(page, 'Back').getByRole('status').filter({ hasText: 'Over 500 outline points' }).count(), 1)
     for (const mode of ['same', 'empty']) {
-      await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption(mode)
+      await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption(mode)
       assert.equal(await advice.count(), 0)
     }
   }, { ...frontSave,
@@ -235,7 +244,7 @@ test('#21 width changes skip unused refinement geometry and reactivation restore
     // Wait past the thin-feature debounce using actual page frames.
     await page.waitForTimeout(300)
     assert.equal(await page.evaluate(() => (window as any).unusedReads), 0)
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('artwork')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
     await page.waitForFunction(() => (window as any).unusedReads > 0)
     assert.equal(await facePanel(page, 'Back').locator('svg.logo-preview').count(), 1)
   }, { ...frontSave,
@@ -260,14 +269,56 @@ test('#29 filament counts match exported colors across both faces, refinements a
     await page.getByLabel('Plate color', { exact: true }).fill('#ff0000')
     assert.match(await summary.innerText(), /Filaments: 4/)
     assert.equal(await page.getByText('More than 4 filaments', { exact: false }).count(), 0)
-    await facePanel(page, 'Back').getByLabel('Face artwork', { exact: true }).selectOption('same')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('same')
     assert.match(await summary.innerText(), /Filaments: 2/)
-    await page.getByRole('checkbox', { name: 'Print logo', exact: true }).uncheck()
+    await page.screenshot({ path: 'test-output/ui-shared-back.png' })
+    // Both faces None replaces the old Print logo toggle.
+    for (const face of ['Back', 'Front'] as const) await facePanel(page, face).getByLabel('Image', { exact: true }).selectOption('empty')
     await page.getByText('Ready to export the base only.', { exact: true }).waitFor()
     assert.match(await summary.innerText(), /Filaments: 1/)
-    await page.screenshot({ path: 'test-output/ui-shared-back.png' })
   }, { ...frontSave,
     'keychain-maker:front:svg:v1': blocks(['#ff0000', '#00ff00']),
     'keychain-maker:back:v1': JSON.stringify({ mode: 'artwork', hasArtwork: true }),
     'keychain-maker:back:svg:v1': blocks(['#ff0000', '#0000ff', '#ffff00']) })
+})
+
+test('basic view hides advanced options until they matter', async () => {
+  await check(async page => {
+    const advanced = page.getByRole('checkbox', { name: 'Advanced options', exact: true })
+    assert.equal(await advanced.isChecked(), false)
+    const keychain = card(page, 'Keychain')
+    for (const name of ['Width', 'Thickness']) assert.equal(await keychain.getByRole('slider', { name, exact: true }).isVisible(), true)
+    assert.equal(await keychain.getByLabel('Plate color', { exact: true }).isVisible(), true)
+    assert.equal(await keychain.getByRole('checkbox', { name: 'Keyring loop', exact: true }).isVisible(), true)
+    for (const name of ['Corner rounding', 'Border', 'Hole size', 'Loop size', 'Edge chamfer', 'Edge roundness', 'Inlay depth', 'Nozzle size']) {
+      assert.equal(await page.getByRole('slider', { name, exact: true }).count(), 0, `${name} is advanced`)
+    }
+    assert.equal(await page.getByRole('heading', { name: 'Printer', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('checkbox', { name: 'Print logo' }).count(), 0)
+    const front = facePanel(page, 'Front')
+    assert.equal(await front.getByLabel('Max colors', { exact: true }).isVisible(), true)
+    assert.equal(await front.getByRole('slider', { name: 'Merge similar', exact: true }).count(), 0)
+    assert.equal(await front.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).count(), 0)
+    assert.equal(await front.getByRole('heading', { name: 'Cleanup', exact: true }).count(), 0)
+
+    // A message about a hidden option shows it.
+    const thickness = page.getByRole('spinbutton', { name: 'Thickness', exact: true })
+    await thickness.fill('0.8'); await thickness.press('Tab')
+    await page.getByText('Limited to 0.4 mm per face (half the plate thickness).', { exact: true }).waitFor()
+    assert.equal(await keychain.getByRole('slider', { name: 'Inlay depth', exact: true }).isVisible(), true)
+    await thickness.fill('5'); await thickness.press('Tab')
+    assert.equal(await keychain.getByRole('slider', { name: 'Inlay depth', exact: true }).count(), 0)
+    await page.getByRole('radio', { name: 'Circle', exact: true }).click()
+    assert.equal(await keychain.getByRole('slider', { name: 'Diameter', exact: true }).isVisible(), true)
+
+    await advanced.check()
+    await page.getByRole('slider', { name: 'Edge chamfer', exact: true }).waitFor()
+    await front.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    await advanced.uncheck()
+    // A changed option stays visible.
+    assert.equal(await front.getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).isChecked(), true)
+    assert.equal(await page.getByRole('slider', { name: 'Edge chamfer', exact: true }).count(), 0)
+    await page.reload()
+    assert.equal(await page.getByRole('checkbox', { name: 'Advanced options', exact: true }).isChecked(), false)
+  }, frontSave)
 })

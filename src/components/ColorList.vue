@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ColorGroup, Refinements } from '../types/keychain'
 import { deltaE } from '../utils/refine'
+import { useAdvanced } from '../composables/useAdvanced'
 
 const props = defineProps<{
   parsed: ColorGroup[]
@@ -17,6 +18,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:refinements': [value: Refinements]
 }>()
+const advanced = useAdvanced()
+// Matching is an advanced tool; a plain recolor does the same by hand.
+const matching = computed(() => advanced.value && props.otherColors.length > 0)
 
 const rows = computed(() => props.groups.map((group) => {
   const sources = props.sources.get(group.color) ?? [group.color]
@@ -76,7 +80,7 @@ const hidden = computed(() => {
 
 <template>
   <div>
-    <p v-if="otherColors.length" class="mb-1.5 text-xs text-gray-500">
+    <p v-if="matching" class="mb-1.5 text-xs text-gray-500">
       Match {{ otherFace }} to share a filament. Closest colors first.
     </p>
     <ul class="space-y-1">
@@ -127,7 +131,7 @@ const hidden = computed(() => {
           >✕</button>
         </div>
         <select
-          v-if="otherColors.length"
+          v-if="matching"
           :value="''"
           :aria-label="`Match ${row.color} to ${otherFace}`"
           :disabled="!row.matches.length"

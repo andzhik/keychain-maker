@@ -86,6 +86,8 @@ const fmt = (n: number) => +n.toFixed(1)
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   await page.addInitScript(instrument)
+  // The sliders driven below include advanced options.
+  await page.addInitScript(() => localStorage.setItem('keychain-maker:advanced:v1', 'true'))
   page.on('pageerror', (e) => console.error('pageerror:', e.message))
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForSelector('canvas')

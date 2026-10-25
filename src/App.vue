@@ -6,18 +6,19 @@ import FaceArtworkPanel from './components/FaceArtworkPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import FeedbackNotice from './components/FeedbackNotice.vue'
 import { useFaceArtwork } from './composables/useFaceArtwork'
+import { useAdvanced } from './composables/useAdvanced'
 import { exportTo3MF } from 'three-3mf-exporter'
 import { constrainConfig } from './utils/configConstraints'
 import { fitFaces } from './utils/logoFit'
 import { planArtworkPreview } from './utils/artworkPreview'
-import { loadState, loadFaces, loadPrinter, saveConfig, saveShowLogo, savePrinter, clearSession } from './utils/persistence'
+import { loadState, loadFaces, loadPrinter, saveConfig, savePrinter, clearSession } from './utils/persistence'
 import { DEFAULT_CONFIG, type BuildStatus, type KeychainConfig, type Face, type ColorGroup, type KeychainArtwork } from './types/keychain'
 
 const viewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 const saved = loadState()
 const savedFaces = loadFaces()
 const printer = ref(loadPrinter())
-const showLogo = ref(saved.showLogo)
+const advanced = useAdvanced()
 const config = ref<KeychainConfig>(saved.config)
 const constrained = computed(() => constrainConfig(config.value))
 const effectiveConfig = computed(() => constrained.value.valid ? constrained.value.config : DEFAULT_CONFIG)
@@ -41,7 +42,6 @@ const artwork = computed<KeychainArtwork>(() => ({
   back: { groups: back.settings.value.mode === 'empty' ? emptyGroups
     : back.settings.value.mode === 'same' ? front.refined.groups.value : back.refined.groups.value,
     mirror: back.settings.value.mirror },
-  showLogo: showLogo.value,
 }))
 const fitKey = computed(() => [front.parser.colorGroups.value, back.parser.colorGroups.value])
 const preview = computed(() => planArtworkPreview(artwork.value))
@@ -90,19 +90,18 @@ function editArtwork(face: Face) {
   const control = panel?.querySelector('select')
   control?.focus({ preventScroll: true })
 }
-function editSharedSettings() {
+function editKeychainSettings() {
   expandedFace.value = null
-  const settings = document.getElementById('shared-settings')
+  const settings = document.getElementById('keychain-settings')
   settings?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   const control = settings?.querySelector<HTMLElement>('button, input')
   control?.focus({ preventScroll: true })
 }
-const hasPrintedLogo = computed(() => showLogo.value && (artwork.value.front.groups.length > 0 || artwork.value.back.groups.length > 0))
+const hasPrintedLogo = computed(() => artwork.value.front.groups.length > 0 || artwork.value.back.groups.length > 0)
 const canExport = computed(() => !faceError.value && !preview.value.error && validation.value.valid
   && !importing.value && buildStatus.value === 'ready' && !exporting.value)
 const exportLabel = computed(() => hasPrintedLogo.value || faceError.value || importing.value ? 'Download .3mf' : 'Download .3mf (base only)')
-const logoColors = computed(() => new Set(showLogo.value
-  ? [...artwork.value.front.groups, ...artwork.value.back.groups].map(g => g.color.toLowerCase()) : []))
+const logoColors = computed(() => new Set([...artwork.value.front.groups, ...artwork.value.back.groups].map(g => g.color.toLowerCase())))
 const filamentCount = computed(() => new Set([config.value.baseColor.toLowerCase(), ...logoColors.value]).size)
 const downloadName = computed(() => {
   const name = usedSources.value.find(s => s.settings.value.svg && s.settings.value.fileName)?.settings.value.fileName
@@ -124,7 +123,6 @@ function handleBuildStatus(status: BuildStatus, message?: string, omitted?: Face
 }
 watch(hasBlockingFeedback, blocked => { if (blocked) expandedFace.value = null })
 watch(config, value => saveConfig(value), { deep: true })
-watch(showLogo, value => saveShowLogo(value))
 savePrinter(printer.value)
 watch(printer, value => savePrinter(value), { deep: true })
 const resetDialog = ref<HTMLDialogElement | null>(null)
@@ -179,6 +177,10 @@ const dev = import.meta.env.DEV
     <header class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 shrink-0">
       <h1 class="text-base font-semibold tracking-tight">Keychain Maker</h1>
       <nav class="flex items-center gap-4 text-xs text-gray-600" aria-label="Help and session">
+        <label class="flex items-center gap-1.5 cursor-pointer hover:text-gray-900" title="Show every setting. Hidden settings still appear when changed or when a warning needs them.">
+          <input v-model="advanced" type="checkbox" class="accent-gray-700" />
+          Advanced options
+        </label>
         <a class="hover:text-gray-900 underline" href="https://github.com/andzhik/keychain-maker/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer">User guide</a>
         <button type="button" class="hover:text-gray-900 underline" @click="resetDialog?.showModal()">Start over</button>
       </nav>
@@ -201,7 +203,6 @@ const dev = import.meta.env.DEV
         :frontArtwork="front"
         :otherColors="matchingColors[face]"
         :baseColor="config.baseColor"
-        :showLogo="showLogo"
         :printer="printer"
         :expanded="expandedFace === face"
         @update:expanded="value => expandedFace = value ? face : null"
@@ -226,15 +227,15 @@ const dev = import.meta.env.DEV
                 <button v-for="face in preview.error.faces.filter(face => face !== 'back' || backSettings.mode !== 'same')" :key="face" type="button" class="font-medium underline underline-offset-2" @click="editArtwork(face)">Edit {{ face === 'front' ? 'Front' : 'Back' }} artwork</button>
               </div>
             </FeedbackNotice>
-            <FeedbackNotice v-if="configError" severity="error" title="Plate settings need attention">
+            <FeedbackNotice v-if="configError" severity="error" title="Keychain settings need attention">
               <p>{{ configError }}</p>
               <p>Preview and Download are unavailable until these settings are fixed.</p>
-              <button type="button" class="font-medium underline underline-offset-2" @click="editSharedSettings">Edit shared settings</button>
+              <button type="button" class="font-medium underline underline-offset-2" @click="editKeychainSettings">Edit keychain settings</button>
             </FeedbackNotice>
             <FeedbackNotice v-if="modelError && !configError" severity="error" :title="buildStatus === 'unavailable' ? '3D preview unavailable' : 'Model could not be built'">
               <p>{{ modelError }}</p>
               <p>Download is disabled.</p>
-              <button v-if="buildStatus !== 'unavailable'" type="button" class="font-medium underline underline-offset-2" @click="editSharedSettings">Edit shared settings</button>
+              <button v-if="buildStatus !== 'unavailable'" type="button" class="font-medium underline underline-offset-2" @click="editKeychainSettings">Edit keychain settings</button>
             </FeedbackNotice>
             <FeedbackNotice v-if="exportError" severity="error" title="Download failed">
               <p>{{ exportError }}</p>
@@ -293,7 +294,6 @@ const dev = import.meta.env.DEV
 
           <ControlPanel
             v-model:printer="printer"
-            v-model:showLogo="showLogo"
             v-model:config="config"
             :adjustments="validation.adjustments"
             :configMessages="validation.messages"
