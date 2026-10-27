@@ -8,6 +8,7 @@ import { fitFaces } from '../utils/logoFit'
 import { validateGroupComplexity } from '../utils/svgValidation'
 import { createLogoCutouts } from './logoCutouts'
 import { disposeObject } from '../three/sceneLifecycle'
+import { createOutlinePlate, OutlinePlateError } from './outlinePlate'
 
 export interface ModelBuildError { code: string; message: string }
 export interface KeychainModel {
@@ -50,10 +51,14 @@ export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawC
       const front = create('front')
       return { front, back: equivalent ? front : create('back') }
     })
+    const outline = config.basePlateShape === 'outline'
+      ? profiler.measure('offset plate silhouette', () => createOutlinePlate(
+        equivalent ? cutouts.front : [...cutouts.front, ...cutouts.back], config))
+      : undefined
 
     // Steps 1–3: base-plate spline, optional keyring, bevel extrude
     const basePlate = profiler.measure('buildBasePlate', () =>
-      buildBasePlate(config, width, height, equivalent ? cutouts.front : [], profiler),
+      buildBasePlate(config, width, height, equivalent ? cutouts.front : [], profiler, outline),
     )
     root.add(basePlate)
 
@@ -96,6 +101,7 @@ export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawC
     return { ok: true, model: { root, logoGroup, dimensions } }
   } catch (error) {
     disposeObject(root)
+    if (error instanceof OutlinePlateError) return { ok: false, error: { code: error.code, message: error.message } }
     throw error
   }
 }

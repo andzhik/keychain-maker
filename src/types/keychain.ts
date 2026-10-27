@@ -24,7 +24,7 @@ export interface FaceSettings {
   fileName: string | null
 }
 
-export type BasePlateShape = 'square' | 'circle'
+export type BasePlateShape = 'square' | 'circle' | 'outline'
 
 export type BuildStatus = 'pending' | 'ready' | 'error' | 'unavailable'
 
@@ -35,6 +35,8 @@ export interface KeychainConfig {
   logoDepth: number
   cornerRadius: number
   padding: number
+  /** Outward silhouette offset in mm; outline plates size the artwork before this border. */
+  outlineOffset: number
   targetWidth: number
   keyringEnabled: boolean
   keyringHoleDiameter: number
@@ -99,6 +101,7 @@ export const DEFAULT_CONFIG: KeychainConfig = {
   logoDepth: 0.6,
   cornerRadius: 5,
   padding: 5,
+  outlineOffset: 2,
   targetWidth: 50,
   keyringEnabled: true,
   keyringHoleDiameter: 5,

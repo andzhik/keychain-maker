@@ -12,6 +12,7 @@
 - [Deployment](deployment.md): production and preview deployments on GitHub Pages.
 - [Surface inlay validation](surface-inlays.md): slicer comparisons and geometry checks.
 - [Two-sided artwork validation](two-sided-artwork.md): face geometry, persistence and Bambu Studio CLI checks.
+- [SVG outline plates](outline-plates.md): geometric offsets, sizing, connections, bevels and validation.
 - [Improvement roadmap](IMPROVEMENT-ROADMAP.md): open development gaps and planned CI work.
 
 Before changing geometry, rebuild timing, or rendering, read

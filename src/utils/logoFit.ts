@@ -47,8 +47,11 @@ export function fitLogo(outerRings: THREE.Vector2[][], config: KeychainConfig): 
   }
   else {
     const size = box.getSize(new THREE.Vector2())
-    scale = (config.targetWidth - config.padding * 2) / size.x
-    height = size.y * scale + config.padding * 2
+    // Outline plates size each face's artwork first. Border and bevel are
+    // applied afterwards in mm, never by scaling the source silhouette.
+    const padding = config.basePlateShape === 'outline' ? 0 : config.padding
+    scale = (config.targetWidth - padding * 2) / size.x
+    height = size.y * scale + padding * 2
   }
 
   // A zero-width logo (or padding eating the whole plate) has no usable

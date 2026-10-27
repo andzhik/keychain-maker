@@ -93,88 +93,141 @@ async function slice(name: string, file: string) {
 }
 
 const results = []
-for (const scenario of ['different', 'front-mirrored', 'back-mirrored', 'front-only', 'back-only']) {
-  for (const [bevel, thickness] of [[0.6, 5], [0, 0.8], [0.3, 0.8]]) {
-    const name = `${scenario}-${bevel}-${thickness}`
-    const { dir, colors, layers } = await slice(name, `test-output/faces-${name}.3mf`)
-    assert.equal(layers.length, Math.round(thickness / 0.2))
-    const depth = Math.min(0.6, thickness / 2)
+if (!process.argv.includes('--outline')) {
+  for (const scenario of ['different', 'front-mirrored', 'back-mirrored', 'front-only', 'back-only']) {
+    for (const [bevel, thickness] of [[0.6, 5], [0, 0.8], [0.3, 0.8]]) {
+      const name = `${scenario}-${bevel}-${thickness}`
+      const { dir, colors, layers } = await slice(name, `test-output/faces-${name}.3mf`)
+      assert.equal(layers.length, Math.round(thickness / 0.2))
+      const depth = Math.min(0.6, thickness / 2)
+      for (const layer of layers) {
+        const used = new Set(layer.segments.map(s => s.color))
+        assert.ok(used.has('#ffffff'), `${name} Z=${layer.z}: missing base material`)
+        assert.equal(used.has('#ff0000'), scenario !== 'back-only' && layer.z > thickness - depth + 1e-4,
+          `${name} Z=${layer.z}: Front color in wrong layer`)
+        assert.equal(used.has('#0000ff'), scenario !== 'front-only' && layer.z <= depth + 1e-4,
+          `${name} Z=${layer.z}: Back color in wrong layer`)
+      }
+      // Bambu may translate the object when adding its prime tower. Both test
+      // glyphs are fitted by their bounds; recover the shared center from the
+      // printed outline, keeping the orientation check independent of placement.
+      const anchor = colors.includes('#ff0000') ? '#ff0000' : '#0000ff'
+      const anchorPoints = layers.flatMap(l => l.segments.filter(s => s.color === anchor).flatMap(s => [s.from, s.to]))
+      const cx = (Math.min(...anchorPoints.map(p => p[0])) + Math.max(...anchorPoints.map(p => p[0]))) / 2
+      const cy = (Math.min(...anchorPoints.map(p => p[1])) + Math.max(...anchorPoints.map(p => p[1]))) / 2
+      // Inspect actual extrusion paths in the asymmetric stems, not only tool IDs.
+      for (const color of ['#ff0000', '#0000ff']) {
+        if (!colors.includes(color)) continue
+        const points = layers.flatMap(l => l.segments.filter(s => s.color === color).flatMap(s => [s.from, s.to]))
+        const stem = points.filter(p => color === '#ff0000' ? p[1] < cy - 25 : p[1] > cy + 3)
+        assert.ok(stem.length > 0, `${name}: missing ${color} stem`)
+        assert.ok(stem.every(p => color === '#ff0000'
+          ? scenario === 'front-mirrored' ? p[0] > cx + 9 : p[0] < cx - 9
+          : scenario === 'back-mirrored' ? p[0] < cx - 14 : p[0] > cx + 14),
+          `${name}: mirrored or misplaced outside-view text`)
+      }
+      const faces = [layers.at(-1)!, layers[0]]
+      const paths = faces.map((layer, i) => {
+        const path = layer.segments.map(s => `<path d="M${s.from[0] - cx},${cy - s.from[1]}L${s.to[0] - cx},${cy - s.to[1]}" stroke="${s.color === '#ffffff' ? '#9ca3af' : s.color}"/>`).join('')
+        return `<g transform="translate(${i * 70 + 35},55)"><g transform="scale(${i ? -1 : 1},1)">${path}</g></g>`
+      }).join('')
+      await writeFile(join(dir, 'outside-views.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110"><rect width="140" height="110" fill="white"/><g fill="none" stroke-width="0.35">${paths}</g><g font-family="sans-serif" font-size="4" text-anchor="middle"><text x="35" y="8">Front · outside</text><text x="105" y="8">Back · outside</text></g></svg>`)
+      const result = { name, layers: layers.length, frontLayers: layers.filter(l => l.segments.some(s => s.color === '#ff0000')).length,
+        backLayers: layers.filter(l => l.segments.some(s => s.color === '#0000ff')).length }
+      results.push(result)
+      console.log(result)
+    }
+  }
+  for (const [name, expectedColors] of [['ui-blank', ['#ffffff']], ['ui-five-colors', ['#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00']]] as const) {
+    const { colors, layers } = await slice(name, `test-output/${name}.3mf`)
+    assert.equal(layers.length, 25, `${name}: expected a 5 mm plate at 0.2 mm layers`)
+    const printed = new Set(layers.flatMap(layer => layer.segments.map(segment => segment.color)))
+    assert.deepEqual([...printed].sort(), [...expectedColors].sort(), `${name}: actual sliced filaments must match the UI summary`)
+    const result = { name, layers: layers.length, filaments: new Set(colors.map(color => color.toLowerCase())).size }
+    results.push(result)
+    console.log(result)
+  }
+  for (const matched of [false, true]) {
+    const name = matched ? 'colors-after-match' : 'colors-before-match'
+    const { colors, layers } = await slice(name, `test-output/${name}.3mf`)
+    const backColor = matched ? '#ff0000' : '#fe0000'
+    const expectedColors = ['#ffffff', '#ff0000', '#0000ff', '#00ff00', ...(matched ? [] : ['#fe0000'])]
+    assert.deepEqual([...colors].sort(), expectedColors.sort(), `${name}: shared colors must use one filament slot`)
+    assert.equal(layers.length, 25)
     for (const layer of layers) {
-      const used = new Set(layer.segments.map(s => s.color))
+      const used = new Set(layer.segments.map(segment => segment.color))
+      const front = layer.z > 4.4 + 1e-4
+      const back = layer.z <= 0.6 + 1e-4
       assert.ok(used.has('#ffffff'), `${name} Z=${layer.z}: missing base material`)
-      assert.equal(used.has('#ff0000'), scenario !== 'back-only' && layer.z > thickness - depth + 1e-4,
-        `${name} Z=${layer.z}: Front color in wrong layer`)
-      assert.equal(used.has('#0000ff'), scenario !== 'front-only' && layer.z <= depth + 1e-4,
-        `${name} Z=${layer.z}: Back color in wrong layer`)
+      assert.equal(used.has('#0000ff'), front, `${name}: unchanged Front blue in wrong layer`)
+      assert.equal(used.has('#00ff00'), back, `${name}: unchanged Back green in wrong layer`)
+      assert.equal(used.has('#ff0000'), front || (matched && back), `${name}: shared red in wrong layer`)
+      if (!matched) assert.equal(used.has(backColor), back, `${name}: original Back red in wrong layer`)
     }
-    // Bambu may translate the object when adding its prime tower. Both test
-    // glyphs are fitted by their bounds; recover the shared center from the
-    // printed outline, keeping the orientation check independent of placement.
-    const anchor = colors.includes('#ff0000') ? '#ff0000' : '#0000ff'
-    const anchorPoints = layers.flatMap(l => l.segments.filter(s => s.color === anchor).flatMap(s => [s.from, s.to]))
-    const cx = (Math.min(...anchorPoints.map(p => p[0])) + Math.max(...anchorPoints.map(p => p[0]))) / 2
-    const cy = (Math.min(...anchorPoints.map(p => p[1])) + Math.max(...anchorPoints.map(p => p[1]))) / 2
-    // Inspect actual extrusion paths in the asymmetric stems, not only tool IDs.
-    for (const color of ['#ff0000', '#0000ff']) {
-      if (!colors.includes(color)) continue
-      const points = layers.flatMap(l => l.segments.filter(s => s.color === color).flatMap(s => [s.from, s.to]))
-      const stem = points.filter(p => color === '#ff0000' ? p[1] < cy - 25 : p[1] > cy + 3)
-      assert.ok(stem.length > 0, `${name}: missing ${color} stem`)
-      assert.ok(stem.every(p => color === '#ff0000'
-        ? scenario === 'front-mirrored' ? p[0] > cx + 9 : p[0] < cx - 9
-        : scenario === 'back-mirrored' ? p[0] < cx - 14 : p[0] > cx + 14),
-        `${name}: mirrored or misplaced outside-view text`)
-    }
-    const faces = [layers.at(-1)!, layers[0]]
-    const paths = faces.map((layer, i) => {
-      const path = layer.segments.map(s => `<path d="M${s.from[0] - cx},${cy - s.from[1]}L${s.to[0] - cx},${cy - s.to[1]}" stroke="${s.color === '#ffffff' ? '#9ca3af' : s.color}"/>`).join('')
-      return `<g transform="translate(${i * 70 + 35},55)"><g transform="scale(${i ? -1 : 1},1)">${path}</g></g>`
-    }).join('')
-    await writeFile(join(dir, 'outside-views.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110"><rect width="140" height="110" fill="white"/><g fill="none" stroke-width="0.35">${paths}</g><g font-family="sans-serif" font-size="4" text-anchor="middle"><text x="35" y="8">Front · outside</text><text x="105" y="8">Back · outside</text></g></svg>`)
-    const result = { name, layers: layers.length, frontLayers: layers.filter(l => l.segments.some(s => s.color === '#ff0000')).length,
-      backLayers: layers.filter(l => l.segments.some(s => s.color === '#0000ff')).length }
+    const frontPoints = layers.at(-1)!.segments.filter(s => s.color === '#ff0000').flatMap(s => [s.from, s.to])
+    const backPoints = layers[0].segments.filter(s => s.color === backColor).flatMap(s => [s.from, s.to])
+    const cx = (Math.min(...frontPoints.map(p => p[0])) + Math.max(...frontPoints.map(p => p[0]))) / 2
+    const cy = (Math.min(...frontPoints.map(p => p[1])) + Math.max(...frontPoints.map(p => p[1]))) / 2
+    const frontStem = frontPoints.filter(p => p[1] < cy - 25)
+    const backStem = backPoints.filter(p => p[1] > cy + 3)
+    assert.ok(frontStem.length && frontStem.every(p => p[0] < cx - 9), `${name}: Front F must retain its outside orientation`)
+    assert.ok(backStem.length && backStem.every(p => p[0] > cx + 14), `${name}: Back L must retain its outside orientation`)
+    const result = { name, layers: layers.length, filaments: colors.length,
+      frontLayers: layers.filter(l => l.segments.some(s => s.color === '#0000ff')).length,
+      backLayers: layers.filter(l => l.segments.some(s => s.color === '#00ff00')).length }
     results.push(result)
     console.log(result)
   }
 }
-for (const [name, expectedColors] of [['ui-blank', ['#ffffff']], ['ui-five-colors', ['#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00']]] as const) {
-  const { colors, layers } = await slice(name, `test-output/${name}.3mf`)
+
+// Issue #15: actual browser downloads, including a filled artwork counter,
+// two-color concavities, zero border, disconnected-part recovery and two faces.
+for (const name of ['star-2mm-keyring-bevel', 'star-zero-keyring-flat', 'star-front-only',
+  'independent-faces', 'independent-back-mirrored', 'refined-silhouette', 'disconnected-joined', 'disconnected-hidden']) {
+  const { dir, colors, layers } = await slice(`outline-${name}`, `test-output/issue-15/${name}.3mf`)
   assert.equal(layers.length, 25, `${name}: expected a 5 mm plate at 0.2 mm layers`)
-  const printed = new Set(layers.flatMap(layer => layer.segments.map(segment => segment.color)))
-  assert.deepEqual([...printed].sort(), [...expectedColors].sort(), `${name}: actual sliced filaments must match the UI summary`)
-  const result = { name, layers: layers.length, filaments: new Set(colors.map(color => color.toLowerCase())).size }
-  results.push(result)
-  console.log(result)
-}
-for (const matched of [false, true]) {
-  const name = matched ? 'colors-after-match' : 'colors-before-match'
-  const { colors, layers } = await slice(name, `test-output/${name}.3mf`)
-  const backColor = matched ? '#ff0000' : '#fe0000'
-  const expectedColors = ['#ffffff', '#ff0000', '#0000ff', '#00ff00', ...(matched ? [] : ['#fe0000'])]
-  assert.deepEqual([...colors].sort(), expectedColors.sort(), `${name}: shared colors must use one filament slot`)
-  assert.equal(layers.length, 25)
+  const printed = new Set(layers.flatMap(l => l.segments.map(s => s.color)))
+  assert.deepEqual([...printed].sort(), [...colors].sort(), `${name}: every exported filament must print`)
   for (const layer of layers) {
-    const used = new Set(layer.segments.map(segment => segment.color))
-    const front = layer.z > 4.4 + 1e-4
-    const back = layer.z <= 0.6 + 1e-4
-    assert.ok(used.has('#ffffff'), `${name} Z=${layer.z}: missing base material`)
-    assert.equal(used.has('#0000ff'), front, `${name}: unchanged Front blue in wrong layer`)
-    assert.equal(used.has('#00ff00'), back, `${name}: unchanged Back green in wrong layer`)
-    assert.equal(used.has('#ff0000'), front || (matched && back), `${name}: shared red in wrong layer`)
-    if (!matched) assert.equal(used.has(backColor), back, `${name}: original Back red in wrong layer`)
+    const used = new Set(layer.segments.map(s => s.color))
+    // At zero border with no counter, colored inlays cover the entire outside
+    // face. The white material is required in the middle, not on that face.
+    if (name !== 'disconnected-hidden' || layer.z > 0.6 + 1e-4 && layer.z <= 4.4 + 1e-4) {
+      assert.ok(used.has('#ffffff'), `${name} Z=${layer.z}: missing backing material`)
+    }
+    if (layer.z > 0.6 + 1e-4 && layer.z <= 4.4 + 1e-4) {
+      assert.deepEqual([...used], ['#ffffff'], `${name}: artwork must leave a solid middle`)
+    }
+    if (name === 'star-front-only' && layer.z <= 0.6 + 1e-4) assert.deepEqual([...used], ['#ffffff'])
+    if (name === 'independent-faces' || name === 'independent-back-mirrored') {
+      assert.equal(used.has('#16a34a'), layer.z <= 0.6 + 1e-4, `${name}: Back color in wrong layer`)
+      assert.equal(used.has('#e85d50'), layer.z > 4.4 + 1e-4, `${name}: Front color in wrong layer`)
+    }
   }
-  const frontPoints = layers.at(-1)!.segments.filter(s => s.color === '#ff0000').flatMap(s => [s.from, s.to])
-  const backPoints = layers[0].segments.filter(s => s.color === backColor).flatMap(s => [s.from, s.to])
-  const cx = (Math.min(...frontPoints.map(p => p[0])) + Math.max(...frontPoints.map(p => p[0]))) / 2
-  const cy = (Math.min(...frontPoints.map(p => p[1])) + Math.max(...frontPoints.map(p => p[1]))) / 2
-  const frontStem = frontPoints.filter(p => p[1] < cy - 25)
-  const backStem = backPoints.filter(p => p[1] > cy + 3)
-  assert.ok(frontStem.length && frontStem.every(p => p[0] < cx - 9), `${name}: Front F must retain its outside orientation`)
-  assert.ok(backStem.length && backStem.every(p => p[0] > cx + 14), `${name}: Back L must retain its outside orientation`)
-  const result = { name, layers: layers.length, filaments: colors.length,
-    frontLayers: layers.filter(l => l.segments.some(s => s.color === '#0000ff')).length,
-    backLayers: layers.filter(l => l.segments.some(s => s.color === '#00ff00')).length }
+  if (name.startsWith('star-')) {
+    // Recover placement from printed artwork; the circular counter is offset
+    // slightly below the artwork's bounding-box center in this fixture.
+    const top = layers.at(-1)!
+    const art = top.segments.filter(s => s.color !== '#ffffff').flatMap(s => [s.from, s.to])
+    const cx = (Math.min(...art.map(p => p[0])) + Math.max(...art.map(p => p[0]))) / 2
+    const cy = (Math.min(...art.map(p => p[1])) + Math.max(...art.map(p => p[1]))) / 2
+    assert.ok(top.segments.some(s => {
+      if (s.color !== '#ffffff') return false
+      const dx = s.to[0] - s.from[0], dy = s.to[1] - s.from[1]
+      const t = Math.max(0, Math.min(1, ((cx - s.from[0]) * dx + (cy - 2 - s.from[1]) * dy) / (dx * dx + dy * dy)))
+      return Math.hypot(s.from[0] + t * dx - cx, s.from[1] + t * dy - (cy - 2)) < 3
+    }), `${name}: SVG hole must print as plate material`)
+  }
+  const points = layers.flatMap(l => l.segments.flatMap(s => [s.from, s.to]))
+  const minX = Math.min(...points.map(p => p[0])), maxX = Math.max(...points.map(p => p[0]))
+  const minY = Math.min(...points.map(p => p[1])), maxY = Math.max(...points.map(p => p[1]))
+  const width = maxX - minX, height = maxY - minY
+  const views = [layers.at(-1)!, layers[Math.floor(layers.length / 2)], layers[0]]
+  const paths = views.map((layer, i) => `<g transform="translate(${i * (width + 10) + 5 - minX},${maxY + 7}) scale(1,-1)">${layer.segments.map(s =>
+    `<path d="M${s.from.join(',')}L${s.to.join(',')}" stroke="${s.color === '#ffffff' ? '#8c949e' : s.color}"/>`).join('')}</g>`).join('')
+  await writeFile(join(dir, 'toolpaths.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${(width + 10) * 3} ${height + 16}"><rect width="100%" height="100%" fill="white"/><g fill="none" stroke-width="0.25">${paths}</g></svg>`)
+  const result = { name, layers: layers.length, filaments: colors.length }
   results.push(result)
   console.log(result)
 }
-await writeFile(join(out, 'results.json'), JSON.stringify(results, null, 2))
+await writeFile(join(out, process.argv.includes('--outline') ? 'outline-results.json' : 'results.json'), JSON.stringify(results, null, 2))

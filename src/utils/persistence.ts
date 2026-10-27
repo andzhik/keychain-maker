@@ -60,7 +60,7 @@ export function sanitizeConfig(raw: unknown): KeychainConfig {
     if (typeof value === 'number' && !Number.isFinite(value)) continue
     ;(config as unknown as Record<string, unknown>)[key] = value
   }
-  if (config.basePlateShape !== 'square' && config.basePlateShape !== 'circle') {
+  if (!['square', 'circle', 'outline'].includes(config.basePlateShape)) {
     config.basePlateShape = DEFAULT_CONFIG.basePlateShape
   }
   return config

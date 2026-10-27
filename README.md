@@ -12,7 +12,7 @@ Upload an SVG, PNG, JPEG, or WebP and export a `.3mf` for your slicer.
 ## Make a keychain
 
 1. Upload your logo. Simple artwork with solid colors works best.
-2. Choose a square or circle base, adjust the size and colors, and check the preview.
+2. Choose a rectangle, circle or SVG outline base, adjust the size and colors, and check the preview.
 3. Download the `.3mf` and open it in your slicer.
 
 For SVGs, convert text and strokes to filled paths first.

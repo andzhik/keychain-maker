@@ -24,13 +24,16 @@ const warnings = computed(() => printabilityWarnings(props.effectiveConfig, prin
 const warning = (field: keyof KeychainConfig) => warnings.value.find(w => w.field === field)?.message
 const errors = computed(() => props.configMessages.filter(m => m.severity === 'error'))
 const circle = computed(() => props.config.basePlateShape === 'circle')
+const outline = computed(() => props.config.basePlateShape === 'outline')
 const INFO = {
-  shape: 'Rectangle fits around your images. Circle is a fixed-size disc with each image centered.',
+  shape: 'Rectangle fits around your images. Circle is a fixed-size disc. SVG outline follows the combined visible artwork on both faces, after mirroring.',
   width: 'Width of the plate, not counting the keyring loop. The height follows your images’ proportions.',
   diameter: 'Diameter of the plate, not counting the keyring loop.',
   thickness: 'Total thickness of the keychain, artwork included.',
   cornerRadius: 'How round the plate corners are. 0 = square corners.',
   border: 'Empty space between the artwork and the plate edge. Grows automatically to keep the artwork clear of the keyring hole.',
+  artworkWidth: 'Each face’s artwork is fitted to this width before the outline offset. Final plate size includes the border, chamfer and keyring.',
+  offset: 'Uniform outward distance from the combined artwork silhouette, in mm at print size. Rounded joins preserve concavities. 0 follows the silhouette; interior holes stay backed.',
   plateColor: 'Filament color of the plate. Logo colors you remove show this color.',
   keyring: 'Adds a loop with a hole at the top, for a key ring or chain.',
   hole: 'Make it a little wider than your ring’s wire or chain.',
@@ -45,6 +48,7 @@ const INFO = {
 const SHAPES: { value: BasePlateShape; label: string }[] = [
   { value: 'square', label: 'Rectangle' },
   { value: 'circle', label: 'Circle' },
+  { value: 'outline', label: 'SVG outline' },
 ]
 function adjustment(field: keyof KeychainConfig): string | undefined {
   return props.adjustments.find(a => a.field === field)?.message
@@ -54,7 +58,7 @@ function shown(...fields: (keyof KeychainConfig)[]): boolean {
   return advanced.value || fields.some(field => props.config[field] !== DEFAULT_CONFIG[field]
     || adjustment(field) || warning(field) || errors.value.some(m => m.field === field))
 }
-const showCorner = computed(() => !circle.value && shown('cornerRadius'))
+const showCorner = computed(() => !circle.value && !outline.value && shown('cornerRadius'))
 // Paired options show together: each only makes sense beside the other.
 const showKeyringSizes = computed(() => shown('keyringHoleDiameter', 'keyringRingDiameter'))
 const showEdge = computed(() => shown('edgeBevel', 'bevelSegments'))
@@ -70,7 +74,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
   <section id="keychain-settings" class="control-panel flex flex-col gap-3" aria-label="Keychain settings">
     <PanelCard title="Keychain">
       <FeedbackNotice v-for="message in errors" :key="message.field + message.code" severity="error" title="Invalid keychain setting" :announce="false"><p>{{ message.message }}</p></FeedbackNotice>
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="inline-flex items-center gap-1 text-sm text-gray-700">
           Shape<IconTooltip kind="info" label="About Shape" :message="INFO.shape" align="left" />
         </span>
@@ -81,7 +85,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
             type="button"
             role="radio"
             :aria-checked="config.basePlateShape === shape.value"
-            class="px-3 py-0.5 text-sm transition-colors"
+            class="px-2 py-0.5 text-sm transition-colors"
             :class="config.basePlateShape === shape.value
               ? 'bg-gray-800 text-white'
               : 'bg-white text-gray-700 hover:bg-gray-50'"
@@ -93,10 +97,18 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       </div>
 
       <SliderField
-        :label="circle ? 'Diameter' : 'Width'" unit="mm" field="targetWidth" :info="circle ? INFO.diameter : INFO.width"
+        :label="circle ? 'Diameter' : 'Width'" unit="mm" field="targetWidth" :info="circle ? INFO.diameter : outline ? INFO.artworkWidth : INFO.width"
         :modelValue="config.targetWidth" :min="20" :max="150" :step="1"
         @update:modelValue="v => updateField('targetWidth', v)"
       />
+      <template v-if="outline">
+        <SliderField
+          label="Outline offset" unit="mm" field="outlineOffset" :info="INFO.offset"
+          :modelValue="config.outlineOffset" :min="0" :max="20" :step="0.1"
+          @update:modelValue="v => updateField('outlineOffset', v)"
+        />
+        <p class="text-xs text-gray-500">Width sizes each face’s artwork before the border. Both faces form one silhouette; holes stay backed. Separate pieces need a larger offset or fewer components.</p>
+      </template>
       <SliderField
         label="Thickness" unit="mm" field="baseThickness" :info="INFO.thickness"
         :modelValue="config.baseThickness" :min="0.4" :max="10" :step="0.1"
@@ -111,7 +123,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         @update:modelValue="v => updateField('cornerRadius', v)"
       />
       <SliderField
-        v-if="shown('padding')"
+        v-if="!outline && shown('padding')"
         label="Border" unit="mm" field="padding" :info="INFO.border"
         :modelValue="config.padding" :min="0" :max="20" :step="0.5"
         :note="adjustment('padding')"

@@ -19,7 +19,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Prepare the logo for printing: change, merge or remove colors, limit it to **Max colors**, remove small details below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
 - Toggle each face's red thin-area overlay from its inline or enlarged preview; those two views share the setting, while printability warnings stay visible
 - **Simplify outlines** to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens in the right column, leaving both face editors usable
-- Choose a square or circle base plate
+- Choose a rectangle, circle or [SVG outline](outline-plates.md) base plate
 - Tune the plate's width (diameter for a circle), thickness and color; advanced options add corner rounding, border, edge chamfer and edge roundness
 - Set the inlay depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
 - Add or remove the keyring loop, and set its hole and loop size
@@ -55,7 +55,7 @@ in the header to show the rest; the choice is remembered in this browser and
 | Always shown | Advanced |
 | --- | --- |
 | Face: Image, upload, Remove background (pictures), preview, Thin areas, colors, Max colors | Face: tracing Colors, Smoothing, Corner rounding, Straighten edges; Mirror horizontally; Merge similar; Match Front/Back; Cleanup (Remove small details, Simplify outlines); import cleanup details |
-| Keychain: Shape, Width or Diameter, Thickness, Plate color, Keyring loop | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
+| Keychain: Shape, Width or Diameter, Outline offset (SVG outline), Thickness, Plate color, Keyring loop | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
 
 A hidden setting still appears when it matters: when it differs from its
 default, when a warning or automatic adjustment refers to it (for example,
@@ -76,6 +76,17 @@ both sides. The taller fitted image sets the shared plate height, including top
 and bottom borders, so the shorter image has extra vertical space. A circle
 keeps the configured diameter; each image's farthest outline point fits inside
 the radius remaining after Border. Faces without an image do not affect the plate size.
+
+**SVG outline** follows the union of both faces' visible, refined artwork after
+mirroring. Width sizes each face's artwork before the border; **Outline offset**
+adds a uniform outward distance in mm, including concave sections, with rounded
+joins. Zero follows the silhouette. Interior holes stay backed by plate material.
+Border and Corner rounding do not apply. The chamfer extends outward beyond this
+flat-face outline, as for the other shapes, and the optional keyring adds a
+reinforced attachment at the highest point. Dimensions show the finished model.
+If the offset leaves separate pieces, Download is disabled: increase the offset,
+hide disconnected artwork, or choose a rectangle or circle. An outline needs
+visible artwork; choose another shape for a blank plate. See [sizing and geometry](outline-plates.md).
 
 Inlay depth applies independently inward from each populated face and is capped
 at half the plate thickness. At that limit different inlays meet only where
