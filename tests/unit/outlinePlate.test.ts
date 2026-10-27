@@ -126,6 +126,9 @@ for (const edgeBevel of [0, 0.3]) {
       const meshes = [base, ...result.model.logoGroup!.children] as THREE.Mesh[]
       expect(hits(base, 0, 0)).toHaveLength(2)
       expect(hits(base, 7, 0)).toHaveLength(0)
+      // A flat plate keeps no sub-micron wall around the through-inlays: only the counter remains.
+      base.geometry.computeBoundingBox()
+      if (!edgeBevel) expect(base.geometry.boundingBox!.max.x).toBeCloseTo(5, 5)
       expect(meshes.reduce((sum, mesh) => sum + volume(mesh), 0)).toBeCloseTo(volume(plain), 3)
       expect(result.model.dimensions.depth).toBeCloseTo(0.8, 5)
     } finally { disposeObject(plain); disposeObject(result.model.root) }
@@ -166,3 +169,78 @@ for (const edgeBevel of [0, 0.6, 2]) for (const outlineOffset of [0, 2, 9]) for 
     } finally { disposeObject(plain); disposeObject(result.model.root) }
   })
 }
+
+// Every edge of a closed, consistently oriented mesh is used once in each direction.
+function openEdges(mesh: THREE.Mesh) {
+  const p = mesh.geometry.attributes.position
+  const key = (i: number) => [p.getX(i), p.getY(i), p.getZ(i)].map(v => (Math.round(v * 1e5) / 1e5 || 0).toFixed(5)).join(',')
+  const edges = new Map<string, number>()
+  for (let i = 0; i < p.count; i += 3) for (let j = 0; j < 3; j++) {
+    const a = key(i + j), b = key(i + (j + 1) % 3)
+    if (a === b) continue
+    edges.set(`${a}|${b}`, (edges.get(`${a}|${b}`) ?? 0) + 1)
+  }
+  return [...edges].filter(([edge, count]) => {
+    const [a, b] = edge.split('|')
+    return count !== 1 || edges.get(`${b}|${a}`) !== 1
+  }).length
+}
+const bite = (() => {
+  const points = [[-10, -10], [10, -10], [10, 10]]
+  for (let i = 0; i <= 32; i++) points.push([5 * Math.cos(i / 32 * Math.PI), 10 - 5 * Math.sin(i / 32 * Math.PI)])
+  return shape([...points, [-10, 10]])
+})()
+
+for (const edgeBevel of [0, 0.5]) for (const keyringEnabled of [false, true]) {
+  test(`outline plates are closed meshes that keep every corner (bevel ${edgeBevel}, keyring ${keyringEnabled})`, () => {
+    for (const artwork of [rect(-5, -5, 10, 10), concave, bite]) {
+      const config = cfg({ edgeBevel, keyringEnabled, outlineOffset: 0, bevelSegments: 4 })
+      const mesh = buildBasePlate(config, 40, 30, [], undefined, createOutlinePlate([artwork], config))
+      try {
+        expect(openEdges(mesh)).toBe(0)
+        if (!keyringEnabled && artwork !== bite) {
+          // The ring's last vertex was the one dropped; exact areas catch any other.
+          const area = artwork === concave ? 40 * 30 - 16 * 15 : 100
+          const [x, y] = artwork === concave ? [-19.9, 14.9] : [-4.9, 4.9]
+          expect(hits(mesh, x, y)).toHaveLength(2)
+          if (!edgeBevel) expect(volume(mesh)).toBeCloseTo(area * config.baseThickness, 3)
+        }
+      } finally { disposeObject(mesh) }
+    }
+  })
+}
+
+test('concave curves do not subdivide the bevel bands', () => {
+  for (const bevelSegments of [1, 4]) {
+    const config = cfg({ edgeBevel: 0.5, outlineOffset: 0, bevelSegments })
+    const mesh = buildBasePlate(config, 20, 20, [], undefined, createOutlinePlate([bite], config))
+    try {
+      // About two triangles per section vertex and band; the old notch test
+      // split every band down to 0.01 mm here (7,694 triangles at one segment).
+      expect(mesh.geometry.attributes.position.count / 3).toBeLessThan(600 * bevelSegments)
+    } finally { disposeObject(mesh) }
+  }
+})
+
+test('the keyring centres on a flat top edge and still anchors on a sharp tip', () => {
+  const config = cfg({ keyringEnabled: true, outlineOffset: 2, edgeBevel: 0 })
+  const hole = (plate: THREE.Shape) => new THREE.Box2().setFromPoints(plate.holes[0].getPoints())
+  const flat = hole(createOutlinePlate([rect(-20, -10, 40, 20)], config))
+  expect(flat.getCenter(new THREE.Vector2()).x).toBeCloseTo(0, 4)
+  expect(flat.min.y).toBeCloseTo(12 + 1, 4)
+  const tip = hole(createOutlinePlate([shape([[-10, -10], [10, -10], [4, 10]])], { ...config, outlineOffset: 0 }))
+  expect(tip.getCenter(new THREE.Vector2()).x).toBeCloseTo(4, 4)
+})
+
+test('degenerate artwork pieces are ignored or reported, never thrown as TypeErrors', () => {
+  const sliver = shape([[0, 0], [1, 1]])
+  expect(createOutlinePlate([sliver, rect(-5, -5, 10, 10)], cfg()).getPoints().length).toBeGreaterThan(3)
+  expect(() => createOutlinePlate([sliver], cfg())).toThrow('needs visible artwork')
+})
+
+test('every keyring plate caps the chamfer to keep its hole open', () => {
+  for (const basePlateShape of ['square', 'circle', 'outline'] as const) {
+    const { config } = validateConfig(cfg({ basePlateShape, keyringEnabled: true, edgeBevel: 2, keyringHoleDiameter: 2 }))
+    expect(config.edgeBevel).toBe(0.8)
+  }
+})

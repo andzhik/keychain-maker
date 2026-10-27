@@ -6,6 +6,10 @@ import type { MultiPolygon, Polygon } from 'polygon-clipping'
 const SCALE = 100000
 export const OFFSET_ARC_TOLERANCE = 0.01
 
+export class OutlinePlateError extends Error {
+  constructor(public code: string, message: string) { super(message) }
+}
+
 export function offsetPolygons(polygons: MultiPolygon, mm: number): MultiPolygon {
   if (mm === 0) return polygons
   const paths = polygons.flatMap(polygon => polygon.map((ring, i) => {

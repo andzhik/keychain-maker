@@ -28,8 +28,10 @@ The silhouette is expanded geometrically at print size using
 with round joins and resolved intersections. It is not scaled, boxed or replaced
 with a convex hull. Integer precision is 0.00001 mm; round-join chord error is at
 most 0.01 mm. For example, Width 50 mm and offset 2 mm give approximately 54 mm at
-the flat faces, before bevel/keyring. Zero follows the artwork; a 0.0001 mm
-numerical clearance avoids coincident exterior walls in recess subtraction.
+the flat faces, before bevel/keyring. Zero follows the artwork. On a flat plate
+the recess cutters then reach 0.001 mm past the plate edge, so no sub-micron wall
+is left around the inlays; a chamfered plate instead gets a 0.0001 mm clearance,
+since its face edge would otherwise lie exactly on the cutter walls.
 
 ## Connections and edges
 
@@ -40,15 +42,20 @@ silently discarded, and the keyring does not connect separate pieces.
 
 ![Disconnected artwork blocks Download and explains how to recover](img/svg-outline-disconnected.png)
 
-The keyring attaches at the highest boundary point (closest to the center on a
-tie), using a rounded, reinforced neck of the loop's diameter. The hole's bottom
+The keyring attaches at the boundary point on the highest edges closest to the
+center, so a flat top gets a centered loop and a single tip anchors at the tip,
+using a rounded, reinforced neck of the loop's diameter. The hole's bottom
 sits 1 mm above the silhouette's top, clear of both faces' artwork. Loop/hole size
-constraints still apply. Edge chamfer is also capped to keep the hole open.
+constraints still apply. Edge chamfer is capped to keep the hole open, as on
+every plate shape with a keyring.
 
 The flat faces retain the requested border. The chamfer bulges outward by up to
 its configured size, matching existing plate sizing conventions. For arbitrary
 concavities, nested rounded polygon offsets are triangulated into bevel bands;
-this handles closing notches without folding per-vertex bevels. Thickness, inlay
+this handles closing notches without folding per-vertex bevels. Sections closer
+than 0.02 mm (twice the chord error) are merged so their rings never cross, and
+each band is triangulated straight from them, keeping the mesh closed. A band is
+subdivided only where a notch actually closes inside it. Thickness, inlay
 depth and recesses use the existing Z intervals. Finished dimensions include the
 bevel and keyring. Preview and 3MF export share the exact same meshes.
 

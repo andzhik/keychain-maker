@@ -165,7 +165,7 @@ function buildKeyringHolePath(config: KeychainConfig, h: number): THREE.Path {
   return holePath
 }
 
-function clampBevel(config: KeychainConfig): number {
+export function clampBevel(config: KeychainConfig): number {
   const maxBevel = config.baseThickness / 2 - 0.05
   const bevel = Math.max(0, Math.min(config.edgeBevel, maxBevel))
   return bevel <= 0.01 ? 0 : bevel

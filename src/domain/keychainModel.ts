@@ -8,7 +8,7 @@ import { fitFaces } from '../utils/logoFit'
 import { validateGroupComplexity } from '../utils/svgValidation'
 import { createLogoCutouts } from './logoCutouts'
 import { disposeObject } from '../three/sceneLifecycle'
-import { createOutlinePlate, OutlinePlateError } from './outlinePlate'
+import { createOutlinePlate, OutlinePlateError, outlineRecessCutters } from './outlinePlate'
 
 export interface ModelBuildError { code: string; message: string }
 export interface KeychainModel {
@@ -82,9 +82,13 @@ export function buildKeychainModel(artwork: KeychainArtwork | ColorGroup[], rawC
     }
 
     // Step 5: subtract logo recesses (keyring through-hole is in step 3 extrude)
+    const recesses = outline
+      ? { front: outlineRecessCutters(cutouts.front, outline, config),
+          back: equivalent ? [] : outlineRecessCutters(cutouts.back, outline, config) }
+      : cutouts
     profiler.measure('cutoutBasePlateHoles', () =>
-      equivalent ? cutoutBasePlateHoles(basePlate, cutouts.front, config, profiler)
-        : cutoutFaceRecesses(basePlate, faceNames.map(face => ({ shapes: cutouts[face], layer: faceLayer(config, face), face })), config),
+      equivalent ? cutoutBasePlateHoles(basePlate, recesses.front, config, profiler)
+        : cutoutFaceRecesses(basePlate, faceNames.map(face => ({ shapes: recesses[face], layer: faceLayer(config, face), face })), config),
     )
 
     // Measured from the finished plate: the bevel bulges the outline outward

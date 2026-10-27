@@ -103,7 +103,8 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
   }
   const bevel = Math.max(0, Math.min(config.edgeBevel, config.baseThickness / 2 - 0.05))
   if (bevel !== config.edgeBevel) adjust('edgeBevel', bevel, `Limited to ${fmt(bevel)} mm to fit the base thickness.`)
-  if (config.basePlateShape === 'outline' && config.keyringEnabled) {
+  // Every plate shape bevels the keyring hole's edge, which narrows the hole.
+  if (config.keyringEnabled) {
     const maxBevel = Math.max(0, config.keyringHoleDiameter / 2 - 0.2)
     if (config.edgeBevel > maxBevel) adjust('edgeBevel', maxBevel,
       `Limited to ${fmt(maxBevel)} mm so the keyring hole stays open through the chamfer.`)

@@ -5,7 +5,8 @@ import { resolve, join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import JSZip from 'jszip'
 
-const executable = process.argv[2] ?? 'C:/Program Files/Bambu Studio/bambu-studio.exe'
+const outline = process.argv.includes('--outline')
+const executable = process.argv.slice(2).find(arg => !arg.startsWith('--')) ?? 'C:/Program Files/Bambu Studio/bambu-studio.exe'
 const profiles = join(dirname(executable), 'resources/profiles/BBL')
 const out = resolve('test-output/face-slicer')
 await mkdir(out, { recursive: true })
@@ -93,7 +94,7 @@ async function slice(name: string, file: string) {
 }
 
 const results = []
-if (!process.argv.includes('--outline')) {
+if (!outline) {
   for (const scenario of ['different', 'front-mirrored', 'back-mirrored', 'front-only', 'back-only']) {
     for (const [bevel, thickness] of [[0.6, 5], [0, 0.8], [0.3, 0.8]]) {
       const name = `${scenario}-${bevel}-${thickness}`
@@ -182,8 +183,8 @@ if (!process.argv.includes('--outline')) {
 
 // Issue #15: actual browser downloads, including a filled artwork counter,
 // two-color concavities, zero border, disconnected-part recovery and two faces.
-for (const name of ['star-2mm-keyring-bevel', 'star-zero-keyring-flat', 'star-front-only',
-  'independent-faces', 'independent-back-mirrored', 'refined-silhouette', 'disconnected-joined', 'disconnected-hidden']) {
+for (const name of outline ? ['star-2mm-keyring-bevel', 'star-zero-keyring-flat', 'star-front-only',
+  'independent-faces', 'independent-back-mirrored', 'refined-silhouette', 'disconnected-joined', 'disconnected-hidden'] : []) {
   const { dir, colors, layers } = await slice(`outline-${name}`, `test-output/issue-15/${name}.3mf`)
   assert.equal(layers.length, 25, `${name}: expected a 5 mm plate at 0.2 mm layers`)
   const printed = new Set(layers.flatMap(l => l.segments.map(s => s.color)))
@@ -230,4 +231,4 @@ for (const name of ['star-2mm-keyring-bevel', 'star-zero-keyring-flat', 'star-fr
   results.push(result)
   console.log(result)
 }
-await writeFile(join(out, process.argv.includes('--outline') ? 'outline-results.json' : 'results.json'), JSON.stringify(results, null, 2))
+await writeFile(join(out, outline ? 'outline-results.json' : 'results.json'), JSON.stringify(results, null, 2))
