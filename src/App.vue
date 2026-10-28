@@ -254,6 +254,7 @@ const buildTimeText = computed(() => {
                 :configError="configError"
                 @buildStatus="handleBuildStatus"
               />
+              <p v-if="!hasBlockingFeedback && readiness" role="status" aria-live="polite" class="absolute bottom-2 left-2 rounded bg-white/90 px-2 py-1 text-xs text-gray-500 pointer-events-none">{{ readiness }}</p>
               <div v-if="partialPreview" class="absolute inset-x-2 bottom-2 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-sm text-amber-950">
                 <p class="font-semibold">Partial preview</p>
                 <p class="mt-0.5 text-xs">{{ partialDescription }}</p>
@@ -288,7 +289,6 @@ const buildTimeText = computed(() => {
                 />
               </div>
             </div>
-            <p v-if="!hasBlockingFeedback && readiness" role="status" aria-live="polite" class="text-xs shrink-0 text-gray-500">{{ readiness }}</p>
           </aside>
 
           <ControlPanel
