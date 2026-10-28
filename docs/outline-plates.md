@@ -11,9 +11,10 @@ with an explanation. The shape and offset are saved with other plate settings.
 
 ## Sizing
 
-Each populated face is independently centered and scaled to **Width**, preserving
-its aspect ratio. That is the artwork width **before** the border. Border/padding
-and Corner rounding do not apply in this mode; switching shapes preserves them.
+Each populated face is independently centered and scaled to **Artwork width**
+(50 mm by default), preserving its aspect ratio. That is the artwork width
+**before** the border. Border/padding and Corner rounding do not apply in this
+mode; switching shapes preserves them.
 Refinement tolerances and thin-feature checks use this same artwork scale.
 
 The silhouette is the union of the visible, refined Front and Back artwork in
@@ -27,8 +28,8 @@ The silhouette is expanded geometrically at print size using
 [Clipper's polygon offset](https://github.com/junmer/clipper-lib/blob/master/Documentation.md),
 with round joins and resolved intersections. It is not scaled, boxed or replaced
 with a convex hull. Integer precision is 0.00001 mm; round-join chord error is at
-most 0.01 mm. For example, Width 50 mm and offset 2 mm give approximately 54 mm at
-the flat faces, before bevel/keyring. Zero follows the artwork. On a flat plate
+most 0.01 mm. For example, Artwork width 50 mm and offset 2 mm give approximately
+54 mm at the flat faces, before bevel/keyring. Zero follows the artwork. On a flat plate
 the recess cutters then reach 0.001 mm past the plate edge, so no sub-micron wall
 is left around the inlays; a chamfered plate instead gets a 0.0001 mm clearance,
 since its face edge would otherwise lie exactly on the cutter walls.

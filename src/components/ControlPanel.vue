@@ -98,7 +98,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
       </div>
 
       <SliderField
-        :label="circle ? 'Diameter' : 'Width'" unit="mm" field="targetWidth" :info="circle ? INFO.diameter : outline ? INFO.artworkWidth : INFO.width"
+        :label="circle ? 'Diameter' : outline ? 'Artwork width' : 'Width'" unit="mm" field="targetWidth" :info="circle ? INFO.diameter : outline ? INFO.artworkWidth : INFO.width"
         :modelValue="config.targetWidth" :min="20" :max="150" :step="1"
         @update:modelValue="v => updateField('targetWidth', v)"
       />
@@ -108,7 +108,7 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
           :modelValue="config.outlineOffset" :min="0" :max="20" :step="0.1"
           @update:modelValue="v => updateField('outlineOffset', v)"
         />
-        <p class="text-xs text-gray-500">Width sizes each face’s artwork before the border. Both faces form one silhouette; holes stay backed. Separate pieces need a larger offset or fewer components.</p>
+        <p class="text-xs text-gray-500">Artwork width sets each face’s size in mm; height follows its proportions. Outline offset adds a border around the combined artwork. Dimensions below the preview include the border, chamfer and keyring. Separate pieces need a larger offset or fewer components.</p>
       </template>
       <SliderField
         label="Thickness" unit="mm" field="baseThickness" :info="INFO.thickness"
