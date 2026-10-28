@@ -47,17 +47,17 @@ outline from **0–360°**, clockwise as seen from Front: **0°/360° top, 90° 
 180° bottom, 270° left**. The control is available in basic view. The plate,
 artwork and face views stay upright while the attachment moves.
 
-The keyring attaches to the outermost boundary in the selected direction,
-nearest the center line perpendicular to that direction. A flat edge gets a
-centered loop and a sharp tip anchors at the tip; asymmetric and concave shapes
-can switch between outer tips as the direction changes. A rounded, reinforced
-neck of the loop's diameter joins it to the plate. The hole stays 1 mm beyond
-the silhouette in that direction, clear of both faces' artwork. Loop/hole size
-constraints still apply. Edge chamfer is capped to keep the hole open.
+The hole follows the selected radial direction from the artwork's center,
+moving smoothly as the angle changes. A rounded, reinforced neck of the loop's
+diameter joins it to the outermost outline crossing on that line; it does not
+snap sideways between outer tips. The hole stays 1 mm beyond the silhouette's
+support line in that direction, clear of both faces' artwork. Any pockets
+enclosed by the neck are filled, leaving only the intended keyring hole.
+Loop/hole size constraints still apply. Edge chamfer is capped to keep the hole open.
 
 The angle is saved with the plate settings, including while the keyring is off
 or another plate shape is selected. Rectangle and Circle keep their top
-attachment. Existing sessions default to 0°, preserving their original loop.
+attachment. Existing sessions default to 0° for a top attachment.
 Invalid angles or an attachment that cannot form one connected plate with an
 open hole block Download and show recovery guidance.
 
@@ -93,8 +93,10 @@ Bambu 1.9 CLI; it preserves mesh coordinates, topology and part assignments.
 Issue [#38](https://github.com/andzhik/keychain-maker/issues/38) adds browser
 checks for slider changes, 0°/360° equivalence, unchanged inlays, reload and
 temporary shape/keyring changes. Additional downloads and a screenshot live
-under `test-output/issue-38/`. Run `bun run test:slicer:keyring` after the browser
-tests to slice these exports with Bambu Studio CLI. It checks that the hole
+under `test-output/issue-38/`, including adjacent 271°/272°/273° smile-wordmark
+positions. Unit tests sweep all 361 integer angles on flat, concave and
+asymmetric silhouettes to catch jumps. Run `bun run test:slicer:keyring` after
+the browser tests to slice these exports with Bambu Studio CLI. It checks that the hole
 stays empty and the reinforced neck prints on every layer, with one connected
 exterior perimeter and one hole perimeter in the middle layer. Logs, G-code
 and toolpath SVGs are under `test-output/face-slicer/keyring-*/`.
@@ -104,7 +106,8 @@ segments, and allows Bambu's normal seam gap when checking perimeter closure.
 Validation including keyring positions: production build, 247 unit tests and
 56 browser tests passed (browser files run sequentially to avoid concurrent
 startup timeouts). All eight existing outline exports and seven keyring-position
-exports passed Bambu Studio CLI checks at 25 layers each. Thin 0.8 mm plates
-with meeting inlays and backed counters are also covered by outline geometry
+exports passed Bambu Studio CLI checks at 25 layers each. The continuity fix
+adds three smile-wordmark exports to that CLI check (ten keyring exports total).
+Thin 0.8 mm plates with meeting inlays and backed counters are also covered by outline geometry
 tests, with and without bevel.
 The screenshots above are from the real desktop app, captured by these tests.

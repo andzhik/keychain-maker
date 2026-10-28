@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import * as THREE from 'three'
 import { createOutlinePlate } from '../../src/domain/outlinePlate'
 import { buildKeychainModel } from '../../src/domain/keychainModel'
@@ -10,6 +11,8 @@ import { validateConfig } from '../../src/utils/configConstraints'
 import { sanitizeConfig } from '../../src/utils/persistence'
 import { disposeObject } from '../../src/three/sceneLifecycle'
 import { DEFAULT_CONFIG, type ColorGroup, type KeychainConfig, type KeychainArtwork } from '../../src/types/keychain'
+import { installDomParserForSvgLoader } from '../helpers/svgDom'
+import { parseGroups } from '../helpers/parseGroups'
 
 const shape = (points: number[][]) => new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)))
 const rect = (x: number, y: number, w: number, h: number) => shape([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
@@ -222,17 +225,18 @@ test('concave curves do not subdivide the bevel bands', () => {
   }
 })
 
-test('the keyring centres on a flat top edge and still anchors on a sharp tip', () => {
+test('the keyring centres above flat edges and asymmetric sharp tips', () => {
   const config = cfg({ keyringEnabled: true, outlineOffset: 2, edgeBevel: 0 })
   const hole = (plate: THREE.Shape) => new THREE.Box2().setFromPoints(plate.holes[0].getPoints())
   const flat = hole(createOutlinePlate([rect(-20, -10, 40, 20)], config))
   expect(flat.getCenter(new THREE.Vector2()).x).toBeCloseTo(0, 4)
   expect(flat.min.y).toBeCloseTo(12 + 1, 4)
   const tip = hole(createOutlinePlate([shape([[-10, -10], [10, -10], [4, 10]])], { ...config, outlineOffset: 0 }))
-  expect(tip.getCenter(new THREE.Vector2()).x).toBeCloseTo(4, 4)
+  expect(tip.getCenter(new THREE.Vector2()).x).toBeCloseTo(0, 4)
+  expect(tip.min.y).toBeCloseTo(10 + 1, 4)
 })
 
-test('cardinal keyring positions follow Front clockwise and 360 is exactly the legacy top', () => {
+test('cardinal keyring positions follow Front clockwise and 360 is exactly the same as 0', () => {
   const artwork = rect(-20, -10, 40, 20)
   const config = cfg({ keyringEnabled: true, outlineOffset: 2, edgeBevel: 0 })
   for (const [keyringAngle, x, y] of [[0, 0, 15.5], [90, 25.5, 0], [180, 0, -15.5], [270, -25.5, 0], [360, 0, 15.5]]) {
@@ -244,6 +248,54 @@ test('cardinal keyring positions follow Front clockwise and 360 is exactly the l
   }
   expect(createOutlinePlate([artwork], { ...config, keyringAngle: 360 }).getPoints())
     .toEqual(createOutlinePlate([artwork], config).getPoints())
+})
+
+test('one-degree keyring changes stay smooth across the smile wordmark tips', () => {
+  installDomParserForSvgLoader()
+  const config = cfg({ keyringEnabled: true })
+  const artwork = parseGroups(readFileSync(new URL('../../test-svg/smile-heart.svg', import.meta.url), 'utf8'))
+  const fit = fitFaces(artwork, artwork, config)
+  const outlines = createLogoCutouts(logoOutline(artwork).map(s => s.extractPoints()), fit.front)
+  let previous: THREE.Vector2 | undefined
+  for (const keyringAngle of [270, 271, 272, 273, 274]) {
+    const plate = createOutlinePlate(outlines, { ...config, keyringAngle })
+    const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
+    if (previous) expect(center.distanceTo(previous)).toBeLessThan(1)
+    previous = center
+  }
+})
+
+test('keyring holes follow the selected radial line across flat edges and asymmetric tips', () => {
+  for (const artwork of [rect(-20, -10, 40, 20), concave, shape([[-10, -10], [10, -10], [4, 10]])]) {
+    const config = cfg({ keyringEnabled: true, outlineOffset: 0, edgeBevel: 0 })
+    let previous: THREE.Vector2 | undefined
+    for (let keyringAngle = 0; keyringAngle <= 360; keyringAngle++) {
+      const plate = createOutlinePlate([artwork], { ...config, keyringAngle })
+      const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
+      const angle = keyringAngle * Math.PI / 180
+      expect(center.x * Math.cos(angle) - center.y * Math.sin(angle)).toBeCloseTo(0, 5)
+      if (previous) expect(center.distanceTo(previous)).toBeLessThan(1)
+      previous = center
+    }
+  }
+})
+
+test('a radial neck across a concavity leaves one clear hole and a closed reinforced plate', () => {
+  for (const edgeBevel of [0, 0.6]) {
+    const config = cfg({ keyringEnabled: true, keyringAngle: 11, outlineOffset: 0, edgeBevel })
+    const plate = createOutlinePlate([concave], config)
+    expect(plate.holes).toHaveLength(1)
+    const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
+    const base = buildBasePlate(config, 40, 30, [], undefined, plate)
+    try {
+      expect(openEdges(base)).toBe(0)
+      expect(volume(base)).toBeGreaterThan(0)
+      expect(hits(base, center.x, center.y)).toHaveLength(0)
+      const angle = config.keyringAngle * Math.PI / 180
+      const neck = center.clone().addScaledVector(new THREE.Vector2(Math.sin(angle), Math.cos(angle)), -3)
+      expect(hits(base, neck.x, neck.y)).toHaveLength(2)
+    } finally { disposeObject(base) }
+  }
 })
 
 test('angled loops stay closed, attached and clear of concave/asymmetric artwork as offset and size change', () => {

@@ -250,6 +250,27 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
     assert.equal(pending, true)
     await waitForExportReady(page)
     assert.equal(await input(page, 'keyringAngle').inputValue(), '270')
+
+    // Adjacent angles used to switch between distant outer tips of the s.
+    await page.locator('[aria-label="front image upload"] input[type=file]').setInputFiles('test-svg/smile-heart.svg')
+    for (const [field, value] of Object.entries({ targetWidth: 50, outlineOffset: 2, edgeBevel: 0.6,
+      keyringHoleDiameter: 5, keyringRingDiameter: 10 })) await input(page, field).fill(String(value))
+    let previous: Awaited<ReturnType<typeof readGeometry>> | undefined
+    for (const angle of [271, 272, 273]) {
+      await input(page, 'keyringAngle').fill(String(angle))
+      await waitForExportReady(page)
+      const geometry = await readGeometry()
+      if (previous) {
+        assert.ok(Math.hypot(...geometry.hole.map((value: number, i: number) => value - previous!.hole[i])) < 1,
+          `${angle - 1} to ${angle} degrees must move the hole smoothly`)
+        assert.deepEqual(geometry.inlays, previous.inlays)
+      }
+      previous = geometry
+      await save(`smile-${angle}`)
+      await page.getByRole('button', { name: 'Front view', exact: true }).click()
+      await page.locator('.inspection-scroll').evaluate(el => { el.scrollTop = 0 })
+      await page.screenshot({ path: `${directory}/smile-${angle}.png` })
+    }
     assert.deepEqual(errors, [])
     writeFileSync(`${directory}/manifest.json`, JSON.stringify(manifest, null, 2))
   } finally { await page.close() }

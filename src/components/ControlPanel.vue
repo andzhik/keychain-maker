@@ -36,7 +36,7 @@ const INFO = {
   offset: 'Uniform outward distance from the combined artwork silhouette, in mm at print size. Rounded joins preserve concavities. 0 follows the silhouette; interior holes stay backed.',
   plateColor: 'Filament color of the plate. Logo colors you remove show this color.',
   keyring: 'Adds a loop with a hole for a key ring or chain. SVG outline lets you choose its position; other shapes attach at the top.',
-  keyringAngle: 'Clockwise in Front’s outside view: 0°/360° top, 90° right, 180° bottom, 270° left. Attaches to the outermost edge in that direction, with the hole clear of both faces.',
+  keyringAngle: 'Clockwise around the artwork’s center in Front’s outside view: 0°/360° top, 90° right, 180° bottom, 270° left. The hole follows that direction smoothly and stays clear of both faces.',
   hole: 'Make it a little wider than your ring’s wire or chain.',
   loop: 'Outer diameter of the loop. Leave at least 2 mm around the hole so it doesn’t snap.',
   chamfer: 'Softens the sharp top and bottom edges. 0 = sharp edges.',
