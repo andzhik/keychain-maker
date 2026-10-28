@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
 import { chromium, type Browser } from 'playwright'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
 
@@ -240,6 +240,38 @@ test('the SVG import report shows safe cleanup and reports unsupported replaceme
     await input.setInputFiles({ name: 'text.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg><text>Convert me</text></svg>') })
     await report.getByText('Convert text to paths', { exact: false }).waitFor()
     assert.equal(await report.getByText(/Normalized inline/).count(), 0)
+  } finally {
+    await page.close()
+  }
+})
+
+test('keyring advice distinguishes the flat face wall from the thicker chamfered middle', async () => {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  try {
+    await page.goto(url)
+    await showAdvanced(page)
+    await facePanel(page, 'Front').getByLabel('Image', { exact: true }).selectOption('empty')
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('empty')
+    for (const [name, value] of [['Loop size', '6'], ['Hole size', '4.5']]) {
+      const field = page.getByRole('spinbutton', { name, exact: true })
+      await field.fill(value)
+      await field.press('Tab')
+    }
+    await page.getByText('Limited to 4.0 mm to leave a 1.0 mm wall at the flat faces.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('spinbutton', { name: 'Hole size', exact: true }).inputValue(), '4.5')
+    const advice = page.getByText(/^The keyring wall is/)
+    mkdirSync('test-output/keyring-wall', { recursive: true })
+    for (const bevel of [0.6, 0]) {
+      await page.getByRole('slider', { name: 'Edge chamfer', exact: true }).fill(String(bevel))
+      await waitForExportReady(page, true)
+      assert.match(await advice.innerText(), bevel
+        ? /1\.0 mm at the flat faces and 2\.2 mm through the middle with the chamfer/
+        : /The keyring wall is 1\.0 mm\. Consider at least 2 mm/)
+      const downloaded = page.waitForEvent('download')
+      await page.getByRole('button', { name: 'Download .3mf (base only)', exact: true }).click()
+      await (await downloaded).saveAs(`test-output/keyring-wall/bevel-${bevel}.3mf`)
+      await advice.screenshot({ path: `test-output/keyring-wall/advice-${bevel}.png` })
+    }
   } finally {
     await page.close()
   }

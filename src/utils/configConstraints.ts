@@ -1,6 +1,6 @@
 import type { KeychainConfig } from '../types/keychain'
 
-/** Thinnest plate material left between the keyring hole and anything else. */
+/** Minimum clearance at the flat faces, before the chamfer thickens the wall. */
 export const MIN_KEYRING_WALL = 1
 /** Smallest logo extent (mm) the padding may shrink the logo to. */
 export const MIN_LOGO_SIZE = 4
@@ -81,7 +81,7 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
     const maxHole = config.keyringRingDiameter - 2 * MIN_KEYRING_WALL
     if (config.keyringHoleDiameter > maxHole) {
       adjust('keyringHoleDiameter', maxHole,
-        `Limited to ${fmt(maxHole)} mm to leave a ${fmt(MIN_KEYRING_WALL)} mm wall inside the ring.`)
+        `Limited to ${fmt(maxHole)} mm to leave a ${fmt(MIN_KEYRING_WALL)} mm wall at the flat faces.`)
     }
   }
 

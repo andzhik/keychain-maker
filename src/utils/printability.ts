@@ -1,5 +1,6 @@
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import { shapeArea } from './refine'
+import { clampBevel } from './meshBuilder'
 
 export interface TinyIslands {
   count: number
@@ -41,7 +42,13 @@ export function printabilityWarnings(config: KeychainConfig, nozzleDiameter: num
   }
   const wall = (config.keyringRingDiameter - config.keyringHoleDiameter) / 2
   if (config.keyringEnabled && wall < 2) {
-    warnings.push({ field: 'keyringHoleDiameter', message: `The keyring wall is ${wall.toFixed(1)} mm. Consider at least 2 mm by increasing the ring or reducing the hole.` })
+    const bevel = clampBevel(config)
+    // The chamfer grows the outside and shrinks the hole, leaving the flat
+    // faces at the nominal wall width while the middle gains twice the bevel.
+    const measurement = bevel > 0
+      ? `${wall.toFixed(1)} mm at the flat faces and ${(wall + 2 * bevel).toFixed(1)} mm through the middle with the chamfer`
+      : `${wall.toFixed(1)} mm`
+    warnings.push({ field: 'keyringHoleDiameter', message: `The keyring wall is ${measurement}. Consider at least 2 mm${bevel > 0 ? ' at the faces' : ''} by increasing the loop or reducing the hole.` })
   }
   return warnings
 }
