@@ -11,10 +11,11 @@ for (const basePlateShape of ['square', 'circle', 'outline'] as const) {
   for (const overrides of [
     { edgeBevel: 0 }, { edgeBevel: 0.005 }, { edgeBevel: 0.01 }, { edgeBevel: 0.6 },
     { edgeBevel: 2, baseThickness: 0.8 }, { edgeBevel: 2, keyringHoleDiameter: 2, keyringRingDiameter: 4 },
+    { edgeBevel: 0, keyringHoleDiameter: 5.5 }, { edgeBevel: 0.6, keyringHoleDiameter: 5.5 },
   ]) {
     test(`${basePlateShape} keyring advice matches face and middle mesh walls: ${JSON.stringify(overrides)}`, () => {
       const { config, adjustments } = validateConfig({ ...DEFAULT_CONFIG, basePlateShape,
-        keyringHoleDiameter: 4.5, keyringRingDiameter: 6, keyringAngle: 37, ...overrides })
+        keyringHoleDiameter: 4, keyringRingDiameter: 6, keyringAngle: 37, ...overrides })
       const silhouette = new THREE.Shape([
         new THREE.Vector2(-25, -25), new THREE.Vector2(25, -25),
         new THREE.Vector2(25, 25), new THREE.Vector2(-25, 25),

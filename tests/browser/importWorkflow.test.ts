@@ -257,7 +257,7 @@ test('keyring advice distinguishes the flat face wall from the thicker chamfered
       await field.fill(value)
       await field.press('Tab')
     }
-    await page.getByText('Limited to 4.0 mm to leave a 1.0 mm wall at the flat faces.', { exact: true }).waitFor()
+    assert.equal(await page.getByText(/^Limited to .* wall at the flat faces\.$/).count(), 0)
     assert.equal(await page.getByRole('spinbutton', { name: 'Hole size', exact: true }).inputValue(), '4.5')
     const advice = page.getByText(/^The keyring wall is/)
     mkdirSync('test-output/keyring-wall', { recursive: true })
@@ -265,13 +265,19 @@ test('keyring advice distinguishes the flat face wall from the thicker chamfered
       await page.getByRole('slider', { name: 'Edge chamfer', exact: true }).fill(String(bevel))
       await waitForExportReady(page, true)
       assert.match(await advice.innerText(), bevel
-        ? /1\.0 mm at the flat faces and 2\.2 mm through the middle with the chamfer/
-        : /The keyring wall is 1\.0 mm\. Consider at least 2 mm/)
+        ? /0\.8 mm at the flat faces and 1\.9 mm through the middle with the chamfer/
+        : /The keyring wall is 0\.8 mm\. Consider at least 2 mm/)
       const downloaded = page.waitForEvent('download')
       await page.getByRole('button', { name: 'Download .3mf (base only)', exact: true }).click()
       await (await downloaded).saveAs(`test-output/keyring-wall/bevel-${bevel}.3mf`)
       await advice.screenshot({ path: `test-output/keyring-wall/advice-${bevel}.png` })
     }
+    await page.getByRole('slider', { name: 'Hole size', exact: true }).fill('5.5')
+    await page.getByText('Limited to 5.2 mm to leave a 0.4 mm wall at the flat faces.', { exact: true }).waitFor()
+    await waitForExportReady(page, true)
+    const downloaded = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download .3mf (base only)', exact: true }).click()
+    await (await downloaded).saveAs('test-output/keyring-wall/minimum-face-wall.3mf')
   } finally {
     await page.close()
   }

@@ -207,7 +207,8 @@ The Printer card applies to both faces, including when the selected face's image
 
 The base-thickness and keyring-wall messages are advisory: the base recommendation
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
-is 2 mm at the flat faces. Hole size and Loop size are diameters at those faces.
+is 2 mm at the flat faces. This is advice; the hard minimum face wall is 0.4 mm,
+so a 6 mm loop accepts a hole up to 5.2 mm. Hole size and Loop size are diameters at those faces.
 The edge chamfer widens the loop and narrows the hole through the middle, adding
 twice the effective chamfer size to the middle wall. For example, a 6 mm loop
 and 4 mm hole leave 1 mm at the faces and 2.2 mm in the middle with a 0.6 mm

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, type KeychainConfig } from '../../src/types/keychain'
-import { MIN_KEYRING_WALL, MIN_LOGO_SIZE, constrainConfig, validateConfig } from '../../src/utils/configConstraints'
+import { KEYRING_ARTWORK_CLEARANCE, MIN_KEYRING_WALL, MIN_LOGO_SIZE, constrainConfig, validateConfig } from '../../src/utils/configConstraints'
 
 function config(overrides: Partial<KeychainConfig> = {}): KeychainConfig {
   return { ...DEFAULT_CONFIG, ...overrides }
@@ -20,10 +20,27 @@ test('the keyring hole is kept inside the ring', () => {
   expect(adjustments.map(a => a.field)).toContain('keyringHoleDiameter')
 })
 
+test('keyring holes allow a 0.4 mm face wall without imposing a 1 mm minimum', () => {
+  for (const basePlateShape of ['square', 'circle', 'outline'] as const) {
+    for (const keyringHoleDiameter of [4.5, 5.2]) {
+      const { config: out, adjustments, valid } = validateConfig(config({ basePlateShape,
+        keyringHoleDiameter, keyringRingDiameter: 6 }))
+      expect(valid).toBe(true)
+      expect(out.keyringHoleDiameter).toBe(keyringHoleDiameter)
+      expect(adjustments.some(a => a.field === 'keyringHoleDiameter')).toBe(false)
+    }
+    const limited = validateConfig(config({ basePlateShape, keyringHoleDiameter: 5.5, keyringRingDiameter: 6 }))
+    expect(limited.config.keyringHoleDiameter).toBe(5.2)
+    expect(limited.adjustments.find(a => a.field === 'keyringHoleDiameter')?.message)
+      .toBe('Limited to 5.2 mm to leave a 0.4 mm wall at the flat faces.')
+    expect(validateConfig(limited.config).adjustments).toEqual([])
+  }
+})
+
 test('padding keeps the logo clear of the keyring hole', () => {
   const { config: out } = constrainConfig(config({ padding: 0, keyringHoleDiameter: 8, keyringRingDiameter: 12 }))
 
-  expect(out.padding).toBe(4 + MIN_KEYRING_WALL)
+  expect(out.padding).toBe(4 + KEYRING_ARTWORK_CLEARANCE)
 })
 
 test('padding is not raised for the hole when the keyring is off', () => {
@@ -78,7 +95,7 @@ test('invalid numeric settings return structured errors without modifying the in
   for (const overrides of [
     { padding: -1 }, { baseThickness: 0 }, { baseThickness: -1 },
     { targetWidth: 0 }, { edgeBevel: NaN }, { cornerRadius: Infinity },
-    { keyringHoleDiameter: 0 }, { keyringRingDiameter: 2 }, { bevelSegments: 1000000 },
+    { keyringHoleDiameter: 0 }, { keyringRingDiameter: 0.8 }, { bevelSegments: 1000000 },
     { logoDepth: 0 }, { logoDepth: -1 }, { logoDepth: NaN }, { logoDepth: Infinity },
   ]) {
     const input = config(overrides)

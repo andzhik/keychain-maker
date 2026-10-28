@@ -1,7 +1,7 @@
 import { Shape } from 'three'
 import polygonClipping, { type MultiPolygon, type Pair, type Polygon } from 'polygon-clipping'
 import type { KeychainConfig } from '../types/keychain'
-import { MIN_KEYRING_WALL } from '../utils/configConstraints'
+import { KEYRING_ARTWORK_CLEARANCE } from '../utils/configConstraints'
 import { clampBevel } from '../utils/meshBuilder'
 import { OFFSET_ARC_TOLERANCE, OutlinePlateError, offsetPolygons } from '../utils/polygonOffset'
 import { shapeToPolygon, polygonToShape } from '../utils/svgToShapes'
@@ -55,7 +55,7 @@ export function createOutlinePlate(faces: Shape[], config: KeychainConfig): Shap
     const ring = plate[0][0].map(([x, y]): Pair => [cos * x - sin * y, sin * x + cos * y])
     const [x, y] = keyringAnchor(ring)
     const top = ring.reduce((max, p) => Math.max(max, p[1]), -Infinity)
-    const holeY = top + config.keyringHoleDiameter / 2 + MIN_KEYRING_WALL
+    const holeY = top + config.keyringHoleDiameter / 2 + KEYRING_ARTWORK_CLEARANCE
     const r = config.keyringRingDiameter / 2
     // The support line keeps the hole clear of the entire silhouette, including
     // concavities and independent faces. The capsule overlaps the boundary with area.
