@@ -13,6 +13,9 @@ export { OutlinePlateError }
 const RECESS_RIM = 0.001
 // Far below the 0.01 mm offset tessellation error.
 const CHAMFER_CLEARANCE = 0.0001
+// Clipping tangent, rotated arcs can leave adjacent points ~1e-15 mm apart.
+// Merge those before triangulation, far below the offset's 0.00001 mm precision.
+const COINCIDENT_TOLERANCE = 1e-8
 
 function circle(x: number, y: number, radius: number): Polygon {
   return shapeToPolygon(new Shape().absarc(x, y, radius, 0, Math.PI * 2, false))
@@ -40,14 +43,26 @@ export function createOutlinePlate(faces: Shape[], config: KeychainConfig): Shap
   }
 
   if (config.keyringEnabled) {
-    const [x, y] = keyringAnchor(plate[0][0])
-    const top = plate[0][0].reduce((max, p) => Math.max(max, p[1]), -Infinity)
+    // Work in a frame whose +Y points outward in the selected direction.
+    // Only the attachment is mapped back; the silhouette/artwork never rotate.
+    const angle = (config.keyringAngle % 360) * Math.PI / 180
+    const cos = Math.abs(Math.cos(angle)) < 1e-12 ? 0 : Math.cos(angle)
+    const sin = Math.abs(Math.sin(angle)) < 1e-12 ? 0 : Math.sin(angle)
+    const world = ([x, y]: Pair): Pair => [cos * x + sin * y, -sin * x + cos * y]
+    const loopCircle = (cx: number, cy: number, radius: number): Polygon => circle(cx, cy, radius).map(points => points.map(world))
+    const ring = plate[0][0].map(([x, y]): Pair => [cos * x - sin * y, sin * x + cos * y])
+    const [x, y] = keyringAnchor(ring)
+    const top = ring.reduce((max, p) => Math.max(max, p[1]), -Infinity)
     const holeY = top + config.keyringHoleDiameter / 2 + MIN_KEYRING_WALL
     const r = config.keyringRingDiameter / 2
-    // Reinforced capsule neck intersects the highest tip with positive area.
-    const neck: Polygon = [[[x - r, y], [x + r, y], [x + r, holeY], [x - r, holeY], [x - r, y]]]
-    plate = polygonClipping.union(plate, circle(x, y, r), circle(x, holeY, r), neck)
-    plate = polygonClipping.difference(plate, circle(x, holeY, config.keyringHoleDiameter / 2))
+    // The support line keeps the hole clear of the entire silhouette, including
+    // concavities and independent faces. The capsule overlaps a tip with area.
+    const neck: Polygon = [[world([x - r, y]), world([x + r, y]), world([x + r, holeY]), world([x - r, holeY]), world([x - r, y])]]
+    plate = polygonClipping.union(plate, loopCircle(x, y, r), loopCircle(x, holeY, r), neck)
+    plate = polygonClipping.difference(plate, loopCircle(x, holeY, config.keyringHoleDiameter / 2))
+    plate = plate.map(polygon => polygon.map(cleanRing))
+    if (plate.length !== 1 || plate[0].length !== 2) throw new OutlinePlateError('INVALID_KEYRING_POSITION',
+      'The keyring could not form a connected loop with an open hole. Change Keyring position or reduce the loop size.')
   }
   if (plate.length !== 1) throw new OutlinePlateError('INVALID_OUTLINE',
     'The outline could not form one plate. Increase Outline offset or reduce the keyring size.')
@@ -55,6 +70,16 @@ export function createOutlinePlate(faces: Shape[], config: KeychainConfig): Shap
   if (count > SVG_LIMITS.points) throw new OutlinePlateError('OUTLINE_TOO_COMPLEX',
     'The offset outline is too complex. Increase Simplify outline or hide small details.')
   return polygonToShape(plate[0])
+}
+
+function cleanRing(ring: Pair[]): Pair[] {
+  const points: Pair[] = []
+  const near = (a: Pair, b: Pair) => Math.hypot(a[0] - b[0], a[1] - b[1]) < COINCIDENT_TOLERANCE
+  for (const point of ring.slice(0, -1)) {
+    if (!points.length || !near(point, points[points.length - 1])) points.push(point)
+  }
+  if (points.length > 1 && near(points[0], points[points.length - 1])) points.pop()
+  return [...points, points[0]]
 }
 
 /** A real boundary point on the highest edges, nearest the centre line. Flat

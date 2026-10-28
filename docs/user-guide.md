@@ -13,7 +13,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Upload an SVG logo and preview it immediately in 3D
 - Start with the basic controls; tick **Advanced options** in the header to see every setting (see [Basic and advanced options](#basic-and-advanced-options))
 - Choose Front and Back artwork independently, reuse Front on Back, or set either face's image to None
-- Mirror each populated face horizontally, with previews labeled as outside views with the keyring at the top
+- Mirror each populated face horizontally, with previews labeled as upright outside views
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (choose whether to drop an opaque background; advanced options set the maximum number of printed colors, how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
 - Prepare the logo for printing: change, merge or remove colors, limit it to **Max colors**, remove small details below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
@@ -22,7 +22,7 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Choose a rectangle, circle or [SVG outline](outline-plates.md) base plate
 - Tune the plate's width (diameter for a circle), thickness and color; advanced options add corner rounding, border, edge chamfer and edge roundness
 - Set the inlay depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
-- Add or remove the keyring loop, and set its hole and loop size
+- Add or remove the keyring loop, set its hole and loop size, and move it around an SVG outline with Keyring position (0–360°)
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
 - See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
@@ -55,7 +55,7 @@ in the header to show the rest; the choice is remembered in this browser and
 | Always shown | Advanced |
 | --- | --- |
 | Face: Image, upload, Remove background (pictures), preview, Thin areas, colors, Max colors | Face: tracing Colors, Smoothing, Corner rounding, Straighten edges; Mirror horizontally; Merge similar; Match Front/Back; Cleanup (Remove small details, Simplify outlines); import cleanup details |
-| Keychain: Shape, Width or Diameter, Outline offset (SVG outline), Thickness, Plate color, Keyring loop | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
+| Keychain: Shape, Width or Diameter, Outline offset (SVG outline), Thickness, Plate color, Keyring loop, Keyring position (SVG outline) | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
 
 A hidden setting still appears when it matters: when it differs from its
 default, when a warning or automatic adjustment refers to it (for example,
@@ -64,11 +64,16 @@ a trace fails. **Remove small details** is available only with **Advanced option
 its saved setting still applies when advanced options are off.
 
 **Mirror horizontally** changes only that panel's face. The 2D preview shows
-that face from outside, with the keyring at the top, matching the 3D model and
+that face from outside, with the artwork upright, matching the 3D model and
 export. Fresh sessions leave Mirror off on both faces, so text reads normally
 on each side. Older single-image saved sessions keep Back mirrored to preserve
 their original orientation. Use **Front** and **Back** above the 3D view to
 inspect either outside face; **Reset View** returns to the isometric view.
+
+In SVG outline mode, **Keyring position** sets the loop's direction clockwise
+from Front's top: 0°/360° top, 90° right, 180° bottom, 270° left. It moves the
+attachment without rotating the artwork. The angle survives reloads, toggling
+the keyring, and switching plate shapes. Other plate shapes attach at the top.
 
 Each image is centered independently and keeps its aspect ratio. A rectangle
 has the configured Width; each image fills the width remaining after Border on

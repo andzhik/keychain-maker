@@ -26,7 +26,7 @@ test('no storage at all loads the defaults', () => {
 
 test('saved config round-trips', () => {
   const storage = memoryStorage()
-  const config = { ...DEFAULT_CONFIG, basePlateShape: 'circle' as const, padding: 7, baseColor: '#112233', logoDepth: 0.8 }
+  const config = { ...DEFAULT_CONFIG, basePlateShape: 'circle' as const, padding: 7, baseColor: '#112233', logoDepth: 0.8, keyringAngle: 237 }
   saveConfig(config, storage)
 
   expect(loadState(storage)).toEqual({ config, svg: null, refinements: DEFAULT_REFINEMENTS })
@@ -179,6 +179,13 @@ test('sessions saved before surface inlays use the new default depth', () => {
   expect(sanitizeConfig(oldConfig).logoDepth).toBe(0.6)
   expect(sanitizeConfig({ logoDepth: '0.8' }).logoDepth).toBe(logoDepth)
   expect(sanitizeConfig({ logoDepth: Infinity }).logoDepth).toBe(logoDepth)
+})
+
+test('sessions saved before keyring positions restore the top attachment', () => {
+  const { keyringAngle, ...oldConfig } = { ...DEFAULT_CONFIG, basePlateShape: 'outline' as const }
+  expect(sanitizeConfig(oldConfig).keyringAngle).toBe(0)
+  expect(sanitizeConfig({ keyringAngle: '90' }).keyringAngle).toBe(keyringAngle)
+  expect(sanitizeConfig({ keyringAngle: Infinity }).keyringAngle).toBe(keyringAngle)
 })
 
 test('malformed refinements are ignored field by field', () => {

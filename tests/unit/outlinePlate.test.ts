@@ -232,6 +232,62 @@ test('the keyring centres on a flat top edge and still anchors on a sharp tip', 
   expect(tip.getCenter(new THREE.Vector2()).x).toBeCloseTo(4, 4)
 })
 
+test('cardinal keyring positions follow Front clockwise and 360 is exactly the legacy top', () => {
+  const artwork = rect(-20, -10, 40, 20)
+  const config = cfg({ keyringEnabled: true, outlineOffset: 2, edgeBevel: 0 })
+  for (const [keyringAngle, x, y] of [[0, 0, 15.5], [90, 25.5, 0], [180, 0, -15.5], [270, -25.5, 0], [360, 0, 15.5]]) {
+    const plate = createOutlinePlate([artwork], { ...config, keyringAngle })
+    expect(plate.holes).toHaveLength(1)
+    const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
+    expect(center.x).toBeCloseTo(x, 5)
+    expect(center.y).toBeCloseTo(y, 5)
+  }
+  expect(createOutlinePlate([artwork], { ...config, keyringAngle: 360 }).getPoints())
+    .toEqual(createOutlinePlate([artwork], config).getPoints())
+})
+
+test('angled loops stay closed, attached and clear of concave/asymmetric artwork as offset and size change', () => {
+  const triangle = shape([[-10, -10], [10, -10], [4, 10]])
+  for (const artwork of [concave, triangle]) for (const keyringAngle of [0, 37, 90, 143, 180, 237, 270, 319]) {
+    const config = validateConfig(cfg({ keyringEnabled: true, keyringAngle,
+      outlineOffset: keyringAngle % 3, edgeBevel: keyringAngle % 2 ? 0.6 : 0,
+      keyringHoleDiameter: keyringAngle % 2 ? 8 : 2, keyringRingDiameter: keyringAngle % 2 ? 12 : 4 })).config
+    const silhouette = createOutlinePlate([artwork], { ...config, keyringEnabled: false })
+    const plate = createOutlinePlate([artwork], config)
+    const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
+    const direction = new THREE.Vector2(Math.sin(keyringAngle * Math.PI / 180), Math.cos(keyringAngle * Math.PI / 180))
+    const support = Math.max(...silhouette.getPoints().map(p => p.dot(direction)))
+    expect(center.dot(direction) - config.keyringHoleDiameter / 2 - support).toBeCloseTo(1, 4)
+    const base = buildBasePlate(config, 40, 30, [], undefined, plate)
+    try {
+      expect(openEdges(base)).toBe(0)
+      expect(volume(base)).toBeGreaterThan(0)
+      expect(hits(base, center.x, center.y)).toHaveLength(0)
+      // Just inward of the hole, the reinforced neck must span the thickness.
+      const neck = center.clone().addScaledVector(direction, -config.keyringHoleDiameter / 2 - 0.5)
+      expect(hits(base, neck.x, neck.y)).toHaveLength(2)
+    } finally { disposeObject(base) }
+  }
+})
+
+test('keyring angles leave independent mirrored inlays fixed and invalid angles block the current build', () => {
+  const front = groups([concave])
+  const back = groups([rect(-15, -5, 30, 10)], '#0000ff')
+  const artwork: KeychainArtwork = { front: { groups: front, mirror: true }, back: { groups: back, mirror: false } }
+  let reference: number[][] | undefined
+  for (const keyringAngle of [0, 37, 90, 180, 270, 360]) {
+    const result = buildKeychainModel(artwork, cfg({ keyringEnabled: true, keyringAngle, targetWidth: 40 }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) continue
+    try {
+      const positions = result.model.logoGroup!.children.map(mesh => Array.from((mesh as THREE.Mesh).geometry.attributes.position.array))
+      if (!reference) reference = positions
+      else expect(positions).toEqual(reference)
+    } finally { disposeObject(result.model.root) }
+  }
+  expect(buildKeychainModel(artwork, cfg({ keyringEnabled: true, keyringAngle: -1 })).ok).toBe(false)
+})
+
 test('degenerate artwork pieces are ignored or reported, never thrown as TypeErrors', () => {
   const sliver = shape([[0, 0], [1, 1]])
   expect(createOutlinePlate([sliver, rect(-5, -5, 10, 10)], cfg()).getPoints().length).toBeGreaterThan(3)

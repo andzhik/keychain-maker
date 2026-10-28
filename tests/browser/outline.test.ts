@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
 import { chromium, type Browser, type Page } from 'playwright'
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
 import { waitForExportReady } from './exportReady.ts'
@@ -19,7 +19,7 @@ before(async () => {
 })
 after(async () => { await browser?.close(); await server?.close() })
 
-async function exportAndCompare(page: Page, name: string) {
+async function exportAndCompare(page: Page, name: string, directory = 'test-output/issue-15') {
   const preview = await page.evaluate(() => {
     const root = (document.querySelector('canvas')!.parentElement as any).__vueParentComponent.exposed.getCurrentGroup()
     const meshes: number[][][] = []
@@ -44,7 +44,8 @@ async function exportAndCompare(page: Page, name: string) {
     return mesh.triangles.triangle.flatMap(({ v1, v2, v3 }: any) => [vertices[v1], vertices[v2], vertices[v3]])
   })
   assert.deepEqual(exported, preview, 'every exported triangle must match the preview')
-  copyFileSync(file, `test-output/issue-15/${name}.3mf`)
+  mkdirSync(directory, { recursive: true })
+  copyFileSync(file, `${directory}/${name}.3mf`)
 }
 const input = (page: Page, field: string) => page.locator(`input[type=range][data-field=${field}]`)
 const upload = (page: Page, svg: string) => page.locator('[aria-label="front image upload"] input[type=file]').setInputFiles({
@@ -135,5 +136,121 @@ test('#15 disconnected components block download and recover through offset or r
       await page.setViewportSize({ width, height: 900 })
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     }
+  } finally { await page.close() }
+})
+
+test('#38 keyring position follows the slider, survives mode changes/reload and exports the current closed loop', async () => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+  page.setDefaultTimeout(20000)
+  const directory = 'test-output/issue-38'
+  mkdirSync(directory, { recursive: true })
+  const errors: string[] = []
+  page.on('pageerror', e => errors.push(e.message))
+  const manifest: any[] = []
+  const readGeometry = () => page.evaluate(async () => {
+    const viewer = (document.querySelector('canvas')!.parentElement as any).__vueParentComponent
+    const { config, artwork } = viewer.props
+    const load = (path: string) => import(/* @vite-ignore */ path)
+    const [{ fitFaces }, { createLogoCutouts }, { logoOutline }, { createOutlinePlate }, T] = await Promise.all([
+      load('/src/utils/logoFit.ts'), load('/src/domain/logoCutouts.ts'), load('/src/utils/svgToShapes.ts'),
+      load('/src/domain/outlinePlate.ts'), load('/node_modules/.vite/deps/three.js'),
+    ])
+    const fit = fitFaces(artwork.front.groups, artwork.back.groups, config)
+    const cutouts = ['front', 'back'].flatMap(face => createLogoCutouts(
+      logoOutline(artwork[face].groups).map((s: any) => s.extractPoints(16)), fit[face], artwork[face].mirror !== (face === 'back')))
+    const plate = createOutlinePlate(cutouts, config)
+    const hole = new T.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new T.Vector2())
+    const root = viewer.exposed.getCurrentGroup()
+    const base = root.children[0]
+    base.geometry.computeBoundingBox()
+    const box = base.geometry.boundingBox
+    const ray = new T.Raycaster(new T.Vector3(hole.x, hole.y, 100), new T.Vector3(0, 0, -1))
+    const meshes: any[] = []
+    root.traverse((node: any) => { if (node.isMesh) meshes.push(node) })
+    // The model root has a display rotation; inspect the physical mesh coordinates.
+    const holeHits = meshes.flatMap(mesh => ray.intersectObject(new T.Mesh(mesh.geometry, mesh.material))).length
+    const angle = config.keyringAngle * Math.PI / 180
+    const neckDistance = config.keyringHoleDiameter / 2 + 0.5
+    return { hole: [hole.x, hole.y], radius: config.keyringHoleDiameter / 2, bevel: config.edgeBevel,
+      neck: [hole.x - Math.sin(angle) * neckDistance, hole.y - Math.cos(angle) * neckDistance],
+      boxCenter: [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2], holeHits,
+      inlays: root.children[1].children.map((mesh: any) => Array.from(mesh.geometry.attributes.position.array)),
+    }
+  })
+  async function save(name: string) {
+    await waitForExportReady(page)
+    const { inlays, holeHits, ...geometry } = await readGeometry()
+    assert.equal(holeHits, 0, 'the current model must leave the through-hole clear of both faces')
+    await exportAndCompare(page, name, directory)
+    manifest.push({ name, ...geometry })
+  }
+  try {
+    await page.goto(url)
+    assert.equal(await input(page, 'keyringAngle').count(), 0)
+    await page.getByRole('radio', { name: 'SVG outline', exact: true }).click()
+    await page.locator('[aria-label="front image upload"] input[type=file]').setInputFiles('test-svg/outline-star.svg')
+    await waitForExportReady(page)
+    assert.equal(await input(page, 'keyringAngle').isVisible(), true, 'position is a basic control')
+    assert.equal(await input(page, 'keyringAngle').inputValue(), '0')
+    const original = await readGeometry()
+    for (const [angle, name] of [[90, 'star-right'], [180, 'star-bottom'], [270, 'star-left'], [37, 'star-37']] as const) {
+      await input(page, 'keyringAngle').fill(String(angle))
+      await waitForExportReady(page)
+      const geometry = await readGeometry()
+      assert.deepEqual(geometry.inlays, original.inlays, 'moving the keyring must leave both inlays fixed')
+      assert.notDeepEqual(geometry.hole, original.hole)
+      await save(name)
+    }
+    await page.getByRole('button', { name: 'Front view', exact: true }).click()
+    await page.locator('.inspection-scroll').evaluate(el => { el.scrollTop = 0 })
+    await page.screenshot({ path: `${directory}/keyring-37.png` })
+    await input(page, 'keyringAngle').fill('360')
+    await waitForExportReady(page)
+    assert.deepEqual((await readGeometry()).hole, original.hole)
+
+    await input(page, 'keyringAngle').fill('237')
+    await page.getByRole('checkbox', { name: 'Keyring loop', exact: true }).uncheck()
+    assert.equal(await input(page, 'keyringAngle').count(), 0)
+    await page.getByRole('checkbox', { name: 'Keyring loop', exact: true }).check()
+    assert.equal(await input(page, 'keyringAngle').inputValue(), '237')
+    for (const shape of ['Rectangle', 'Circle']) {
+      await page.getByRole('radio', { name: shape, exact: true }).click()
+      assert.equal(await input(page, 'keyringAngle').count(), 0)
+    }
+    await page.getByRole('radio', { name: 'SVG outline', exact: true }).click()
+    await page.reload()
+    await waitForExportReady(page)
+    assert.equal(await input(page, 'keyringAngle').inputValue(), '237')
+    await showAdvanced(page)
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('artwork')
+    await page.locator('[aria-label="back image upload"] input[type=file]').setInputFiles('test-svg/name-tag.svg')
+    await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    await save('independent-mirrored-237')
+
+    // Regressions: rotated tangent duplicates, and a hole collinear with an outer edge.
+    await facePanel(page, 'Back').getByLabel('Image', { exact: true }).selectOption('same')
+    await facePanel(page, 'Front').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).uncheck()
+    await facePanel(page, 'Back').getByRole('checkbox', { name: 'Mirror horizontally', exact: true }).check()
+    await upload(page, '<svg xmlns="http://www.w3.org/2000/svg"><path fill="#e85d50" d="M-10 10H10L4 -10Z"/></svg>')
+    await showAdvanced(page)
+    await input(page, 'targetWidth').fill('20')
+    for (const [angle, offset, bevel, hole, loop] of [[90, 0, 0, 2, 4], [37, 1, 0.6, 8, 12]]) {
+      for (const [field, value] of Object.entries({ keyringAngle: angle, outlineOffset: offset, edgeBevel: bevel,
+        keyringHoleDiameter: hole, keyringRingDiameter: loop })) await input(page, field).fill(String(value))
+      await save(`triangle-${angle}`)
+    }
+    // A rapid drag invalidates export until the existing debounce builds its final value.
+    const pending = await page.evaluate(async () => {
+      const slider = document.querySelector<HTMLInputElement>('input[type=range][data-field=keyringAngle]')!
+      for (const angle of [60, 120, 180, 270]) { slider.value = String(angle); slider.dispatchEvent(new Event('input', { bubbles: true })) }
+      await Promise.resolve()
+      return (document.querySelector('canvas')!.parentElement as any).__vueParentComponent.exposed.getCurrentGroup() === null
+    })
+    assert.equal(pending, true)
+    await waitForExportReady(page)
+    assert.equal(await input(page, 'keyringAngle').inputValue(), '270')
+    assert.deepEqual(errors, [])
+    writeFileSync(`${directory}/manifest.json`, JSON.stringify(manifest, null, 2))
   } finally { await page.close() }
 })

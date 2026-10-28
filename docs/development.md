@@ -23,6 +23,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | `bun run test:browser` | Check import failures/races, export readiness/downloads, side-by-side desktop editors, independent tracing, keychain settings, the basic/advanced view, and preview zoom in headless Chromium |
 | `bun run test:slicer [Bambu Studio executable]` | Slice browser-test downloads in Bambu Studio CLI and verify color layers, outside-view orientation, blank plates, and filament counts before/after matching face colors |
 | `bun run test:slicer:outline` | Slice issue #15 outline downloads in Bambu Studio CLI and check backing, color layers, holes and connected-component recovery |
+| `bun run test:slicer:keyring` | Slice issue #38 downloads in Bambu Studio CLI and check angled keyring holes, neck material and connected perimeters |
 | `bun run build` | Type-check and build for production |
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |

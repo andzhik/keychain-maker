@@ -110,7 +110,45 @@ function openRings(polygons: MultiPolygon): MultiPolygon {
 function triangulate(rings: Ring[], z: (ring: Ring) => number): Vertex[][] {
   const vertices = rings.flatMap(ring => ring.map(([x, y]) => [x, y, z(ring)] as Vertex))
   const vectors = rings.map(ring => ring.map(([x, y]) => new Vector2(x, y)))
-  return ShapeUtils.triangulateShape(vectors[0], vectors.slice(1)).map(ids => ids.map(i => vertices[i]))
+  const triangles = ShapeUtils.triangulateShape(vectors[0], vectors.slice(1))
+  // Earcut can skip a collinear boundary vertex while bridging a hole. Restore
+  // it on the exposed cap edge so caps and walls share exactly the same edges.
+  const edgeKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`
+  const boundary = new Set<string>()
+  let start = 0
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length; i++) boundary.add(edgeKey(start + i, start + (i + 1) % ring.length))
+    start += ring.length
+  }
+  const counts = new Map<string, number>()
+  for (const ids of triangles) for (let i = 0; i < 3; i++) {
+    const key = edgeKey(ids[i], ids[(i + 1) % 3])
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const repaired: number[][] = []
+  for (const ids of triangles) {
+    let pieces = [ids]
+    for (let i = 0; i < 3; i++) {
+      const a = ids[i], b = ids[(i + 1) % 3], key = edgeKey(a, b)
+      if (boundary.has(key) || counts.get(key) !== 1) continue
+      const [ax, ay] = vertices[a], [bx, by] = vertices[b]
+      const dx = bx - ax, dy = by - ay, lengthSq = dx * dx + dy * dy
+      const splits = vertices.flatMap(([x, y], id) => {
+        const t = ((x - ax) * dx + (y - ay) * dy) / lengthSq
+        return id !== a && id !== b && t > 1e-10 && t < 1 - 1e-10
+          && Math.abs((x - ax) * dy - (y - ay) * dx) < 1e-8 * Math.sqrt(lengthSq) ? [{ id, t }] : []
+      }).sort((p, q) => p.t - q.t)
+      if (!splits.length) continue
+      pieces = pieces.flatMap(piece => {
+        const edge = piece.findIndex((id, j) => id === a && piece[(j + 1) % 3] === b)
+        if (edge < 0) return [piece]
+        const chain = [a, ...splits.map(p => p.id), b], c = piece[(edge + 2) % 3]
+        return chain.slice(0, -1).map((id, j) => [id, chain[j + 1], c])
+      })
+    }
+    repaired.push(...pieces)
+  }
+  return repaired.map(ids => ids.map(i => vertices[i]))
 }
 
 /** The area between strictly nested sections, as contours with holes: each

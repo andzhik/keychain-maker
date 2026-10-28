@@ -182,7 +182,7 @@ const specksInfo = computed(() => `Deletes pieces, and fills holes, narrower tha
           </button>
         </div>
         <p class="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
-          <span>Outside view · keyring at top{{ mirror ? ' · mirrored' : '' }}</span>
+          <span>Outside view · artwork upright{{ mirror ? ' · mirrored' : '' }}</span>
           <button
             v-if="faceMode === 'artwork' && hiddenShapeCount"
             type="button"

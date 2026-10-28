@@ -33,6 +33,21 @@ test('padding is not raised for the hole when the keyring is off', () => {
   expect(adjustments).toEqual([])
 })
 
+test('outline keyring angles include both endpoints and validate only when used', () => {
+  for (const keyringAngle of [0, 37, 90, 180, 270, 360]) {
+    const result = validateConfig(config({ basePlateShape: 'outline', keyringAngle }))
+    expect(result.valid).toBe(true)
+    expect(result.config.keyringAngle).toBe(keyringAngle)
+  }
+  for (const keyringAngle of [-1, 361, NaN, Infinity]) {
+    const result = validateConfig(config({ basePlateShape: 'outline', keyringAngle }))
+    expect(result.valid).toBe(false)
+    expect(result.messages.find(m => m.code === 'INVALID_KEYRING_ANGLE')?.field).toBe('keyringAngle')
+    expect(validateConfig(config({ basePlateShape: 'outline', keyringAngle, keyringEnabled: false })).valid).toBe(true)
+    expect(validateConfig(config({ keyringAngle })).valid).toBe(true)
+  }
+})
+
 test('padding always leaves room for the logo', () => {
   const { config: out, adjustments } = constrainConfig(config({ targetWidth: 20, padding: 15 }))
 

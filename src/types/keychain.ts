@@ -10,7 +10,7 @@ export interface ColorGroup {
 export type Face = 'front' | 'back'
 export type FaceMode = 'artwork' | 'same' | 'empty'
 
-/** Mirror is relative to looking at this face from outside, keyring at the top. */
+/** Mirror is relative to looking at this face from outside, artwork upright. */
 export interface FaceArtwork { groups: ColorGroup[]; mirror: boolean }
 export interface KeychainArtwork { front: FaceArtwork; back: FaceArtwork }
 
@@ -39,6 +39,8 @@ export interface KeychainConfig {
   outlineOffset: number
   targetWidth: number
   keyringEnabled: boolean
+  /** Outline attachment direction, clockwise from the top in Front's outside view. */
+  keyringAngle: number
   keyringHoleDiameter: number
   keyringRingDiameter: number
   edgeBevel: number
@@ -104,6 +106,7 @@ export const DEFAULT_CONFIG: KeychainConfig = {
   outlineOffset: 2,
   targetWidth: 50,
   keyringEnabled: true,
+  keyringAngle: 0,
   keyringHoleDiameter: 5,
   keyringRingDiameter: 10,
   edgeBevel: 0.6,

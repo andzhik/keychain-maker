@@ -42,12 +42,24 @@ silently discarded, and the keyring does not connect separate pieces.
 
 ![Disconnected artwork blocks Download and explains how to recover](img/svg-outline-disconnected.png)
 
-The keyring attaches at the boundary point on the highest edges closest to the
-center, so a flat top gets a centered loop and a single tip anchors at the tip,
-using a rounded, reinforced neck of the loop's diameter. The hole's bottom
-sits 1 mm above the silhouette's top, clear of both faces' artwork. Loop/hole size
-constraints still apply. Edge chamfer is capped to keep the hole open, as on
-every plate shape with a keyring.
+With **Keyring loop** enabled, **Keyring position** moves the loop around the
+outline from **0–360°**, clockwise as seen from Front: **0°/360° top, 90° right,
+180° bottom, 270° left**. The control is available in basic view. The plate,
+artwork and face views stay upright while the attachment moves.
+
+The keyring attaches to the outermost boundary in the selected direction,
+nearest the center line perpendicular to that direction. A flat edge gets a
+centered loop and a sharp tip anchors at the tip; asymmetric and concave shapes
+can switch between outer tips as the direction changes. A rounded, reinforced
+neck of the loop's diameter joins it to the plate. The hole stays 1 mm beyond
+the silhouette in that direction, clear of both faces' artwork. Loop/hole size
+constraints still apply. Edge chamfer is capped to keep the hole open.
+
+The angle is saved with the plate settings, including while the keyring is off
+or another plate shape is selected. Rectangle and Circle keep their top
+attachment. Existing sessions default to 0°, preserving their original loop.
+Invalid angles or an attachment that cannot form one connected plate with an
+open hole block Download and show recovery guidance.
 
 The flat faces retain the requested border. The chamfer bulges outward by up to
 its configured size, matching existing plate sizing conventions. For arbitrary
@@ -78,9 +90,21 @@ toolpath SVGs are under `test-output/face-slicer/outline-*/`.
 The harness adjusts the exporter's version/profile metadata for the installed
 Bambu 1.9 CLI; it preserves mesh coordinates, topology and part assignments.
 
-Implementation validation: production build, 234 unit tests and 55 browser tests
-passed (browser files run sequentially to avoid concurrent startup timeouts).
-All 27 exports passed Bambu Studio CLI checks, including eight outline exports
-at 25 layers each. Thin 0.8 mm plates with meeting inlays and backed counters
-are also covered by outline geometry tests, with and without bevel.
+Issue [#38](https://github.com/andzhik/keychain-maker/issues/38) adds browser
+checks for slider changes, 0°/360° equivalence, unchanged inlays, reload and
+temporary shape/keyring changes. Additional downloads and a screenshot live
+under `test-output/issue-38/`. Run `bun run test:slicer:keyring` after the browser
+tests to slice these exports with Bambu Studio CLI. It checks that the hole
+stays empty and the reinforced neck prints on every layer, with one connected
+exterior perimeter and one hole perimeter in the middle layer. Logs, G-code
+and toolpath SVGs are under `test-output/face-slicer/keyring-*/`.
+This probe disables arc fitting so its distance checks measure linear extrusion
+segments, and allows Bambu's normal seam gap when checking perimeter closure.
+
+Validation including keyring positions: production build, 247 unit tests and
+56 browser tests passed (browser files run sequentially to avoid concurrent
+startup timeouts). All eight existing outline exports and seven keyring-position
+exports passed Bambu Studio CLI checks at 25 layers each. Thin 0.8 mm plates
+with meeting inlays and backed counters are also covered by outline geometry
+tests, with and without bevel.
 The screenshots above are from the real desktop app, captured by these tests.

@@ -53,6 +53,10 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
     error('basePlateShape', 'INVALID_SHAPE', 'Choose a rectangle, circle or SVG outline plate.')
   }
   if (config.outlineOffset > 20) error('outlineOffset', 'OFFSET_TOO_LARGE', 'Use an outline offset from 0 to 20 mm.')
+  if (config.basePlateShape === 'outline' && config.keyringEnabled
+    && (!Number.isFinite(config.keyringAngle) || config.keyringAngle < 0 || config.keyringAngle > 360)) {
+    error('keyringAngle', 'INVALID_KEYRING_ANGLE', 'Choose a keyring position from 0 to 360 degrees.')
+  }
   if (!/^#[\da-f]{6}$/i.test(config.baseColor)) error('baseColor', 'INVALID_COLOR', 'Choose a six-digit hex plate color.')
   if (config.keyringEnabled && config.keyringRingDiameter <= 2 * MIN_KEYRING_WALL) {
     error('keyringRingDiameter', 'RING_TOO_SMALL', 'Increase the loop size above 2 mm to leave room for its hole and walls.')

@@ -35,7 +35,8 @@ const INFO = {
   artworkWidth: 'Each face’s artwork is fitted to this width before the outline offset. Final plate size includes the border, chamfer and keyring.',
   offset: 'Uniform outward distance from the combined artwork silhouette, in mm at print size. Rounded joins preserve concavities. 0 follows the silhouette; interior holes stay backed.',
   plateColor: 'Filament color of the plate. Logo colors you remove show this color.',
-  keyring: 'Adds a loop with a hole at the top, for a key ring or chain.',
+  keyring: 'Adds a loop with a hole for a key ring or chain. SVG outline lets you choose its position; other shapes attach at the top.',
+  keyringAngle: 'Clockwise in Front’s outside view: 0°/360° top, 90° right, 180° bottom, 270° left. Attaches to the outermost edge in that direction, with the hole clear of both faces.',
   hole: 'Make it a little wider than your ring’s wire or chain.',
   loop: 'Outer diameter of the loop. Leave at least 2 mm around the hole so it doesn’t snap.',
   chamfer: 'Softens the sharp top and bottom edges. 0 = sharp edges.',
@@ -153,6 +154,14 @@ function updateField<K extends keyof KeychainConfig>(field: K, value: KeychainCo
         </label>
         <IconTooltip kind="info" label="About Keyring loop" :message="INFO.keyring" align="left" />
       </div>
+      <template v-if="outline && config.keyringEnabled">
+        <SliderField
+          label="Keyring position" unit="°" field="keyringAngle" :info="INFO.keyringAngle"
+          :modelValue="config.keyringAngle" :min="0" :max="360" :step="1"
+          @update:modelValue="v => updateField('keyringAngle', v)"
+        />
+        <p class="text-xs text-gray-500">Front view: 0° top · 90° right · 180° bottom · 270° left.</p>
+      </template>
       <template v-if="showKeyringSizes">
         <SliderField
           label="Hole size" unit="mm" field="keyringHoleDiameter" :info="INFO.hole"
