@@ -160,6 +160,13 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
       logoOutline(artwork[face].groups).map((s: any) => s.extractPoints(16)), fit[face], artwork[face].mirror !== (face === 'back')))
     const plate = createOutlinePlate(cutouts, config)
     const hole = new T.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new T.Vector2())
+    const silhouette = createOutlinePlate(cutouts, { ...config, keyringEnabled: false }).getPoints()
+    const clearance = Math.min(...silhouette.map((a: any, i: number) => {
+      const b = silhouette[(i + 1) % silhouette.length]
+      const edge = b.clone().sub(a)
+      const t = Math.max(0, Math.min(1, hole.clone().sub(a).dot(edge) / (edge.lengthSq() || 1)))
+      return hole.distanceTo(a.clone().addScaledVector(edge, t))
+    })) - config.keyringHoleDiameter / 2
     const root = viewer.exposed.getCurrentGroup()
     const base = root.children[0]
     base.geometry.computeBoundingBox()
@@ -173,7 +180,7 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
     const neckDistance = config.keyringHoleDiameter / 2 + 0.5
     return { hole: [hole.x, hole.y], radius: config.keyringHoleDiameter / 2, bevel: config.edgeBevel,
       neck: [hole.x - Math.sin(angle) * neckDistance, hole.y - Math.cos(angle) * neckDistance],
-      boxCenter: [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2], holeHits,
+      boxCenter: [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2], holeHits, clearance,
       inlays: root.children[1].children.map((mesh: any) => Array.from(mesh.geometry.attributes.position.array)),
     }
   })
@@ -251,21 +258,29 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
     await waitForExportReady(page)
     assert.equal(await input(page, 'keyringAngle').inputValue(), '270')
 
-    // Adjacent angles used to switch between distant outer tips of the s.
+    // Adjacent angles used to switch between distant outer tips of the s;
+    // at 217 degrees, a distant support point also made an excessive neck.
     await page.locator('[aria-label="front image upload"] input[type=file]').setInputFiles('test-svg/smile-heart.svg')
     for (const [field, value] of Object.entries({ targetWidth: 50, outlineOffset: 2, edgeBevel: 0.6,
       keyringHoleDiameter: 5, keyringRingDiameter: 10 })) await input(page, field).fill(String(value))
     let previous: Awaited<ReturnType<typeof readGeometry>> | undefined
-    for (const angle of [271, 272, 273]) {
+    let previousAngle = 0
+    for (const angle of [216, 217, 218, 271, 272, 273]) {
       await input(page, 'keyringAngle').fill(String(angle))
       await waitForExportReady(page)
       const geometry = await readGeometry()
-      if (previous) {
+      if (previous && angle === previousAngle + 1) {
         assert.ok(Math.hypot(...geometry.hole.map((value: number, i: number) => value - previous!.hole[i])) < 1,
           `${angle - 1} to ${angle} degrees must move the hole smoothly`)
         assert.deepEqual(geometry.inlays, previous.inlays)
       }
+      if (angle === 217) {
+        // This mirrored-back setup has deeper scallops than the default two-face union.
+        assert.ok(geometry.clearance >= 1 - 1e-5 && geometry.clearance < 1.5,
+          `the loop must stay close to the outline while retaining 1 mm of clearance (${geometry.clearance.toFixed(3)} mm)`)
+      }
       previous = geometry
+      previousAngle = angle
       await save(`smile-${angle}`)
       await page.getByRole('button', { name: 'Front view', exact: true }).click()
       await page.locator('.inspection-scroll').evaluate(el => { el.scrollTop = 0 })

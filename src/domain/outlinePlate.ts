@@ -54,11 +54,12 @@ export function createOutlinePlate(faces: Shape[], config: KeychainConfig): Shap
     const loopCircle = (cx: number, cy: number, radius: number): Polygon => circle(cx, cy, radius).map(points => points.map(world))
     const ring = plate[0][0].map(([x, y]): Pair => [cos * x - sin * y, sin * x + cos * y])
     const [x, y] = keyringAnchor(ring)
-    const top = ring.reduce((max, p) => Math.max(max, p[1]), -Infinity)
-    const holeY = top + config.keyringHoleDiameter / 2 + KEYRING_ARTWORK_CLEARANCE
+    // A convex clearance envelope keeps radial movement continuous across
+    // concavities without letting a distant sideways tip lengthen the neck.
+    // Only this placement envelope is convex; the plate keeps its silhouette.
+    const holeY = keyringHoleHeight(convexHull(ring), x, config.keyringHoleDiameter / 2 + KEYRING_ARTWORK_CLEARANCE)
     const r = config.keyringRingDiameter / 2
-    // The support line keeps the hole clear of the entire silhouette, including
-    // concavities and independent faces. The capsule overlaps the boundary with area.
+    // The capsule overlaps the actual boundary with area.
     const neck: Polygon = [[world([x - r, y]), world([x + r, y]), world([x + r, holeY]), world([x - r, holeY]), world([x - r, y])]]
     // Bridging a concavity can enclose small pockets; back them like artwork
     // counters before cutting the one intentional through-hole.
@@ -102,6 +103,48 @@ function keyringAnchor(ring: Pair[]): Pair {
     y = Math.max(y, crossing)
   }
   return [x, y]
+}
+
+function convexHull(ring: Pair[]): Pair[] {
+  const sorted = ring.slice(0, -1).sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const cross = (a: Pair, b: Pair, c: Pair) =>
+    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+  const chain = (points: Pair[]) => {
+    const result: Pair[] = []
+    for (const point of points) {
+      while (result.length > 1 && cross(result[result.length - 2], result[result.length - 1], point) <= 0) result.pop()
+      result.push(point)
+    }
+    return result.slice(0, -1)
+  }
+  const hull = [...chain(sorted), ...chain([...sorted].reverse())]
+  return [...hull, hull[0]]
+}
+
+/** Beyond a convex boundary, distance increases monotonically along this ray.
+ * Solve against exact segments rather than a tessellated rounded offset, so
+ * the hole retains its full clearance without adding another polygon offset. */
+function keyringHoleHeight(hull: Pair[], x: number, clearance: number): number {
+  let low = -Infinity
+  for (let i = 1; i < hull.length; i++) {
+    const a = hull[i - 1], b = hull[i]
+    if (x < Math.min(a[0], b[0]) || x > Math.max(a[0], b[0])) continue
+    low = Math.max(low, a[0] === b[0] ? Math.max(a[1], b[1]) : a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]))
+  }
+  let high = Math.max(...hull.map(p => p[1])) + clearance
+  for (let step = 0; step < 40; step++) {
+    const y = (low + high) / 2
+    let distanceSquared = Infinity
+    for (let i = 1; i < hull.length; i++) {
+      const a = hull[i - 1], b = hull[i]
+      const dx = b[0] - a[0], dy = b[1] - a[1]
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy)))
+      distanceSquared = Math.min(distanceSquared, (x - a[0] - t * dx) ** 2 + (y - a[1] - t * dy) ** 2)
+    }
+    if (distanceSquared < clearance * clearance) low = y
+    else high = y
+  }
+  return high
 }
 
 /** Recess cutters for an outline plate. Below the offset tessellation

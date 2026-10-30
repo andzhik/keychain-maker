@@ -42,6 +42,14 @@ function volume(mesh: THREE.Mesh) {
   }
   return result
 }
+function distanceToOutline(point: THREE.Vector2, outline: THREE.Vector2[]) {
+  return Math.min(...outline.map((a, i) => {
+    const b = outline[(i + 1) % outline.length]
+    const edge = b.clone().sub(a)
+    const t = Math.max(0, Math.min(1, point.clone().sub(a).dot(edge) / (edge.lengthSq() || 1)))
+    return point.distanceTo(a.clone().addScaledVector(edge, t))
+  }))
+}
 
 test('a geometric offset preserves a deep concavity and moves straight edges by exactly 2 mm', () => {
   const plate = createOutlinePlate([concave], cfg())
@@ -254,9 +262,11 @@ test('the keyring centres above flat edges and asymmetric sharp tips', () => {
   const flat = hole(createOutlinePlate([rect(-20, -10, 40, 20)], config))
   expect(flat.getCenter(new THREE.Vector2()).x).toBeCloseTo(0, 4)
   expect(flat.min.y).toBeCloseTo(12 + 1, 4)
-  const tip = hole(createOutlinePlate([shape([[-10, -10], [10, -10], [4, 10]])], { ...config, outlineOffset: 0 }))
+  const triangle = shape([[-10, -10], [10, -10], [4, 10]])
+  const tip = hole(createOutlinePlate([triangle], { ...config, outlineOffset: 0 }))
   expect(tip.getCenter(new THREE.Vector2()).x).toBeCloseTo(0, 4)
-  expect(tip.min.y).toBeCloseTo(10 + 1, 4)
+  expect(distanceToOutline(tip.getCenter(new THREE.Vector2()), triangle.getPoints()) - config.keyringHoleDiameter / 2).toBeCloseTo(1, 4)
+  expect(tip.min.y).toBeLessThan(10 + 1)
 })
 
 test('cardinal keyring positions follow Front clockwise and 360 is exactly the same as 0', () => {
@@ -286,6 +296,36 @@ test('one-degree keyring changes stay smooth across the smile wordmark tips', ()
     if (previous) expect(center.distanceTo(previous)).toBeLessThan(1)
     previous = center
   }
+})
+
+test('the smile keyring at 217 degrees stays close to the outline with its full hole open', () => {
+  installDomParserForSvgLoader()
+  const config = cfg({ keyringEnabled: true, keyringAngle: 217 })
+  const parsed = parseGroups(readFileSync(new URL('../../test-svg/smile-heart.svg', import.meta.url), 'utf8'))
+  const artwork = simplifyGroups(parsed, 0.02 / fitFaces(parsed, parsed, config).front.scale).groups
+  const fit = fitFaces(artwork, artwork, config)
+  const outlines = [false, true].flatMap(mirror =>
+    createLogoCutouts(logoOutline(artwork).map(s => s.extractPoints(16)), fit.front, mirror))
+  const plate = createOutlinePlate(outlines, config)
+  const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
+  const silhouette = createOutlinePlate(outlines, { ...config, keyringEnabled: false }).getPoints()
+  const clearance = distanceToOutline(center, silhouette) - config.keyringHoleDiameter / 2
+  expect(clearance).toBeGreaterThanOrEqual(1 - 1e-5)
+  // The continuous convex envelope bridges the wordmark's shallow scallops.
+  // Previously a distant tip pushed this gap to 8.34 mm.
+  expect(clearance).toBeLessThan(1.2)
+  const result = buildKeychainModel({ front: { groups: artwork, mirror: false }, back: { groups: artwork, mirror: false } }, config)
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  try {
+    const base = result.model.root.children[0] as THREE.Mesh
+    for (let angle = 0; angle < 360; angle += 15) {
+      const radius = config.keyringHoleDiameter / 2 - config.edgeBevel - 0.05
+      const x = center.x + Math.cos(angle * Math.PI / 180) * radius
+      const y = center.y + Math.sin(angle * Math.PI / 180) * radius
+      expect(hits(base, x, y)).toHaveLength(0)
+    }
+  } finally { disposeObject(result.model.root) }
 })
 
 test('keyring holes follow the selected radial line across flat edges and asymmetric tips', () => {
@@ -331,8 +371,7 @@ test('angled loops stay closed, attached and clear of concave/asymmetric artwork
     const plate = createOutlinePlate([artwork], config)
     const center = new THREE.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new THREE.Vector2())
     const direction = new THREE.Vector2(Math.sin(keyringAngle * Math.PI / 180), Math.cos(keyringAngle * Math.PI / 180))
-    const support = Math.max(...silhouette.getPoints().map(p => p.dot(direction)))
-    expect(center.dot(direction) - config.keyringHoleDiameter / 2 - support).toBeCloseTo(1, 4)
+    expect(distanceToOutline(center, silhouette.getPoints()) - config.keyringHoleDiameter / 2).toBeGreaterThanOrEqual(1 - 1e-5)
     const base = buildBasePlate(config, 40, 30, [], undefined, plate)
     try {
       expect(openEdges(base)).toBe(0)
