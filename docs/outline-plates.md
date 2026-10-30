@@ -112,3 +112,34 @@ adds three smile-wordmark exports to that CLI check (ten keyring exports total).
 Thin 0.8 mm plates with meeting inlays and backed counters are also covered by outline geometry
 tests, with and without bevel.
 The screenshots above are from the real desktop app, captured by these tests.
+
+## Performance
+
+The outline bevel loft adds work beyond Rectangle/Circle. Closing notches need
+extra sections, each of which triangulates the silhouette again. The notch
+probe previously eroded the whole polygon for each band; these offset operations
+were expensive and their chord approximations could also trigger extra sections.
+It now tests an interior point's distance to the original boundary, including
+holes, directly. Triangulation also uses numeric edge keys and writes mirrored
+caps without allocating copied triangle arrays.
+
+Measured with `bun run benchmark:outline` in headless Chromium on 2026-10-29,
+using default settings and 0.02 mm simplification, five builds after two warm-ups:
+
+| Artwork | Outline build before | Outline build after | Improvement | Plate loft before → after |
+| --- | ---: | ---: | ---: | ---: |
+| outline-star.svg | 28.6 ms | 24.2 ms | 15% | 5.9 → 3.2 ms |
+| c1.svg | 221.0 ms | 157.0 ms | 29% | 84.2 → 35.8 ms |
+| smile-heart.svg | 410.4 ms | 267.8 ms | 35% | 206.1 → 77.3 ms |
+
+These are mesh construction times, excluding import, refinement, debounce and
+rendering; timings vary by machine. The deterministic regression test counts
+expensive polygon offset passes on the detailed smile silhouette instead of
+asserting a machine-dependent duration, and checks that the resulting mesh is closed.
+
+Recess subtraction remains the largest cost after this change (about 179.5 ms
+of the smile build). Further useful work would be caching plate lofts when only
+inlay depth or color changes, and moving synchronous model construction to a
+worker to keep controls responsive. A worker would improve responsiveness;
+reducing CSG work would reduce the build time itself. Outline recesses still
+need CSG for the zero-border, counter and through-inlay cases documented above.

@@ -13,6 +13,7 @@
     "test:slicer:keyring": "node --experimental-strip-types test-render/slice-faces.ts \"C:/Program Files/Bambu Studio/bambu-studio.exe\" --keyring",
     "render": "node --experimental-strip-types test-render/capture.ts",
     "measure": "node --experimental-strip-types test-render/measure.ts",
+    "benchmark:outline": "node --experimental-strip-types test-render/benchmark-outline.ts",
     "rasterize": "node --experimental-strip-types test-render/rasterize.ts"
   },
   "dependencies": {

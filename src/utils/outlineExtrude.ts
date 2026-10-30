@@ -22,13 +22,16 @@ export function extrudeOutline(shape: Shape, thickness: number, bevel: number, s
   function cap(triangles: Vertex[][], up: boolean) {
     for (const [a, b, c] of triangles) {
       const positive = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0
-      positions.push(...a, ...(positive === up ? [...b, ...c] : [...c, ...b]))
+      const second = positive === up ? b : c, third = positive === up ? c : b
+      positions.push(a[0], a[1], up ? core - a[2] : a[2],
+        second[0], second[1], up ? core - second[2] : second[2],
+        third[0], third[1], up ? core - third[2] : third[2])
     }
   }
   // Each bottom vertex has its mirror image on the top bevel.
   function caps(triangles: Vertex[][]) {
     cap(triangles, false)
-    cap(triangles.map(t => t.map(([x, y, z]) => [x, y, core - z] as Vertex)), true)
+    cap(triangles, true)
   }
   const tooComplex = () => new OutlinePlateError('OUTLINE_TOO_COMPLEX',
     'The chamfer outline is too complex. Reduce Edge roundness or increase Simplify outline.')
@@ -113,14 +116,16 @@ function triangulate(rings: Ring[], z: (ring: Ring) => number): Vertex[][] {
   const triangles = ShapeUtils.triangulateShape(vectors[0], vectors.slice(1))
   // Earcut can skip a collinear boundary vertex while bridging a hole. Restore
   // it on the exposed cap edge so caps and walls share exactly the same edges.
-  const edgeKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`
-  const boundary = new Set<string>()
+  // Vertex counts are bounded by SVG_LIMITS, so these integer pair keys are
+  // exact and avoid allocating three strings for every triangle in every band.
+  const edgeKey = (a: number, b: number) => a < b ? a * vertices.length + b : b * vertices.length + a
+  const boundary = new Set<number>()
   let start = 0
   for (const ring of rings) {
     for (let i = 0; i < ring.length; i++) boundary.add(edgeKey(start + i, start + (i + 1) % ring.length))
     start += ring.length
   }
-  const counts = new Map<string, number>()
+  const counts = new Map<number, number>()
   for (const ids of triangles) for (let i = 0; i < 3; i++) {
     const key = edgeKey(ids[i], ids[(i + 1) % 3])
     counts.set(key, (counts.get(key) ?? 0) + 1)
@@ -173,11 +178,30 @@ function bandRegions(inner: MultiPolygon, outer: MultiPolygon): Ring[][] {
 function notchCloses(triangles: Vertex[][], outer: MultiPolygon, width: number, z0: number): boolean {
   const candidates = triangles.filter(t => t.every(v => v[2] === z0) && inradius(t) > OFFSET_ARC_TOLERANCE)
   if (!candidates.length) return false
-  const deep = offsetPolygons(outer, -(width + 2 * OFFSET_ARC_TOLERANCE))
+  const clearance = width + 2 * OFFSET_ARC_TOLERANCE
   return candidates.some(t => {
     const p = incenter(t)
-    return deep.some(([exterior, ...holes]) => contains(exterior, p) && !holes.some(hole => contains(hole, p)))
+    // Being inside an eroded polygon means being inside the original and
+    // farther than the erosion distance from every boundary, including holes.
+    // Test that distance directly instead of offsetting the entire silhouette
+    // again for each recursive notch probe. This also avoids chord-error
+    // slivers in the eroded polygon causing unnecessary subdivisions.
+    return outer.some(([exterior, ...holes]) => contains(exterior, p)
+      && !holes.some(hole => contains(hole, p))
+      && [exterior, ...holes].every(ring => clearsBoundary(ring, p, clearance)))
   })
+}
+
+function clearsBoundary(ring: Ring, [x, y]: Pair, distance: number): boolean {
+  const distanceSq = distance * distance
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[j], b = ring[i], dx = b[0] - a[0], dy = b[1] - a[1]
+    const lengthSq = dx * dx + dy * dy
+    const t = lengthSq ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / lengthSq)) : 0
+    const px = x - a[0] - t * dx, py = y - a[1] - t * dy
+    if (px * px + py * py <= distanceSq) return false
+  }
+  return true
 }
 
 function sides([a, b, c]: Vertex[]) {

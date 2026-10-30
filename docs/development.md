@@ -28,6 +28,7 @@ Then open the local URL printed by Vite, usually `http://localhost:5173`.
 | `bun run preview` | Preview the production build |
 | `bun run render [svg] [config]` | Capture headless render snapshots |
 | `bun run measure [svg] [gpu\|swiftshader]` | Measure slider-change → rendered-frame latency |
+| `bun run benchmark:outline [svg paths...] [--raw]` | Compare Rectangle and SVG outline mesh construction in Chromium |
 | `bun run rasterize [svg format size bg]` | Regenerate PNG/JPEG/WebP tracer fixtures in `test-images/` |
 
 ## Render snapshots
@@ -71,6 +72,15 @@ Historical baseline with a 150 ms debounce (c1.svg, RTX 3070, 1100×814 canvas):
 ~155 ms debounce + ~435 ms build + ~13 ms render ≈ **600 ms** per change.
 The current debounce is **60 ms**; run the probe for current timings. Almost all
 of the historical build time was CSG subtraction (see [design decisions](design-decisions.md)).
+
+`bun run benchmark:outline` isolates mesh construction from debounce, rendering,
+parsing and refinement. It uses the normal two-face configuration (both mirrors
+off), default simplification at the printed size, two warm-up builds and five
+measured builds per shape. It reports medians for the silhouette, plate loft,
+recess subtraction and total, plus finished triangle counts. Results are saved
+to `test-output/outline-performance.json`. Pass SVG paths to choose fixtures,
+or `--raw` to disable simplification. See [outline performance](outline-plates.md#performance)
+for measured results and the remaining bottleneck.
 
 ## Tech stack
 

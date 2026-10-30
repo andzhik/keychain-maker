@@ -1,5 +1,6 @@
-import { expect, test } from 'bun:test'
+import { expect, spyOn, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import ClipperLib from 'clipper-lib'
 import * as THREE from 'three'
 import { createOutlinePlate } from '../../src/domain/outlinePlate'
 import { buildKeychainModel } from '../../src/domain/keychainModel'
@@ -13,6 +14,7 @@ import { disposeObject } from '../../src/three/sceneLifecycle'
 import { DEFAULT_CONFIG, type ColorGroup, type KeychainConfig, type KeychainArtwork } from '../../src/types/keychain'
 import { installDomParserForSvgLoader } from '../helpers/svgDom'
 import { parseGroups } from '../helpers/parseGroups'
+import { simplifyGroups } from '../../src/utils/simplify'
 
 const shape = (points: number[][]) => new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)))
 const rect = (x: number, y: number, w: number, h: number) => shape([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
@@ -223,6 +225,27 @@ test('concave curves do not subdivide the bevel bands', () => {
       expect(mesh.geometry.attributes.position.count / 3).toBeLessThan(600 * bevelSegments)
     } finally { disposeObject(mesh) }
   }
+})
+
+test('a detailed outline keeps polygon offset work within the bevel section budget', () => {
+  installDomParserForSvgLoader()
+  const config = cfg({ keyringEnabled: true })
+  const parsed = parseGroups(readFileSync(new URL('../../test-svg/smile-heart.svg', import.meta.url), 'utf8'))
+  const groups = simplifyGroups(parsed, 0.02 / fitFaces(parsed, parsed, config).front.scale).groups
+  const fit = fitFaces(groups, groups, config)
+  const outlines = [false, true].flatMap(mirror =>
+    createLogoCutouts(logoOutline(groups).map(s => s.extractPoints(16)), fit.front, mirror))
+  const plate = createOutlinePlate(outlines, config)
+  // Count expensive polygon offsets rather than wall time, so the regression
+  // signal is stable across machines. This input needs extra notch sections.
+  const execute = spyOn(ClipperLib.ClipperOffset.prototype, 'Execute')
+  try {
+    const mesh = buildBasePlate(config, fit.width, fit.height, [], undefined, plate)
+    try {
+      expect(execute.mock.calls.length).toBeLessThanOrEqual(14)
+      expect(openEdges(mesh)).toBe(0)
+    } finally { disposeObject(mesh) }
+  } finally { execute.mockRestore() }
 })
 
 test('the keyring centres above flat edges and asymmetric sharp tips', () => {
