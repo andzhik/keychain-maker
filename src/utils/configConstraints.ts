@@ -1,7 +1,9 @@
 import type { KeychainConfig } from '../types/keychain'
 
-/** Thinnest plate material left between the keyring hole and anything else. */
-export const MIN_KEYRING_WALL = 1
+/** Minimum clearance at the flat faces, before the chamfer thickens the wall. */
+export const MIN_KEYRING_WALL = 0.4
+/** Space between the keyring hole and the artwork at the flat faces. */
+export const KEYRING_ARTWORK_CLEARANCE = 1
 /** Smallest logo extent (mm) the padding may shrink the logo to. */
 export const MIN_LOGO_SIZE = 4
 
@@ -38,7 +40,7 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
   const messages: ConfigMessage[] = []
   const error = (field: keyof KeychainConfig, code: string, message: string) =>
     messages.push({ field, code, message, severity: 'error' })
-  const nonnegative = ['padding', 'cornerRadius', 'edgeBevel'] as const
+  const nonnegative = ['padding', 'outlineOffset', 'cornerRadius', 'edgeBevel'] as const
   const positive = ['targetWidth', 'baseThickness', 'logoDepth', 'bevelSegments',
     ...(config.keyringEnabled ? ['keyringHoleDiameter', 'keyringRingDiameter'] as const : [])] as const
   for (const field of [...nonnegative, ...positive]) {
@@ -49,12 +51,17 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
     }
   }
   if (config.bevelSegments > 64) error('bevelSegments', 'TOO_MANY_SEGMENTS', 'Use an edge roundness of at most 64.')
-  if (config.basePlateShape !== 'square' && config.basePlateShape !== 'circle') {
-    error('basePlateShape', 'INVALID_SHAPE', 'Choose a square or circle plate.')
+  if (!['square', 'circle', 'outline'].includes(config.basePlateShape)) {
+    error('basePlateShape', 'INVALID_SHAPE', 'Choose a rectangle, circle or SVG outline plate.')
+  }
+  if (config.outlineOffset > 20) error('outlineOffset', 'OFFSET_TOO_LARGE', 'Use an outline offset from 0 to 20 mm.')
+  if (config.basePlateShape === 'outline' && config.keyringEnabled
+    && (!Number.isFinite(config.keyringAngle) || config.keyringAngle < 0 || config.keyringAngle > 360)) {
+    error('keyringAngle', 'INVALID_KEYRING_ANGLE', 'Choose a keyring position from 0 to 360 degrees.')
   }
   if (!/^#[\da-f]{6}$/i.test(config.baseColor)) error('baseColor', 'INVALID_COLOR', 'Choose a six-digit hex plate color.')
   if (config.keyringEnabled && config.keyringRingDiameter <= 2 * MIN_KEYRING_WALL) {
-    error('keyringRingDiameter', 'RING_TOO_SMALL', 'Increase the loop size above 2 mm to leave room for its hole and walls.')
+    error('keyringRingDiameter', 'RING_TOO_SMALL', `Increase the loop size above ${fmt(2 * MIN_KEYRING_WALL)} mm to leave room for its hole and walls.`)
   }
   if (messages.length) return { config, adjustments, messages, valid: false }
 
@@ -76,14 +83,14 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
     const maxHole = config.keyringRingDiameter - 2 * MIN_KEYRING_WALL
     if (config.keyringHoleDiameter > maxHole) {
       adjust('keyringHoleDiameter', maxHole,
-        `Limited to ${fmt(maxHole)} mm to leave a ${fmt(MIN_KEYRING_WALL)} mm wall inside the ring.`)
+        `Limited to ${fmt(maxHole)} mm to leave a ${fmt(MIN_KEYRING_WALL)} mm wall at the flat faces.`)
     }
   }
 
   // The keyring hole is centred on the plate's top edge, so the padding must
   // keep the logo clear of it.
-  if (config.keyringEnabled) {
-    const minPadding = config.keyringHoleDiameter / 2 + MIN_KEYRING_WALL
+  if (config.keyringEnabled && config.basePlateShape !== 'outline') {
+    const minPadding = config.keyringHoleDiameter / 2 + KEYRING_ARTWORK_CLEARANCE
     if (config.padding < minPadding) {
       adjust('padding', minPadding,
         `Raised to ${fmt(minPadding)} mm so the logo clears the keyring hole.`)
@@ -92,16 +99,22 @@ export function validateConfig(input: KeychainConfig, plate?: { width: number; h
 
   // Padding on both sides must leave room for the logo, or its scale goes ≤ 0.
   const maxPadding = Math.max(0, (config.targetWidth - MIN_LOGO_SIZE) / 2)
-  if (config.padding > maxPadding) {
+  if (config.basePlateShape !== 'outline' && config.padding > maxPadding) {
     adjust('padding', maxPadding,
       `Limited to ${fmt(maxPadding)} mm to leave room for the logo at this width.`)
   }
 
-  if (config.keyringEnabled && config.padding < config.keyringHoleDiameter / 2 + MIN_KEYRING_WALL) {
+  if (config.basePlateShape !== 'outline' && config.keyringEnabled && config.padding < config.keyringHoleDiameter / 2 + KEYRING_ARTWORK_CLEARANCE) {
     error('targetWidth', 'NO_ROOM_FOR_KEYRING', 'Increase the plate width or reduce the keyring hole to leave room for the logo and keyring wall.')
   }
   const bevel = Math.max(0, Math.min(config.edgeBevel, config.baseThickness / 2 - 0.05))
   if (bevel !== config.edgeBevel) adjust('edgeBevel', bevel, `Limited to ${fmt(bevel)} mm to fit the base thickness.`)
+  // Every plate shape bevels the keyring hole's edge, which narrows the hole.
+  if (config.keyringEnabled) {
+    const maxBevel = Math.max(0, config.keyringHoleDiameter / 2 - 0.2)
+    if (config.edgeBevel > maxBevel) adjust('edgeBevel', maxBevel,
+      `Limited to ${fmt(maxBevel)} mm so the keyring hole stays open through the chamfer.`)
+  }
   const segments = Math.max(1, Math.round(config.bevelSegments))
   if (segments !== config.bevelSegments) adjust('bevelSegments', segments, `Rounded to ${segments}.`)
   // The artwork determines square-plate height; callers with a logo supply its fitted size.

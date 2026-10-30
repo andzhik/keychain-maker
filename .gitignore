@@ -34,3 +34,4 @@ coverage/
 
 # Render harness screenshots (test-render/capture.ts)
 test-output/
+.tmp/

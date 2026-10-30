@@ -4,6 +4,7 @@ import { MeshBVH } from 'three-mesh-bvh'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { ColorGroup, KeychainConfig } from '../types/keychain'
 import type { Profiler } from './profiler'
+import { extrudeOutline } from './outlineExtrude'
 
 /**
  * Mesh build pipeline (keep this order in code and callers):
@@ -164,7 +165,7 @@ function buildKeyringHolePath(config: KeychainConfig, h: number): THREE.Path {
   return holePath
 }
 
-function clampBevel(config: KeychainConfig): number {
+export function clampBevel(config: KeychainConfig): number {
   const maxBevel = config.baseThickness / 2 - 0.05
   const bevel = Math.max(0, Math.min(config.edgeBevel, maxBevel))
   return bevel <= 0.01 ? 0 : bevel
@@ -234,7 +235,12 @@ export function buildBasePlate(
   height: number,
   logoCutouts: THREE.Shape[] = [],
   profiler?: Profiler,
+  outline?: THREE.Shape,
 ): THREE.Mesh {
+  if (outline) {
+    return new THREE.Mesh(extrudeOutline(outline, config.baseThickness, clampBevel(config), config.bevelSegments),
+      new THREE.MeshStandardMaterial({ color: config.baseColor }))
+  }
   const r = config.basePlateShape === 'circle'
     ? Math.min(width, height) / 2
     : Math.min(config.cornerRadius, width / 2, height / 2)
@@ -372,7 +378,7 @@ export function cutoutBasePlateHoles(
   profiler?: Profiler,
 ): void {
   const bevel = clampBevel(config)
-  if (logoCutouts.length === 0 || (bevel === 0 && config.logoDepth >= config.baseThickness / 2)) return
+  if (logoCutouts.length === 0 || (config.basePlateShape !== 'outline' && bevel === 0 && config.logoDepth >= config.baseThickness / 2)) return
 
   const geometry = subtractCutoutHoles(basePlate.geometry, logoCutouts, config, profiler)
   basePlate.geometry.dispose()

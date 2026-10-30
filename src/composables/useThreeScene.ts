@@ -135,7 +135,7 @@ export function useThreeScene() {
       (camera.top - camera.bottom) / (2 * radius)
     )
     camera.updateProjectionMatrix()
-    // The display rotation puts Front on +Y, Back on -Y, and the keyring at -Z.
+    // The display rotation puts Front on +Y, Back on -Y, and artwork's top at -Z.
     camera.up.set(0, face ? 0 : 1, face ? -1 : 0)
     const offset = (face ? new THREE.Vector3(0, face === 'front' ? 1 : -1, 0)
       : new THREE.Vector3(1, 1, 1).normalize()).multiplyScalar(radius * 2)

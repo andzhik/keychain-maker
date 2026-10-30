@@ -9,11 +9,15 @@
     "test": "bun test tests/unit",
     "test:browser": "node --experimental-strip-types --test tests/browser/*.test.ts",
     "test:slicer": "node --experimental-strip-types test-render/slice-faces.ts",
+    "test:slicer:outline": "node --experimental-strip-types test-render/slice-faces.ts \"C:/Program Files/Bambu Studio/bambu-studio.exe\" --outline",
+    "test:slicer:keyring": "node --experimental-strip-types test-render/slice-faces.ts \"C:/Program Files/Bambu Studio/bambu-studio.exe\" --keyring",
     "render": "node --experimental-strip-types test-render/capture.ts",
     "measure": "node --experimental-strip-types test-render/measure.ts",
+    "benchmark:outline": "node --experimental-strip-types test-render/benchmark-outline.ts",
     "rasterize": "node --experimental-strip-types test-render/rasterize.ts"
   },
   "dependencies": {
+    "clipper-lib": "6.4.2",
     "polygon-clipping": "0.15.7",
     "three": "^0.170.0",
     "three-3mf-exporter": "^45.1.0",
@@ -23,6 +27,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.14",
+    "@types/clipper-lib": "6.4.0",
     "@types/three": "^0.170.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "fast-xml-parser": "5.4.2",

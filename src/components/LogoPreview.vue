@@ -198,7 +198,7 @@ defineExpose({ resetZoom, zoomed: computed(() => zoom.value !== null) })
       class="logo-preview block w-full h-full"
       :class="{ 'touch-none': zoomable }"
       role="img"
-      :aria-label="`${faceLabel ?? 'Logo'} outside view, keyring at top${mirror ? ', mirrored horizontally' : ''}${readOnly ? ': shared with Front, read-only' : ': click a shape to hide or restore it'}`"
+      :aria-label="`${faceLabel ?? 'Logo'} outside view, artwork upright${mirror ? ', mirrored horizontally' : ''}${readOnly ? ': shared with Front, read-only' : ': click a shape to hide or restore it'}`"
       v-on="zoomable ? {
         wheel: (e: WheelEvent) => { e.preventDefault(); onWheel(e) },
         pointerdown: onPointerDown,

@@ -13,16 +13,16 @@ Keychain Maker takes a clean, filled SVG, separates its shapes by color, builds 
 - Upload an SVG logo and preview it immediately in 3D
 - Start with the basic controls; tick **Advanced options** in the header to see every setting (see [Basic and advanced options](#basic-and-advanced-options))
 - Choose Front and Back artwork independently, reuse Front on Back, or set either face's image to None
-- Mirror each populated face horizontally, with previews labeled as outside views with the keyring at the top
+- Mirror each populated face horizontally, with previews labeled as upright outside views
 - Or upload a PNG, JPEG or WebP: it's traced into flat colors in the browser (choose whether to drop an opaque background; advanced options set the maximum number of printed colors, how much outlines are smoothed, how readily corners are rounded off, and whether nearly level edges are straightened)
 - Preserve logo colors as separate printable materials, with overlapping shapes resolved in paint order
 - Prepare the logo for printing: change, merge or remove colors, limit it to **Max colors**, remove small details below a size in mm, click shapes in the 2D preview to remove them, and see features too thin for your nozzle highlighted in red
 - Toggle each face's red thin-area overlay from its inline or enlarged preview; those two views share the setting, while printability warnings stay visible
 - **Simplify outlines** to a tolerance in mm (0.02 mm by default) to cut the model's polygon count, and compare the result against the original in an enlarged, zoomable 2D preview that opens in the right column, leaving both face editors usable
-- Choose a square or circle base plate
+- Choose a rectangle, circle or [SVG outline](outline-plates.md) base plate
 - Tune the plate's width (diameter for a circle), thickness and color; advanced options add corner rounding, border, edge chamfer and edge roundness
 - Set the inlay depth in mm on each face (0.6 mm by default), leaving the middle in the plate material to reduce filament changes and purging
-- Add or remove the keyring loop, and set its hole and loop size
+- Add or remove the keyring loop, set its hole and loop size, and move it around an SVG outline with Keyring position (0–360°)
 - Inspect the model with an interactive Three.js viewport
 - Export a multi-color `.3mf` for modern slicers
 - See actionable import errors and export readiness; failed imports clear the previous artwork, and downloads wait for the current model to finish building
@@ -55,7 +55,7 @@ in the header to show the rest; the choice is remembered in this browser and
 | Always shown | Advanced |
 | --- | --- |
 | Face: Image, upload, Remove background (pictures), preview, Thin areas, colors, Max colors | Face: tracing Colors, Smoothing, Corner rounding, Straighten edges; Mirror horizontally; Merge similar; Match Front/Back; Cleanup (Remove small details, Simplify outlines); import cleanup details |
-| Keychain: Shape, Width or Diameter, Thickness, Plate color, Keyring loop | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
+| Keychain: Shape, Width or Diameter, Outline offset (SVG outline), Thickness, Plate color, Keyring loop, Keyring position (SVG outline) | Keychain: Corner rounding, Border, Hole size, Loop size, Edge chamfer, Edge roundness, Inlay depth; Printer: Nozzle size, Single-line walls |
 
 A hidden setting still appears when it matters: when it differs from its
 default, when a warning or automatic adjustment refers to it (for example,
@@ -64,11 +64,16 @@ a trace fails. **Remove small details** is available only with **Advanced option
 its saved setting still applies when advanced options are off.
 
 **Mirror horizontally** changes only that panel's face. The 2D preview shows
-that face from outside, with the keyring at the top, matching the 3D model and
+that face from outside, with the artwork upright, matching the 3D model and
 export. Fresh sessions leave Mirror off on both faces, so text reads normally
 on each side. Older single-image saved sessions keep Back mirrored to preserve
 their original orientation. Use **Front** and **Back** above the 3D view to
 inspect either outside face; **Reset View** returns to the isometric view.
+
+In SVG outline mode, **Keyring position** sets the loop's direction clockwise
+from Front's top: 0°/360° top, 90° right, 180° bottom, 270° left. It moves the
+attachment without rotating the artwork. The angle survives reloads, toggling
+the keyring, and switching plate shapes. Other plate shapes attach at the top.
 
 Each image is centered independently and keeps its aspect ratio. A rectangle
 has the configured Width; each image fills the width remaining after Border on
@@ -76,6 +81,17 @@ both sides. The taller fitted image sets the shared plate height, including top
 and bottom borders, so the shorter image has extra vertical space. A circle
 keeps the configured diameter; each image's farthest outline point fits inside
 the radius remaining after Border. Faces without an image do not affect the plate size.
+
+**SVG outline** follows the union of both faces' visible, refined artwork after
+mirroring. Width sizes each face's artwork before the border; **Outline offset**
+adds a uniform outward distance in mm, including concave sections, with rounded
+joins. Zero follows the silhouette. Interior holes stay backed by plate material.
+Border and Corner rounding do not apply. The chamfer extends outward beyond this
+flat-face outline, as for the other shapes, and the optional keyring adds a
+reinforced attachment at the highest point. Dimensions show the finished model.
+If the offset leaves separate pieces, Download is disabled: increase the offset,
+hide disconnected artwork, or choose a rectangle or circle. An outline needs
+visible artwork; choose another shape for a blank plate. See [sizing and geometry](outline-plates.md).
 
 Inlay depth applies independently inward from each populated face and is capped
 at half the plate thickness. At that limit different inlays meet only where
@@ -191,7 +207,14 @@ The Printer card applies to both faces, including when the selected face's image
 
 The base-thickness and keyring-wall messages are advisory: the base recommendation
 is the larger of 1.2 mm or three nozzle widths, and the keyring-wall recommendation
-is 2 mm. These strength guidelines do not block export of valid geometry.
+is 2 mm at the flat faces. This is advice; the hard minimum face wall is 0.4 mm,
+so a 6 mm loop accepts a hole up to 5.2 mm. Hole size and Loop size are diameters at those faces.
+The edge chamfer widens the loop and narrows the hole through the middle, adding
+twice the effective chamfer size to the middle wall. For example, a 6 mm loop
+and 4 mm hole leave 1 mm at the faces and 2.2 mm in the middle with a 0.6 mm
+chamfer. The warning shows both measurements when chamfered; slicer line counts
+in middle layers describe the thicker wall. These strength guidelines do not
+block export of valid geometry.
 
 Tiny logo islands are also flagged when their filled area (minus holes) is less
 than a disc the minimum printable width across. This complements the raster thin-feature
