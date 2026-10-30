@@ -50,8 +50,10 @@ artwork and face views stay upright while the attachment moves.
 
 The hole follows the selected radial direction from the artwork's center,
 moving smoothly as the angle changes. A rounded, reinforced neck of the loop's
-diameter joins it to the outermost outline crossing on that line; it does not
-snap sideways between outer tips. The hole stays 1 mm outside a convex envelope
+diameter joins it to the nearest outline edge, perpendicular to that edge
+(or toward the nearest corner). The neck follows the local boundary rather
+than reaching toward the artwork's center, so it does not stretch a flap
+across adjacent letters. The hole stays 1 mm outside a convex envelope
 of the combined silhouette, clear of both faces' artwork. Only loop placement
 uses this envelope; the plate keeps the artwork's concavities. This keeps the
 loop close to the outline at diagonal angles without jumps as it crosses a
@@ -98,7 +100,8 @@ Issue [#38](https://github.com/andzhik/keychain-maker/issues/38) adds browser
 checks for slider changes, 0°/360° equivalence, unchanged inlays, reload and
 temporary shape/keyring changes. Additional downloads and a screenshot live
 under `test-output/issue-38/`, including adjacent 271°/272°/273° smile-wordmark
-positions, plus 216°/217°/218° regressions for excessive neck length. Unit tests
+positions, plus 216°/217°/218° regressions for excessive neck length and
+286°/287°/288° regressions for perpendicular attachment to the local edge. Unit tests
 sweep all 361 integer angles on flat, concave and asymmetric silhouettes to
 catch jumps. Run `bun run test:slicer:keyring` after
 the browser tests to slice these exports with Bambu Studio CLI. It checks that the hole
@@ -108,12 +111,14 @@ and toolpath SVGs are under `test-output/face-slicer/keyring-*/`.
 This probe disables arc fitting so its distance checks measure linear extrusion
 segments, and allows Bambu's normal seam gap when checking perimeter closure.
 
-Validation for compact diagonal placement: the production build, 277 unit tests
-and all three outline browser tests passed. All thirteen keyring exports passed
-Bambu Studio CLI checks at 25 layers each, including the six smile-wordmark
-exports for continuity and neck length. The 217° regression checks the gap to
+Validation for compact local attachment: the production build, 279 unit tests
+and all three outline browser tests passed. All sixteen keyring exports passed
+Bambu Studio CLI checks at 25 layers each, including the nine smile-wordmark
+exports for continuity and local neck placement. The 217° regression checks the gap to
 the outline and probes the opening in the finished recessed mesh; browser tests
-also compare every exported triangle to the preview.
+also compare every exported triangle to the preview. The 287° regressions check
+that no flap extends above the adjacent letter on flat and chamfered plates,
+including the actual browser model. Slicer neck probes follow the local normal.
 Thin 0.8 mm plates with meeting inlays and backed counters are also covered by outline geometry
 tests, with and without bevel.
 The screenshots above are from the real desktop app, captured by these tests.

@@ -328,6 +328,23 @@ test('the smile keyring at 217 degrees stays close to the outline with its full 
   } finally { disposeObject(result.model.root) }
 })
 
+for (const edgeBevel of [0, 0.6]) test(`the smile keyring at 287 degrees joins the nearby edge instead of reaching toward the centre (bevel ${edgeBevel})`, () => {
+  installDomParserForSvgLoader()
+  const config = cfg({ keyringEnabled: true, keyringAngle: 287, edgeBevel })
+  const parsed = parseGroups(readFileSync(new URL('../../test-svg/smile-heart.svg', import.meta.url), 'utf8'))
+  const artwork = simplifyGroups(parsed, 0.02 / fitFaces(parsed, parsed, config).front.scale).groups
+  const fit = fitFaces(artwork, artwork, config)
+  const outlines = createLogoCutouts(logoOutline(artwork).map(s => s.extractPoints(16)), fit.front)
+  const plate = createOutlinePlate(outlines, config)
+  const mesh = buildBasePlate(config, fit.width, fit.height, [], undefined, plate)
+  try {
+    // Above the m, well away from the loop over the s: the old radial neck
+    // filled this point even on a flat plate with no recesses or artwork mesh.
+    expect(hits(mesh, -10, 7)).toHaveLength(0)
+    expect(openEdges(mesh)).toBe(0)
+  } finally { disposeObject(mesh) }
+})
+
 test('keyring holes follow the selected radial line across flat edges and asymmetric tips', () => {
   for (const artwork of [rect(-20, -10, 40, 20), concave, shape([[-10, -10], [10, -10], [4, 10]])]) {
     const config = cfg({ keyringEnabled: true, outlineOffset: 0, edgeBevel: 0 })

@@ -16,6 +16,9 @@ const CHAMFER_CLEARANCE = 0.0001
 // Clipping tangent, rotated arcs can leave adjacent points ~1e-15 mm apart.
 // Merge those before triangulation, far below the offset's 0.00001 mm precision.
 const COINCIDENT_TOLERANCE = 1e-8
+// Bury the cap/side junction just inside the boundary, avoiding coincident
+// clipping events at the ends of an edge. Far below print/offset chord tolerances.
+const ATTACHMENT_OVERLAP = 0.0001
 
 function circle(x: number, y: number, radius: number): Polygon {
   // Exact axis crossings keep capsule tangencies shared with its straight sides.
@@ -51,20 +54,29 @@ export function createOutlinePlate(faces: Shape[], config: KeychainConfig): Shap
     const cos = Math.abs(Math.cos(angle)) < 1e-12 ? 0 : Math.cos(angle)
     const sin = Math.abs(Math.sin(angle)) < 1e-12 ? 0 : Math.sin(angle)
     const world = ([x, y]: Pair): Pair => [cos * x + sin * y, -sin * x + cos * y]
-    const loopCircle = (cx: number, cy: number, radius: number): Polygon => circle(cx, cy, radius).map(points => points.map(world))
     const ring = plate[0][0].map(([x, y]): Pair => [cos * x - sin * y, sin * x + cos * y])
-    const [x, y] = keyringAnchor(ring)
+    const x = keyringLineX(ring)
     // A convex clearance envelope keeps radial movement continuous across
     // concavities without letting a distant sideways tip lengthen the neck.
     // Only this placement envelope is convex; the plate keeps its silhouette.
     const holeY = keyringHoleHeight(convexHull(ring), x, config.keyringHoleDiameter / 2 + KEYRING_ARTWORK_CLEARANCE)
     const r = config.keyringRingDiameter / 2
-    // The capsule overlaps the actual boundary with area.
-    const neck: Polygon = [[world([x - r, y]), world([x + r, y]), world([x + r, holeY]), world([x - r, holeY]), world([x - r, y])]]
+    const [ax, ay] = closestBoundaryPoint(ring, x, holeY)
+    const dx = x - ax, dy = holeY - ay, distance = Math.hypot(dx, dy)
+    const nx = dx / distance, ny = dy / distance, length = distance + ATTACHMENT_OVERLAP
+    // Join the nearest edge along its normal, rather than reaching toward the
+    // artwork's centre. Build in this frame to keep circle/side tangencies exact.
+    const attachmentWorld = ([u, v]: Pair): Pair => world([ax + u * ny + (v - ATTACHMENT_OVERLAP) * nx, ay - u * nx + (v - ATTACHMENT_OVERLAP) * ny])
+    const loopCircle = (y: number, radius: number): Polygon => circle(0, y, radius).map(points => points.map(attachmentWorld))
+    // One capsule contour avoids boolean seams between tangent circles/sides.
+    const arc = circle(0, 0, r)[0].slice(0, -1)
+    const half = arc.findIndex(([x, y]) => x === -r && y === 0)
+    const neck: Polygon = [[...arc.slice(half), [r, 0] as Pair,
+      ...arc.slice(0, half + 1).map(([x, y]): Pair => [x, y + length]), arc[half]].map(attachmentWorld)]
     // Bridging a concavity can enclose small pockets; back them like artwork
     // counters before cutting the one intentional through-hole.
-    plate = polygonClipping.union(plate, loopCircle(x, y, r), loopCircle(x, holeY, r), neck).map(polygon => [polygon[0]])
-    plate = polygonClipping.difference(plate, loopCircle(x, holeY, config.keyringHoleDiameter / 2))
+    plate = polygonClipping.union(plate, neck).map(polygon => [polygon[0]])
+    plate = polygonClipping.difference(plate, loopCircle(length, config.keyringHoleDiameter / 2))
     plate = plate.map(polygon => polygon.map(cleanRing))
     if (plate.length !== 1 || plate[0].length !== 2) throw new OutlinePlateError('INVALID_KEYRING_POSITION',
       'The keyring could not form a connected loop with an open hole. Change Keyring position or reduce the loop size.')
@@ -88,21 +100,25 @@ function cleanRing(ring: Pair[]): Pair[] {
 }
 
 /** Keep the hole on the selected radial line instead of following the highest
- * tip, which can jump between distant vertices as the direction changes. The
- * neck starts at the outermost boundary crossing on that line. Clamp the line
- * to the silhouette's span for callers with artwork away from the origin. */
-function keyringAnchor(ring: Pair[]): Pair {
+ * tip, which can jump between distant vertices as the direction changes.
+ * Clamp to the silhouette's span for callers with artwork away from the origin. */
+function keyringLineX(ring: Pair[]): number {
   const minX = ring.reduce((min, p) => Math.min(min, p[0]), Infinity)
   const maxX = ring.reduce((max, p) => Math.max(max, p[0]), -Infinity)
-  const x = Math.max(minX, Math.min(maxX, 0))
-  let y = -Infinity
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length]
-    if (x < Math.min(a[0], b[0]) || x > Math.max(a[0], b[0])) continue
-    const crossing = a[0] === b[0] ? Math.max(a[1], b[1]) : a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0])
-    y = Math.max(y, crossing)
+  return Math.max(minX, Math.min(maxX, 0))
+}
+
+function closestBoundaryPoint(ring: Pair[], x: number, y: number): Pair {
+  let closest: Pair = ring[0], distanceSquared = Infinity
+  for (let i = 1; i < ring.length; i++) {
+    const a = ring[i - 1], b = ring[i]
+    const dx = b[0] - a[0], dy = b[1] - a[1]
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)))
+    const point: Pair = [a[0] + t * dx, a[1] + t * dy]
+    const distance = (x - point[0]) ** 2 + (y - point[1]) ** 2
+    if (distance < distanceSquared) { closest = point; distanceSquared = distance }
   }
-  return [x, y]
+  return closest
 }
 
 function convexHull(ring: Pair[]): Pair[] {

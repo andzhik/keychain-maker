@@ -161,12 +161,16 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
     const plate = createOutlinePlate(cutouts, config)
     const hole = new T.Box2().setFromPoints(plate.holes[0].getPoints()).getCenter(new T.Vector2())
     const silhouette = createOutlinePlate(cutouts, { ...config, keyringEnabled: false }).getPoints()
-    const clearance = Math.min(...silhouette.map((a: any, i: number) => {
+    let closest = silhouette[0], distance = Infinity
+    for (let i = 0; i < silhouette.length; i++) {
+      const a = silhouette[i]
       const b = silhouette[(i + 1) % silhouette.length]
       const edge = b.clone().sub(a)
       const t = Math.max(0, Math.min(1, hole.clone().sub(a).dot(edge) / (edge.lengthSq() || 1)))
-      return hole.distanceTo(a.clone().addScaledVector(edge, t))
-    })) - config.keyringHoleDiameter / 2
+      const point = a.clone().addScaledVector(edge, t)
+      if (hole.distanceTo(point) < distance) { closest = point; distance = hole.distanceTo(point) }
+    }
+    const clearance = distance - config.keyringHoleDiameter / 2
     const root = viewer.exposed.getCurrentGroup()
     const base = root.children[0]
     base.geometry.computeBoundingBox()
@@ -176,17 +180,19 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
     root.traverse((node: any) => { if (node.isMesh) meshes.push(node) })
     // The model root has a display rotation; inspect the physical mesh coordinates.
     const holeHits = meshes.flatMap(mesh => ray.intersectObject(new T.Mesh(mesh.geometry, mesh.material))).length
-    const angle = config.keyringAngle * Math.PI / 180
+    const strayNeck = new T.Raycaster(new T.Vector3(-10, 7, 100), new T.Vector3(0, 0, -1))
+    const centerwardNeckHits = meshes.flatMap(mesh => strayNeck.intersectObject(new T.Mesh(mesh.geometry, mesh.material))).length
     const neckDistance = config.keyringHoleDiameter / 2 + 0.5
+    const neck = hole.clone().addScaledVector(hole.clone().sub(closest).normalize(), -neckDistance)
     return { hole: [hole.x, hole.y], radius: config.keyringHoleDiameter / 2, bevel: config.edgeBevel,
-      neck: [hole.x - Math.sin(angle) * neckDistance, hole.y - Math.cos(angle) * neckDistance],
-      boxCenter: [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2], holeHits, clearance,
+      neck: [neck.x, neck.y],
+      boxCenter: [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2], holeHits, clearance, centerwardNeckHits,
       inlays: root.children[1].children.map((mesh: any) => Array.from(mesh.geometry.attributes.position.array)),
     }
   })
   async function save(name: string) {
     await waitForExportReady(page)
-    const { inlays, holeHits, ...geometry } = await readGeometry()
+    const { inlays, holeHits, centerwardNeckHits, ...geometry } = await readGeometry()
     assert.equal(holeHits, 0, 'the current model must leave the through-hole clear of both faces')
     await exportAndCompare(page, name, directory)
     manifest.push({ name, ...geometry })
@@ -265,7 +271,7 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
       keyringHoleDiameter: 5, keyringRingDiameter: 10 })) await input(page, field).fill(String(value))
     let previous: Awaited<ReturnType<typeof readGeometry>> | undefined
     let previousAngle = 0
-    for (const angle of [216, 217, 218, 271, 272, 273]) {
+    for (const angle of [216, 217, 218, 271, 272, 273, 286, 287, 288]) {
       await input(page, 'keyringAngle').fill(String(angle))
       await waitForExportReady(page)
       const geometry = await readGeometry()
@@ -279,6 +285,8 @@ test('#38 keyring position follows the slider, survives mode changes/reload and 
         assert.ok(geometry.clearance >= 1 - 1e-5 && geometry.clearance < 1.5,
           `the loop must stay close to the outline while retaining 1 mm of clearance (${geometry.clearance.toFixed(3)} mm)`)
       }
+      if (angle === 287) assert.equal(geometry.centerwardNeckHits, 0,
+        'the loop must join the nearby s edge without adding a flap toward the centre above the m')
       previous = geometry
       previousAngle = angle
       await save(`smile-${angle}`)
